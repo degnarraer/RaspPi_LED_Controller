@@ -4,5 +4,6 @@
 
 int main() {
     std::cout << "Hello, World!" << std::endl;
+    I2SMicrophone mic = I2SMicrophone("Microphone", 44100, 2, 100);
     return 0;
 } 
