@@ -2,16 +2,14 @@ cmake_minimum_required(VERSION 3.10)
 
 project(RaspPi_LED_Controller)
 
-set(BUILD_TESTING OFF CACHE BOOL "Disable testing")
-
 # Specify where the build files should be output
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${workspaceFolder}/output/lib")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/lib")
 message(STATUS "STATUS: Output Archive Directory: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${workspaceFolder}/output/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/lib")
 message(STATUS "STATUS: Output Library Directory: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${workspaceFolder}/output/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/bin")
 message(STATUS "STATUS: Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 # Find ALSA
