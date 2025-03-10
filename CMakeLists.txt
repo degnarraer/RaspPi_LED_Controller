@@ -1,16 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Specify where the build files should be output
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/lib")
-message(STATUS "Output Archive Directory: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
-
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/lib")
-message(STATUS "Output Library Directory: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/bin")
-message(STATUS "Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-
 project(RaspPi_LED_Controller)
+
+set(BUILD_TESTING OFF CACHE BOOL "Disable testing")
+
+# Specify where the build files should be output
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${workspaceFolder}/output/lib")
+message(STATUS "STATUS: Output Archive Directory: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${workspaceFolder}/output/lib")
+message(STATUS "STATUS: Output Library Directory: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${workspaceFolder}/output/bin")
+message(STATUS "STATUS: Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 # Find ALSA
 find_package(ALSA REQUIRED)
@@ -19,7 +21,7 @@ find_package(ALSA REQUIRED)
 file(GLOB_RECURSE SOURCES "**/*.cpp" "**/*.h")
 
 # Output the list of files collected
-message(STATUS "Collected source files: ${SOURCES}")
+message(STATUS "STATUS: Collected source files: ${SOURCES}")
 
 # Define the executable
 add_executable(RaspPi_LED_Controller ${SOURCES})
