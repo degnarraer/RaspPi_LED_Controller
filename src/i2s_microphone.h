@@ -7,7 +7,7 @@
 #include <functional>
 #include <atomic>
 #include <chrono>
-#include <../submodules/spdlog/include/spdlog.h>
+#include <spdlog/spdlog.h>
 
 
 class I2SMicrophone {
@@ -17,8 +17,7 @@ public:
         if (snd_pcm_open(&handle_, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK) < 0) {
             throw std::runtime_error("Failed to open I2S microphone: " + std::string(snd_strerror(errno)));
         }
-        
-        spdlog::info("Opening device: %s", deviceName_);
+        spdlog::get("logger")->info("Opening device: {}", deviceName_);
         if (snd_pcm_set_params(handle_,
                                SND_PCM_FORMAT_S32_LE,
                                SND_PCM_ACCESS_RW_INTERLEAVED,
@@ -68,12 +67,11 @@ private:
     std::vector<int32_t> ReadAudioData() {
         std::vector<int32_t> buffer(numFrames_ * channels_);
         int framesRead = snd_pcm_readi(handle_, buffer.data(), numFrames_);
-
         if (framesRead < 0) {
-            std::cerr << "Error reading audio data: " << snd_strerror(framesRead) << std::endl;
+            spdlog::get("logger")->error("Error reading audio data: {}", snd_strerror(framesRead));
             snd_pcm_recover(handle_, framesRead, 1); // Try to recover on errors
         } else if (framesRead != static_cast<int>(numFrames_)) {
-            std::cerr << "Warning: Partial read (" << framesRead << " frames read, expected " << numFrames_ << ")" << std::endl;
+            spdlog::get("logger")->warn("Warning: Partial read ({} frames read, expected {})", framesRead, numFrames_);
         }
 
         return buffer;
