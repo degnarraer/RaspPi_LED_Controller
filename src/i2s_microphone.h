@@ -7,6 +7,8 @@
 #include <functional>
 #include <atomic>
 #include <chrono>
+#include <../submodules/spdlog/include/spdlog.h>
+
 
 class I2SMicrophone {
 public:
@@ -15,7 +17,8 @@ public:
         if (snd_pcm_open(&handle_, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK) < 0) {
             throw std::runtime_error("Failed to open I2S microphone: " + std::string(snd_strerror(errno)));
         }
-
+        
+        spdlog::info("Opening device: %s", deviceName_);
         if (snd_pcm_set_params(handle_,
                                SND_PCM_FORMAT_S32_LE,
                                SND_PCM_ACCESS_RW_INTERLEAVED,
