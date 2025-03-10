@@ -8,7 +8,10 @@ set(CMAKE_CXX_STANDARD 17)
 link_directories(/usr/lib/aarch64-linux-gnu)
 
 # Specify the executable
-add_executable(main main.cpp)
+add_executable(main_new main.cpp)
+
+
+find_package(ALSA REQUIRED)
 
 # Link with the ALSA library
 target_link_libraries(main asound)
