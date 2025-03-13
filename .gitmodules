@@ -3,3 +3,7 @@
 	path = submodules/spdlog
 	url = https://github.com/gabime/spdlog.git
 	branch = master
+[submodule "submodules/kissfft"]
+	path = submodules/kissfft
+	url = https://github.com/mborgerding/kissfft.git
+	branch = master
