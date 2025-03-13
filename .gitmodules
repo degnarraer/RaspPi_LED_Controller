@@ -1,4 +1,5 @@
-[submodule "libraries/alsa-lib"]
-	path = libraries/alsa-lib
-	url = https://github.com/alsa-project/alsa-lib.git
+
+[submodule "spdlog"]
+	path = submodules/spdlog
+	url = https://github.com/gabime/spdlog.git
 	branch = master
