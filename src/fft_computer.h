@@ -15,17 +15,22 @@ public:
             throw std::runtime_error("Failed to allocate memory for FFT.");
         }
         fftOutput_.resize(bufferSize_);
-        
-        microphoneSignal.RegisterCallback([](const std::vector<int32_t>& value, void* arg) {
+
+        microphoneSignal = new Signal<std::vector<int32_t>>("Microphone");
+        microphoneSignalCallback_ = [](const std::vector<int32_t>& value, void* arg) {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
             spdlog::get("FFT Computer Logger")->debug("Device {}: Received new values:", self->deviceName_);
             for (int32_t v : value) {
                 spdlog::get("FFT Computer Logger")->trace("Device {}: Value:{}", self->deviceName_, v);
             }
-        });
+        };
+
+        microphoneSignal->RegisterCallback(microphoneSignalCallback_, this);
     }
 
     ~FFTComputer() {
+        microphoneSignal->UnregisterCallbackByArg(this);
+        delete microphoneSignal;
         if (fft_) {
             free(fft_);
         }
@@ -55,7 +60,8 @@ private:
     kiss_fft_cfg fft_;
     std::vector<kiss_fft_cpx> fftOutput_;
     std::function<void(const std::vector<float>&)> fftCallback_;
-    Signal<std::vector<int32_t>> microphoneSignal = Signal<std::vector<int32_t>>("Microphone");
+    Signal<std::vector<int32_t>> *microphoneSignal;
+    std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
 
     // Perform the FFT calculation on the buffer
     void computeFFT() {

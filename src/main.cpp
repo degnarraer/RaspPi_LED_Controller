@@ -22,30 +22,25 @@ void Microphone_Callback(const std::vector<int32_t>& data, const std::string& de
     spdlog::get("Microphone Logger")->trace("Device {}: Callback Data: {}", deviceName, dataStr);
 }
 
+void InitializeLogger(const std::string loggerName, spdlog::level::level_enum level){
+    if (!spdlog::get(loggerName)) {
+        auto logger = spdlog::stdout_color_mt(loggerName);
+        logger->set_level(level);
+        logger->info("{} Configured", loggerName);
+    } 
+}
+
 void InitializeLoggers() {
     spdlog::set_level(spdlog::level::info);
-    if (!spdlog::get("Setup Logger")) {
-        auto logger = spdlog::stdout_color_mt("Setup Logger");
-        logger->set_level(spdlog::level::info);
-        logger->info("Setup Logger Configured");
-    }
-    if (!spdlog::get("Microphone Logger")) {
-        auto logger = spdlog::stdout_color_mt("Microphone Logger");
-        logger->set_level(spdlog::level::info);
-        logger->info("Microphone Logger Configured");
-    }
-    if (!spdlog::get("Speed Log Logger")) {
-        auto logger = spdlog::stdout_color_mt("Speed Log Logger");
-        logger->set_level(spdlog::level::info);
-        logger->info("Speed Log Logger Configured");
-    } 
+    InitializeLogger("Signal Logger", spdlog::level::debug);
+    InitializeLogger("Setup Logger", spdlog::level::info);
+    InitializeLogger("Microphone Logger", spdlog::level::debug);
 }
 
 int main() {
     InitializeLoggers();
-    I2SMicrophone mic = I2SMicrophone("plughw:0,0", 44100, 2, 100);
+    I2SMicrophone mic = I2SMicrophone("plughw:0,0", 44100, 2, 1000, SND_PCM_FORMAT_S32_LE, SND_PCM_ACCESS_RW_INTERLEAVED);
     mic.ReadAudioData();
-    mic.RegisterCallback(Microphone_Callback);
     mic.StartReading();
     std::cin.get(); // Wait for user input to terminate the program
     return 0;

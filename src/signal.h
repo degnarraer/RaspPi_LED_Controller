@@ -21,38 +21,38 @@ public:
 
     void SetValue(const T& value, void* arg = nullptr) {
         std::lock_guard<std::mutex> lock(mutex_);
-        spdlog::get("Speed Log Logger")->debug("SetValue");
+        spdlog::get("Signal Logger")->debug("SetValue");
         *data_ = value;
         NotifyClients(value, arg);
     }
 
     std::shared_ptr<T> GetValue() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        spdlog::get("Speed Log Logger")->debug("GetValue");
+        spdlog::get("Signal Logger")->debug("GetValue");
         return data_;
     }
 
     void RegisterCallback(Callback cb, void* arg = nullptr) {
         std::lock_guard<std::mutex> lock(mutex_);
-        spdlog::get("Speed Log Logger")->debug("Register Callback");
+        spdlog::get("Signal Logger")->debug("Register Callback");
         
         // Check if the arg is already registered
         auto it = std::find_if(callbacks_.begin(), callbacks_.end(),
             [arg](const CallbackData& data) { return data.arg == arg; });
 
         if (it != callbacks_.end()) {
-            spdlog::get("Speed Log Logger")->debug("Existing Callback Updated.");
+            spdlog::get("Signal Logger")->debug("Existing Callback Updated.");
             it->callback = std::move(cb);
         } else {
             // If not found, add a new callback
-            spdlog::get("Speed Log Logger")->debug("New Callback Registered.");
+            spdlog::get("Signal Logger")->debug("New Callback Registered.");
             callbacks_.push_back({std::move(cb), arg});
         }
     }
 
     void UnregisterCallbackByArg(void* arg) {
         std::lock_guard<std::mutex> lock(mutex_);
-        spdlog::get("Speed Log Logger")->debug("Callback Unregistered.");
+        spdlog::get("Signal Logger")->debug("Callback Unregistered.");
         // Remove the callback if the argument matches
         auto it = std::remove_if(callbacks_.begin(), callbacks_.end(),
             [arg](const CallbackData& data) { 
@@ -65,7 +65,7 @@ public:
 
 private:
     void NotifyClients(const T& value, void* arg) {
-        spdlog::get("Speed Log Logger")->debug("NotifyClients.");
+        spdlog::get("Signal Logger")->debug("NotifyClients.");
         for (const auto& data : callbacks_) {
             data.callback(value, data.arg);  // Pass the argument stored in the struct
         }
