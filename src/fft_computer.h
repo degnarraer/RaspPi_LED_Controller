@@ -4,90 +4,134 @@
 #include <spdlog/spdlog.h>
 #include "ring_buffer.h"
 #include "signal.h"
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <queue>
+#include <condition_variable>
+
+enum class ChannelType {
+    Mono,
+    Left,
+    Right
+};
 
 class FFTComputer {
 public:
-    FFTComputer(size_t bufferSize, unsigned int sampleRate)
-        : bufferSize_(bufferSize), sampleRate_(sampleRate), ringBuffer_(bufferSize) {
-        // Initialize the FFT configuration
-        fft_ = kiss_fft_alloc(bufferSize, 0, nullptr, nullptr);  // 0 for forward FFT
+    FFTComputer(std::string name, size_t bufferSize, unsigned int sampleRate)
+        : name_(name), bufferSize_(bufferSize), sampleRate_(sampleRate), stopFlag_(false) {
+        
+        fft_ = kiss_fft_alloc(bufferSize, 0, nullptr, nullptr);
         if (!fft_) {
             throw std::runtime_error("Failed to allocate memory for FFT.");
         }
         fftOutput_.resize(bufferSize_);
-
-        microphoneSignal = new Signal<std::vector<int32_t>>("Microphone");
-        microphoneSignalCallback_ = [](const std::vector<int32_t>& value, void* arg) {
-            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-            spdlog::get("FFT Computer Logger")->debug("Device {}: Received new values:", self->deviceName_);
-            for (int32_t v : value) {
-                spdlog::get("FFT Computer Logger")->trace("Device {}: Value:{}", self->deviceName_, v);
-            }
-        };
-
-        microphoneSignal->RegisterCallback(microphoneSignalCallback_, this);
+        
+        registerCallbacks();
+        
+        fftThread_ = std::thread(&FFTComputer::processQueue, this);
     }
 
     ~FFTComputer() {
-        microphoneSignal->UnregisterCallbackByArg(this);
-        delete microphoneSignal;
+        stopFlag_ = true;
+        cv_.notify_all();
+        if (fftThread_.joinable()) {
+            fftThread_.join();
+        }
+
+        unregisterCallbacks();
         if (fft_) {
             free(fft_);
         }
     }
 
-    // Add new audio data from the microphone to the buffer
-    void addData(const std::vector<int32_t>& data) {
-        for (auto sample : data) {
-            ringBuffer_.push(static_cast<float>(sample));
+    void addData(const std::vector<int32_t>& data, ChannelType channel) {
+        {
+            std::lock_guard<std::mutex> lock(queueMutex_);
+            dataQueue_.emplace(data, channel);
         }
-
-        // If the buffer is full, calculate the FFT
-        if (ringBuffer_.available() >= bufferSize_) {
-            computeFFT();
-        }
+        cv_.notify_one();
     }
 
-    // Register a callback to handle the FFT result
-    void registerFFTCallback(const std::function<void(const std::vector<float>&)>& callback) {
+    void registerFFTCallback(const std::function<void(const std::vector<float>&, ChannelType)>& callback) {
         fftCallback_ = callback;
     }
 
 private:
+    struct DataPacket {
+        std::vector<int32_t> data;
+        ChannelType channel;
+        DataPacket(std::vector<int32_t> d, ChannelType c) : data(std::move(d)), channel(c) {}
+    };
+
     size_t bufferSize_;
     unsigned int sampleRate_;
-    RingBuffer<float> ringBuffer_;
     kiss_fft_cfg fft_;
     std::vector<kiss_fft_cpx> fftOutput_;
-    std::function<void(const std::vector<float>&)> fftCallback_;
-    Signal<std::vector<int32_t>> *microphoneSignal;
-    std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
+    std::function<void(const std::vector<float>&, ChannelType)> fftCallback_;
 
-    // Perform the FFT calculation on the buffer
-    void computeFFT() {
-        std::vector<float> bufferData = ringBuffer_.get_all();
+    std::string name_;
+    std::atomic<bool> stopFlag_;
+    std::thread fftThread_;
+    std::mutex queueMutex_;
+    std::condition_variable cv_;
+    std::queue<DataPacket> dataQueue_;
 
-        // Prepare input data for KissFFT (convert float data to kiss_fft_cpx format)
+    void registerCallbacks() {
+        auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel) {
+            FFTComputer* self = static_cast<FFTComputer*>(arg);
+            spdlog::get("FFT Computer Logger")->debug("Device {}: Received {} channel values:", self->name_, static_cast<int>(channel));
+            self->addData(value, channel);
+        };
+
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->RegisterCallback(
+            [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->RegisterCallback(
+            [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->RegisterCallback(
+            [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this);
+    }
+
+    void unregisterCallbacks() {
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->UnregisterCallbackByArg(this);
+    }
+
+    void processQueue() {
+        while (!stopFlag_) {
+            DataPacket dataPacket({}, ChannelType::Mono);
+
+            {
+                std::unique_lock<std::mutex> lock(queueMutex_);
+                cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
+                if (stopFlag_) break;
+                dataPacket = std::move(dataQueue_.front());
+                dataQueue_.pop();
+            }
+
+            processFFT(dataPacket);
+        }
+    }
+
+    void processFFT(const DataPacket& dataPacket) {
         std::vector<kiss_fft_cpx> inputData(bufferSize_);
-        for (size_t i = 0; i < bufferSize_; ++i) {
-            inputData[i].r = bufferData[i]; // Real part
-            inputData[i].i = 0;             // Imaginary part
+        for (size_t i = 0; i < std::min(bufferSize_, dataPacket.data.size()); ++i) {
+            inputData[i].r = static_cast<float>(dataPacket.data[i]);
+            inputData[i].i = 0;
         }
 
-        // Perform the FFT
         kiss_fft(fft_, inputData.data(), fftOutput_.data());
 
-        // Convert the result to magnitudes
         std::vector<float> magnitudes(bufferSize_);
         for (size_t i = 0; i < bufferSize_; ++i) {
             magnitudes[i] = sqrt(fftOutput_[i].r * fftOutput_[i].r + fftOutput_[i].i * fftOutput_[i].i);
         }
 
-        // If a callback is registered, call it with the FFT magnitudes
         if (fftCallback_) {
-            fftCallback_(magnitudes);
+            fftCallback_(magnitudes, dataPacket.channel);
         }
 
-        spdlog::get("FFT Computer Logger")->info("FFT Computed: {} bins.", bufferSize_);
+        spdlog::get("FFT Computer Logger")->info("FFT Computed: {} bins for channel {}.", bufferSize_, static_cast<int>(dataPacket.channel));
     }
 };

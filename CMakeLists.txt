@@ -15,12 +15,17 @@ message(STATUS "STATUS: Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTO
 # Find ALSA
 find_package(ALSA REQUIRED)
 
+# Include KissFFT source files directly
+file(GLOB KISSFFT_SRC
+    ${CMAKE_SOURCE_DIR}/submodules/kissfft/*.c
+    ${CMAKE_SOURCE_DIR}/submodules/kissfft/*.h
+)
+
 # Collect all .cpp and .h files in the src directory and its subdirectories
 file(GLOB_RECURSE SOURCES 
     "src/*.cpp"
     "src/*.h"
     "submodules/spdlog/include/spdlog.h"
-    "submodules/kissfft/kiss_fft.h"
 )
 
 # Exclude specific unwanted files
@@ -31,11 +36,13 @@ list(FILTER SOURCES EXCLUDE REGEX "submodules/spdlog/tests/.*")
 message(STATUS "STATUS: Collected source files: ${SOURCES}")
 
 # Define the executable
-add_executable(RaspPi_LED_Controller ${SOURCES})
+add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
+
+# Include necessary directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/submodules/spdlog/include
     ${CMAKE_SOURCE_DIR}/submodules/kissfft
 )
 
-# Link ALSA
+# Link ALSA (no need to find KissFFT separately now)
 target_link_libraries(RaspPi_LED_Controller PRIVATE asound)

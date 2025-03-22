@@ -35,6 +35,23 @@ public:
         }
         return result;
     }
+    
+    std::vector<T> get(size_t count) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<T> result;
+        size_t current = readIndex_;
+        size_t available = (writeIndex_ + size_ - readIndex_) % size_; // Calculate available data
+    
+        // Ensure we don't try to read more than what is available
+        count = std::min(count, available);
+    
+        for (size_t i = 0; i < count; ++i) {
+            result.push_back(buffer_[current]);
+            current = (current + 1) % size_;
+        }
+    
+        return result;
+    }
 
 private:
     size_t size_;

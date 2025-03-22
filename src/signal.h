@@ -76,3 +76,38 @@ private:
     mutable std::mutex mutex_;
     std::vector<CallbackData> callbacks_;  // Store callback and arg together
 };
+
+class SignalManager {
+    public:
+        static SignalManager& GetInstance() {
+            static SignalManager instance;
+            return instance;
+        }
+    
+        // Template function to get a signal by name
+        template<typename T>
+        std::shared_ptr<Signal<T>> GetSignal(const std::string& name) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            
+            auto it = signals_.find(name);
+            if (it != signals_.end()) {
+                // If signal exists, return it
+                return std::static_pointer_cast<Signal<T>>(it->second);
+            } else {
+                // If signal doesn't exist, create a new one and return
+                auto signal = std::make_shared<Signal<T>>(name);
+                signals_[name] = signal;
+                return signal;
+            }
+        }
+    
+    private:
+        SignalManager() = default;
+        ~SignalManager() = default;
+    
+        SignalManager(const SignalManager&) = delete;
+        SignalManager& operator=(const SignalManager&) = delete;
+    
+        std::unordered_map<std::string, std::shared_ptr<void>> signals_;
+        std::mutex mutex_;
+};

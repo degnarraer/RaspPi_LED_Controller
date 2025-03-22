@@ -32,11 +32,6 @@ public:
             }
         }
 
-        microphoneSignal = new Signal<std::vector<int32_t>>("Microphone");
-        if(microphoneSignal == nullptr)
-        {
-            throw std::runtime_error("Failed to set create Microphone Signal for: " + deviceName_);
-        }
         microphoneSignalCallback_ = [](const std::vector<int32_t>& value, void* arg) {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
             spdlog::get("Microphone Logger")->debug("Device {}: Received new values:", self->deviceName_);
@@ -44,15 +39,8 @@ public:
                 spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->deviceName_, v);
             }
         };
-        microphoneSignal->RegisterCallback(microphoneSignalCallback_, this);
-
-
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->RegisterCallback(microphoneSignalCallback_, this);
         
-        microphoneLeftChannelSignal = new Signal<std::vector<int32_t>>("Microphone_Left_Channel");
-        if(microphoneLeftChannelSignal == nullptr)
-        {
-            throw std::runtime_error("Failed to set create Microphone Left Channel Signal for: " + deviceName_);
-        }
         microphoneLeftChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg) {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
             spdlog::get("Microphone Logger")->debug("Device {}: Received new Left Channel values:", self->deviceName_);
@@ -60,13 +48,8 @@ public:
                 spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->deviceName_, v);
             }
         };
-        microphoneLeftChannelSignal->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
 
-        microphoneRightChannelSignal = new Signal<std::vector<int32_t>>("Microphone_Right_Channel");
-        if(microphoneRightChannelSignal == nullptr)
-        {
-            throw std::runtime_error("Failed to set create Microphone Right Channel Signal for: " + deviceName_);
-        }
         microphoneRightChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg) {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
             spdlog::get("Microphone Logger")->debug("Device {}: Received new Right Channel values:", self->deviceName_);
@@ -74,14 +57,16 @@ public:
                 spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->deviceName_, v);
             }
         };
-        microphoneRightChannelSignal->RegisterCallback(microphoneRightChannelSignalCallback_, this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->RegisterCallback(microphoneRightChannelSignalCallback_, this);
 
     }
 
     ~I2SMicrophone() {
         stopReading_ = true;
-        microphoneSignal->UnregisterCallbackByArg(this);
-        delete microphoneSignal;
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->UnregisterCallbackByArg(this);
+
         if (readingThread_.joinable()) {
             readingThread_.join();
         }
@@ -119,7 +104,7 @@ public:
                 if (!buffer.empty()) {
                     switch(channels_){
                         case 1:
-                            microphoneSignal->SetValue(buffer);
+                        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->SetValue(buffer);
                         break;
                         case 2:
                             SplitAudioData(buffer);
@@ -149,8 +134,8 @@ public:
         leftChannel.push_back(buffer[i * channels_]);         // Even indices are left channel
         rightChannel.push_back(buffer[i * channels_ + 1]);    // Odd indices are right channel
         }
-        microphoneLeftChannelSignal->SetValue(leftChannel);
-        microphoneRightChannelSignal->SetValue(rightChannel);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->SetValue(leftChannel);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->SetValue(rightChannel);
         spdlog::get("Microphone Logger")->debug("Device {}: Audio data split complete", deviceName_);
     }
 
@@ -201,12 +186,7 @@ private:
     snd_pcm_t* handle_ = nullptr;
     std::atomic<bool> stopReading_;  // Flag to stop reading when destructor is called
     std::thread readingThread_;  // Thread to read audio data asynchronously
-    Signal<std::vector<int32_t>> *microphoneSignal = nullptr;
     std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
-
-    Signal<std::vector<int32_t>> *microphoneLeftChannelSignal = nullptr;
     std::function<void(const std::vector<int32_t>&, void*)> microphoneLeftChannelSignalCallback_;
-    
-    Signal<std::vector<int32_t>> *microphoneRightChannelSignal = nullptr;
     std::function<void(const std::vector<int32_t>&, void*)> microphoneRightChannelSignalCallback_;
 };

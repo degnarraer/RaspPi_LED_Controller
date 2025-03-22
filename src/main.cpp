@@ -32,13 +32,15 @@ void InitializeLogger(const std::string loggerName, spdlog::level::level_enum le
 
 void InitializeLoggers() {
     spdlog::set_level(spdlog::level::info);
-    InitializeLogger("Signal Logger", spdlog::level::debug);
+    InitializeLogger("Signal Logger", spdlog::level::info);
     InitializeLogger("Setup Logger", spdlog::level::info);
     InitializeLogger("Microphone Logger", spdlog::level::debug);
+    InitializeLogger("FFT Computer Logger", spdlog::level::debug);
 }
 
 int main() {
     InitializeLoggers();
+    FFTComputer fftComputer = FFTComputer("FFT Computer", 8192, 44100);
     I2SMicrophone mic = I2SMicrophone("plughw:0,0", 44100, 2, 1000, SND_PCM_FORMAT_S32_LE, SND_PCM_ACCESS_RW_INTERLEAVED);
     mic.ReadAudioData();
     mic.StartReading();
