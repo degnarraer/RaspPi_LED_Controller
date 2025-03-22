@@ -8,11 +8,12 @@
 #include <atomic>
 #include <chrono>
 #include <spdlog/spdlog.h>
+#include "signal.h"
 
 class I2SMicrophone {
 public:
     I2SMicrophone(const std::string& deviceName, unsigned int sampleRate, unsigned int channels, unsigned int numFrames)
-        : deviceName_(deviceName), sampleRate_(sampleRate), channels_(channels), numFrames_(numFrames), stopReading_(false) {
+        : deviceName_(deviceName), sampleRate_(sampleRate), channels_(channels), numFrames_(numFrames), stopReading_(false){
         list_devices();
         if (snd_pcm_open(&handle_, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, 0) < 0) {
             throw std::runtime_error("Failed to open I2S microphone: " + std::string(snd_strerror(errno)));
@@ -30,10 +31,21 @@ public:
                 spdlog::get("Microphone Logger")->info("Device {}: Opened", deviceName_);
             }
         }
+
+        microphoneSignalCallback_ = [](const std::vector<int32_t>& value, void* arg) {
+            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+            spdlog::get("Microphone Logger")->debug("Device {}: Received new values:", self->deviceName_);
+            for (int32_t v : value) {
+                spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->deviceName_, v);
+            }
+        };
+
+        microphoneSignal.RegisterCallback(microphoneSignalCallback_, this);
     }
 
     ~I2SMicrophone() {
         stopReading_ = true;
+        microphoneSignal.UnregisterCallbackByArg(this);
         if (readingThread_.joinable()) {
             readingThread_.join();
         }
@@ -144,9 +156,9 @@ public:
             snd_ctl_close(handle);
         }
     }
-
-private:
+public:
     std::string deviceName_;
+private:
     unsigned int sampleRate_;
     unsigned int channels_;
     unsigned int numFrames_;
@@ -155,4 +167,6 @@ private:
     std::atomic<bool> stopReading_;  // Flag to stop reading when destructor is called
     std::thread readingThread_;  // Thread to read audio data asynchronously
     std::mutex callbackMutex_;  // Mutex to synchronize callback registration/deregistration
+    Signal<std::vector<int32_t>> microphoneSignal = Signal<std::vector<int32_t>>("Microphone");
+    std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
 };

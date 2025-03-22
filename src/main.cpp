@@ -1,6 +1,7 @@
 #include <iostream>
 #include "signal.h"
 #include "i2s_microphone.h"
+#include "fft_computer.h"
 #include <spdlog/spdlog.h>
 #include <sstream>
 

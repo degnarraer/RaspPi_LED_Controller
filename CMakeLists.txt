@@ -20,6 +20,7 @@ file(GLOB_RECURSE SOURCES
     "src/*.cpp"
     "src/*.h"
     "submodules/spdlog/include/spdlog.h"
+    "submodules/kissfft/kiss_fft.h"
 )
 
 # Exclude specific unwanted files
@@ -31,7 +32,10 @@ message(STATUS "STATUS: Collected source files: ${SOURCES}")
 
 # Define the executable
 add_executable(RaspPi_LED_Controller ${SOURCES})
-include_directories(${CMAKE_SOURCE_DIR}/submodules/spdlog/include)
+include_directories(
+    ${CMAKE_SOURCE_DIR}/submodules/spdlog/include
+    ${CMAKE_SOURCE_DIR}/submodules/kissfft
+)
 
 # Link ALSA
 target_link_libraries(RaspPi_LED_Controller PRIVATE asound)
