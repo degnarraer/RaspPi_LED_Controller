@@ -33,6 +33,11 @@ void InitializeLoggers() {
         auto logger = spdlog::stdout_color_mt("Microphone Logger");
         logger->set_level(spdlog::level::info);
         logger->info("Microphone Logger Configured");
+    }
+    if (!spdlog::get("Speed Log Logger")) {
+        auto logger = spdlog::stdout_color_mt("Speed Log Logger");
+        logger->set_level(spdlog::level::info);
+        logger->info("Speed Log Logger Configured");
     } 
 }
 
