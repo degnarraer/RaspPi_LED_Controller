@@ -9,6 +9,8 @@
 #include <mutex>
 #include <queue>
 #include <condition_variable>
+#include <array>
+#include <cmath>
 
 enum class ChannelType {
     Mono,
@@ -16,19 +18,35 @@ enum class ChannelType {
     Right
 };
 
+std::string channelTypeToString(ChannelType channel) {
+    switch (channel) {
+        case ChannelType::Mono:
+            return "Mono";
+        case ChannelType::Left:
+            return "Left";
+        case ChannelType::Right:
+            return "Right";
+        default:
+            return "Unknown";  // In case a new value is added or if an invalid value is passed
+    }
+}
+
+static constexpr std::array<float, 32> SAE_BAND_CENTERS = {
+    20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,
+    800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
+};
+
 class FFTComputer {
 public:
-    FFTComputer(std::string name, size_t bufferSize, unsigned int sampleRate)
-        : name_(name), bufferSize_(bufferSize), sampleRate_(sampleRate), stopFlag_(false) {
+    FFTComputer(const std::string name, const std::string signal_Name, size_t fft_bin_size, unsigned int sampleRate)
+        : name_(name), signal_Name_(signal_Name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), stopFlag_(false) {
         
-        fft_ = kiss_fft_alloc(bufferSize, 0, nullptr, nullptr);
+        fft_ = kiss_fft_alloc(fft_bin_size_, 0, nullptr, nullptr);
         if (!fft_) {
             throw std::runtime_error("Failed to allocate memory for FFT.");
         }
-        fftOutput_.resize(bufferSize_);
-        
+        fftOutput_.resize(fft_bin_size_);        
         registerCallbacks();
-        
         fftThread_ = std::thread(&FFTComputer::processQueue, this);
     }
 
@@ -61,16 +79,18 @@ private:
     struct DataPacket {
         std::vector<int32_t> data;
         ChannelType channel;
+        DataPacket() : data(), channel(ChannelType::Mono) {}
         DataPacket(std::vector<int32_t> d, ChannelType c) : data(std::move(d)), channel(c) {}
     };
 
-    size_t bufferSize_;
+    size_t fft_bin_size_;
     unsigned int sampleRate_;
     kiss_fft_cfg fft_;
     std::vector<kiss_fft_cpx> fftOutput_;
     std::function<void(const std::vector<float>&, ChannelType)> fftCallback_;
 
     std::string name_;
+    std::string signal_Name_;
     std::atomic<bool> stopFlag_;
     std::thread fftThread_;
     std::mutex queueMutex_;
@@ -80,28 +100,27 @@ private:
     void registerCallbacks() {
         auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel) {
             FFTComputer* self = static_cast<FFTComputer*>(arg);
-            spdlog::get("FFT Computer Logger")->debug("Device {}: Received {} channel values:", self->name_, static_cast<int>(channel));
+            spdlog::get("FFT Computer Logger")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
             self->addData(value, channel);
         };
 
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->RegisterCallback(
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(signal_Name_)->RegisterCallback(
             [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->RegisterCallback(
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(signal_Name_ + "_Left_Channel")->RegisterCallback(
             [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->RegisterCallback(
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(signal_Name_ + "_Right_Channel")->RegisterCallback(
             [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this);
     }
 
     void unregisterCallbacks() {
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->UnregisterCallbackByArg(this);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->UnregisterCallbackByArg(this);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(signal_Name_)->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(signal_Name_ + "_Left_Channel")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(signal_Name_ + "_Right_Channel")->UnregisterCallbackByArg(this);
     }
 
     void processQueue() {
         while (!stopFlag_) {
-            DataPacket dataPacket({}, ChannelType::Mono);
-
+            DataPacket dataPacket{};
             {
                 std::unique_lock<std::mutex> lock(queueMutex_);
                 cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
@@ -109,29 +128,54 @@ private:
                 dataPacket = std::move(dataQueue_.front());
                 dataQueue_.pop();
             }
-
             processFFT(dataPacket);
         }
     }
 
     void processFFT(const DataPacket& dataPacket) {
-        std::vector<kiss_fft_cpx> inputData(bufferSize_);
-        for (size_t i = 0; i < std::min(bufferSize_, dataPacket.data.size()); ++i) {
+        std::vector<kiss_fft_cpx> inputData(fft_bin_size_);
+        for (size_t i = 0; i < std::min(fft_bin_size_, dataPacket.data.size()); ++i) {
             inputData[i].r = static_cast<float>(dataPacket.data[i]);
             inputData[i].i = 0;
         }
 
         kiss_fft(fft_, inputData.data(), fftOutput_.data());
 
-        std::vector<float> magnitudes(bufferSize_);
-        for (size_t i = 0; i < bufferSize_; ++i) {
+        std::vector<float> magnitudes(fft_bin_size_, 0.0f);
+        std::vector<float> saeBands(32, 0.0f);
+        for (size_t i = 0; i < fft_bin_size_; ++i) {
             magnitudes[i] = sqrt(fftOutput_[i].r * fftOutput_[i].r + fftOutput_[i].i * fftOutput_[i].i);
         }
 
-        if (fftCallback_) {
-            fftCallback_(magnitudes, dataPacket.channel);
-        }
+        computeSAEBands(magnitudes, saeBands);
+        logSAEBands(saeBands);
 
-        spdlog::get("FFT Computer Logger")->info("FFT Computed: {} bins for channel {}.", bufferSize_, static_cast<int>(dataPacket.channel));
+        if (fftCallback_) {
+            fftCallback_(saeBands, dataPacket.channel);
+        }
+    }
+
+    void logSAEBands(std::vector<float>& saeBands) const {
+        spdlog::get("FFT Computer Logger")->info("SAE Band Values:");
+        std::string result;
+        for (size_t i = 0; i < saeBands.size(); ++i) {
+            if(i > 0) result += " ";
+            result += fmt::format("{:.1f}", saeBands[i]);
+        }
+        spdlog::get("FFT Computer Logger")->trace("{}", result);
+    }
+
+    void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands) {
+        float freqResolution = static_cast<float>(sampleRate_) / fft_bin_size_;
+        for (size_t i = 0; i < 32; ++i) {
+            float bandCenter = SAE_BAND_CENTERS[i];
+            size_t binStart = static_cast<size_t>((bandCenter / std::sqrt(2.0)) / freqResolution);
+            size_t binEnd = static_cast<size_t>((bandCenter * std::sqrt(2.0)) / freqResolution);
+            
+            for (size_t j = binStart; j < binEnd && j < fft_bin_size_; ++j) {
+                saeBands[i] += magnitudes[j];
+            }
+            saeBands[i] /= (binEnd - binStart + 1);
+        }
     }
 };

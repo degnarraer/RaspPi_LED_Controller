@@ -12,8 +12,8 @@
 
 class I2SMicrophone {
 public:
-    I2SMicrophone(const std::string& deviceName, unsigned int sampleRate, unsigned int channels, unsigned int numFrames, _snd_pcm_format snd_pcm_format, _snd_pcm_access snd_pcm_access)
-        : deviceName_(deviceName), sampleRate_(sampleRate), channels_(channels), numFrames_(numFrames), stopReading_(false){
+    I2SMicrophone(const std::string& deviceName, const std::string& signal_Name, unsigned int sampleRate, unsigned int channels, unsigned int numFrames, _snd_pcm_format snd_pcm_format, _snd_pcm_access snd_pcm_access)
+        : deviceName_(deviceName), signal_Name_(signal_Name), sampleRate_(sampleRate), channels_(channels), numFrames_(numFrames), stopReading_(false){
         list_devices();
         if (snd_pcm_open(&handle_, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, 0) < 0) {
             throw std::runtime_error("Failed to open I2S microphone: " + std::string(snd_strerror(errno)));
@@ -180,6 +180,7 @@ public:
     // i2s Microphone Device Name
     std::string deviceName_;
 private:
+    std::string signal_Name_;
     unsigned int sampleRate_;
     unsigned int channels_;
     unsigned int numFrames_;
