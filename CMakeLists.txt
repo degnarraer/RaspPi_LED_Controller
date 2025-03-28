@@ -12,8 +12,36 @@ message(STATUS "STATUS: Output Library Directory: ${CMAKE_LIBRARY_OUTPUT_DIRECTO
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/bin")
 message(STATUS "STATUS: Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
-# Find ALSA
-find_package(ALSA REQUIRED)
+set(PACKAGES libasound2-dev
+    cmake
+    nginx
+    libboost-all-dev )
+
+    foreach(PKG IN LISTS PACKAGES)
+    execute_process(
+        COMMAND dpkg -l ${PKG}
+        OUTPUT_VARIABLE PKG_CHECK
+        ERROR_VARIABLE PKG_ERROR
+        RESULT_VARIABLE PKG_RESULT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(PKG_RESULT EQUAL 0)
+        message(STATUS "${PKG} is already installed.")
+    else()
+        message(STATUS "Installing ${PKG}...")
+        execute_process(
+            COMMAND sudo apt-get install -y ${PKG}
+            RESULT_VARIABLE INSTALL_RESULT
+        )
+        
+        if(INSTALL_RESULT)
+            message(FATAL_ERROR "Failed to install ${PKG}")
+        else()
+            message(STATUS "${PKG} installed successfully.")
+        endif()
+    endif()
+endforeach()
 
 # Include KissFFT source files directly
 file(GLOB KISSFFT_SRC

@@ -2,6 +2,7 @@
 #include "signal.h"
 #include "i2s_microphone.h"
 #include "fft_computer.h"
+#include "websocket_server.h"
 #include <spdlog/spdlog.h>
 #include <sstream>
 
@@ -50,6 +51,13 @@ int main()
     FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", 8192, 48000);
     mic.StartReadingMicrophone();
     //mic.StartReadingSineWave(1000);
+    try {
+        boost::asio::io_context ioc;
+        WebSocketServer server(ioc, 8080);
+        ioc.run();
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
     std::cin.get(); // Wait for user input to terminate the program
     return 0;
 }
