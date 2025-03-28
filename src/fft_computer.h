@@ -38,8 +38,8 @@ static constexpr std::array<float, 32> SAE_BAND_CENTERS = {
 
 class FFTComputer {
 public:
-    FFTComputer(const std::string name, const std::string signal_Name, size_t fft_bin_size, unsigned int sampleRate)
-        : name_(name), signal_Name_(signal_Name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), stopFlag_(false) {
+    FFTComputer(const std::string name, const std::string signal_Name, size_t fft_bin_size, unsigned int sampleRate, int32_t maxValue)
+        : name_(name), signal_Name_(signal_Name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), maxValue_(maxValue), stopFlag_(false) {
         
         fft_ = kiss_fft_alloc(fft_bin_size_, 0, nullptr, nullptr);
         if (!fft_) {
@@ -84,6 +84,7 @@ private:
     };
 
     size_t fft_bin_size_;
+    int32_t maxValue_;
     unsigned int sampleRate_;
     kiss_fft_cfg fft_;
     std::vector<kiss_fft_cpx> fftOutput_;
@@ -143,8 +144,10 @@ private:
 
         std::vector<float> magnitudes(fft_bin_size_, 0.0f);
         std::vector<float> saeBands(32, 0.0f);
+        const float max_int32 = std::numeric_limits<int32_t>::max();
         for (size_t i = 0; i < fft_bin_size_; ++i) {
             magnitudes[i] = sqrt(fftOutput_[i].r * fftOutput_[i].r + fftOutput_[i].i * fftOutput_[i].i);
+            magnitudes[i] /= maxValue_;
         }
 
         computeSAEBands(magnitudes, saeBands);

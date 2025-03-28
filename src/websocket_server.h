@@ -6,7 +6,6 @@
 
 using boost::asio::ip::tcp;
 namespace beast = boost::beast;
-namespace http = beast::http;
 namespace websocket = beast::websocket;
 
 class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
@@ -17,6 +16,16 @@ public:
         ws_.async_accept(
             [self = shared_from_this()](beast::error_code ec) {
                 if (!ec) self->do_read();
+            });
+    }
+
+    void send_message(const std::string& message) {
+        ws_.text(ws_.got_text());  // Ensure we're sending text frames
+        ws_.async_write(boost::asio::buffer(message),
+            [self = shared_from_this()](beast::error_code ec, std::size_t) {
+                if (ec) {
+                    std::cerr << "Error sending message: " << ec.message() << std::endl;
+                }
             });
     }
 
@@ -37,6 +46,7 @@ private:
         auto message = beast::buffers_to_string(buffer_.data());
         std::cout << "Received: " << message << std::endl;
         buffer_.consume(buffer_.size());
+        // Respond with an echo message
         do_write("Echo: " + message);
     }
 
@@ -53,11 +63,19 @@ class WebSocketServer {
 public:
     WebSocketServer(boost::asio::io_context& ioc, short port)
         : acceptor_(ioc, tcp::endpoint(tcp::v4(), port)) {
-        do_accept();
+        // Start the WebSocket server in its own thread
+        server_thread_ = std::thread([this]() { do_accept(); });
+    }
+
+    ~WebSocketServer() {
+        if (server_thread_.joinable()) {
+            server_thread_.join();  // Join the server thread to ensure it completes before exiting
+        }
     }
 
 private:
     tcp::acceptor acceptor_;
+    std::thread server_thread_;  // Thread to run the WebSocket server
 
     void do_accept() {
         acceptor_.async_accept(
@@ -67,5 +85,3 @@ private:
             });
     }
 };
-
-
