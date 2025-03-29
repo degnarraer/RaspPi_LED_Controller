@@ -54,6 +54,7 @@ void InitializeLoggers()
     InitializeLogger("Signal Logger", spdlog::level::info);
     InitializeLogger("Microphone Logger", spdlog::level::info);
     InitializeLogger("FFT Computer Logger", spdlog::level::info);
+    InitializeLogger("Web Socket Server Logger", spdlog::level::info);
 }
 
 
