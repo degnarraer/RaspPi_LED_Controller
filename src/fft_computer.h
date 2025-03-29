@@ -47,10 +47,10 @@ class FFTComputer
             : name_(name), input_signal_name_(input_signal_name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), maxValue_(maxValue), stopFlag_(false)
         {
             // Retrieve existing logger or create a new one
-            logger = spdlog::get("FFT Logger");
+            logger = spdlog::get("FFTComputer Logger");
             if (!logger)
             {
-                logger = spdlog::stdout_color_mt("Deployment Manager");
+                logger = spdlog::stdout_color_mt("FFTComputer Logger");
                 spdlog::register_logger(logger);
             }
 
@@ -125,7 +125,7 @@ class FFTComputer
             auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel)
             {
                 FFTComputer* self = static_cast<FFTComputer*>(arg);
-                spdlog::get("FFT Logger")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
+                spdlog::get("FFTComputer Logger")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
                 self->addData(value, channel);
             };
 
