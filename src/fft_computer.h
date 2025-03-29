@@ -47,10 +47,10 @@ class FFTComputer
             : name_(name), input_signal_name_(input_signal_name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), maxValue_(maxValue), stopFlag_(false)
         {
             // Retrieve existing logger or create a new one
-            logger = spdlog::get("FFTComputer Logger");
+            logger = spdlog::get("FFT Computer Logger");
             if (!logger)
             {
-                logger = spdlog::stdout_color_mt("FFTComputer Logger");
+                logger = spdlog::stdout_color_mt("FFT Computer Logger");
                 spdlog::register_logger(logger);
             }
 
@@ -125,7 +125,7 @@ class FFTComputer
             auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel)
             {
                 FFTComputer* self = static_cast<FFTComputer*>(arg);
-                spdlog::get("FFTComputer Logger")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
+                spdlog::get("FFT Computer Logger")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
                 self->addData(value, channel);
             };
 
@@ -209,14 +209,13 @@ class FFTComputer
 
         void logSAEBands(std::vector<float>& saeBands) const
         {
-            logger->info("SAE Band Values:");
             std::string result;
             for (size_t i = 0; i < saeBands.size(); ++i)
             {
                 if(i > 0) result += " ";
                 result += fmt::format("{:.1f}", saeBands[i]);
             }
-            logger->trace("{}", result);
+            logger->trace("SAE Band Values: {}", result);
         }
 
         void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands)
