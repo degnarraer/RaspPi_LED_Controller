@@ -3,6 +3,7 @@
 #include "i2s_microphone.h"
 #include "fft_computer.h"
 #include "websocket_server.h"
+#include "deployment_manager.h"
 #include <spdlog/spdlog.h>
 #include <sstream>
 
@@ -27,25 +28,21 @@ void Microphone_Callback(const std::vector<int32_t>& data, const std::string& de
 
 void LaunchWebSocketServer()
 {
-    try {
-        boost::asio::io_context ioc;
-        WebSocketServer server(ioc, 8080);  // Start the WebSocket server on port 8080
 
-        std::cout << "WebSocket server is running on ws://localhost:8080" << std::endl;
-
-        // Run the IO context, which will process asynchronous events
-        ioc.run();
-    } catch (const std::exception& e) {
-        std::cerr << "WebSocket server error: " << e.what() << std::endl;
-    }
+    boost::asio::io_context ioc;
+    WebSocketServer server(ioc, 8080);
+    spdlog::get("Main Logger")->info("WebSocket server is running on ws://localhost:8080");
+    std::thread wsThread([&ioc]() { ioc.run(); });
 }
 
 void InitializeLogger(const std::string loggerName, spdlog::level::level_enum level)
 {
+    // Retrieve existing logger or create a new one
     if (!spdlog::get(loggerName))
     {
         auto logger = spdlog::stdout_color_mt(loggerName);
         logger->set_level(level);
+        spdlog::register_logger(logger);
         logger->info("{} Configured", loggerName);
     } 
 }
@@ -53,6 +50,8 @@ void InitializeLogger(const std::string loggerName, spdlog::level::level_enum le
 void InitializeLoggers()
 {
     spdlog::set_level(spdlog::level::info);
+    InitializeLogger("Main Logger", spdlog::level::info);
+    InitializeLogger("Deployment Manager", spdlog::level::info);
     InitializeLogger("Signal Logger", spdlog::level::info);
     InitializeLogger("Setup Logger", spdlog::level::info);
     InitializeLogger("Microphone Logger", spdlog::level::info);
@@ -63,14 +62,14 @@ void InitializeLoggers()
 int main()
 {
     InitializeLoggers();
+    DeploymentManager().clearFolderContentsWithSudo("/var/www/html");
+    DeploymentManager().copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/data", "/var/www/html");
     LaunchWebSocketServer();
     I2SMicrophone mic = I2SMicrophone("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, false, 200000);
     FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", 8192, 48000, (1 << 23) - 1);
     mic.StartReadingMicrophone();
     //mic.StartReadingSineWave(1000);
     
-
-
     std::cin.get(); // Wait for user input to terminate the program
 
     return 0;
