@@ -13,10 +13,10 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
 public:
     explicit WebSocketSession(tcp::socket socket) : ws_(std::move(socket))
     {
-        logger = spdlog::get("Web Socket Server Logger");
+        logger = spdlog::get("Web Socket Session Logger");
         if (!logger)
         {
-            logger = spdlog::stdout_color_mt("Web Socket Server Logger");
+            logger = spdlog::stdout_color_mt("Web Socket Session Logger");
             spdlog::register_logger(logger);
         }
     }
@@ -36,7 +36,7 @@ public:
             [self = shared_from_this()](beast::error_code ec, std::size_t) {
                 if (ec)
                 {
-                    spdlog::get("Web Socket Server Logger")->error("Error sending message: {}", ec.message());
+                    spdlog::get("Web Socket Session Logger")->error("Error sending message: {}", ec.message());
                 }
             });
     }
@@ -81,8 +81,16 @@ class WebSocketServer
         WebSocketServer(boost::asio::io_context& ioc, short port)
             : acceptor_(ioc, tcp::endpoint(tcp::v4(), port))
         {
+            logger = spdlog::get("Web Socket Server Logger");
+            if (!logger)
+            {
+                logger = spdlog::stdout_color_mt("Web Socket Server Logger");
+                spdlog::register_logger(logger);
+            }
             // Start the WebSocket server in its own thread
             server_thread_ = std::thread([this]() { do_accept(); });
+            ioc_thread_ = std::thread([&ioc]() { ioc.run(); });
+            logger->info("WebSocket server is running on ws://localhost:8080");
         }
 
         ~WebSocketServer()
@@ -91,11 +99,17 @@ class WebSocketServer
             {
                 server_thread_.join();  // Join the server thread to ensure it completes before exiting
             }
+            if(ioc_thread_.joinable())
+            {
+                ioc_thread_.join();  // Join the server thread to ensure it completes before exiting
+            }
         }
 
     private:
         tcp::acceptor acceptor_;
         std::thread server_thread_;  // Thread to run the WebSocket server
+        std::thread ioc_thread_;  // Thread to run the io_context
+        std::shared_ptr<spdlog::logger> logger;
 
         void do_accept()
         {

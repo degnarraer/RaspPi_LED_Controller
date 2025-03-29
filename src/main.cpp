@@ -28,11 +28,8 @@ void Microphone_Callback(const std::vector<int32_t>& data, const std::string& de
 
 void LaunchWebSocketServer()
 {
-
     boost::asio::io_context ioc;
     WebSocketServer server(ioc, 8080);
-    spdlog::get("Main Logger")->info("WebSocket server is running on ws://localhost:8080");
-    std::thread wsThread([&ioc]() { ioc.run(); });
 }
 
 void InitializeLogger(const std::string loggerName, spdlog::level::level_enum level)
@@ -55,6 +52,7 @@ void InitializeLoggers()
     InitializeLogger("Microphone Logger", spdlog::level::info);
     InitializeLogger("FFT Computer Logger", spdlog::level::info);
     InitializeLogger("Web Socket Server Logger", spdlog::level::info);
+    InitializeLogger("Web Socket Session Logger", spdlog::level::info);
 }
 
 
