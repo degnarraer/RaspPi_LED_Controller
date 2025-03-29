@@ -61,9 +61,10 @@ int main()
     InitializeLoggers();
     DeploymentManager().clearFolderContentsWithSudo("/var/www/html");
     DeploymentManager().copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/data", "/var/www/html");
+    //
     LaunchWebSocketServer();
-    I2SMicrophone mic = I2SMicrophone("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, false, 200000);
-    FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", 8192, 48000, (1 << 23) - 1);
+    I2SMicrophone mic = I2SMicrophone("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000);
+    FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", 8192, 48000, (2^23)-1);
     mic.StartReadingMicrophone();
     //mic.StartReadingSineWave(1000);
     

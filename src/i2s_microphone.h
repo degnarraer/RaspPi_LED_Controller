@@ -15,30 +15,38 @@ public:
     I2SMicrophone(const std::string& targetDevice, const std::string& signal_Name, unsigned int sampleRate, unsigned int channels, unsigned int numFrames, _snd_pcm_format snd_pcm_format, _snd_pcm_access snd_pcm_access, bool allowResampling, unsigned int latency)
         : targetDevice_(targetDevice), signal_Name_(signal_Name), sampleRate_(sampleRate), channels_(channels), numFrames_(numFrames), stopReading_(false)
     {
+        // Retrieve existing logger or create a new one
+        logger_ = spdlog::get("Microphone Logger");
+        if (!logger_)
+        {
+            logger_ = spdlog::stdout_color_mt("Microphone Logger");
+            spdlog::register_logger(logger_);
+        }
         if (snd_pcm_open(&handle_, find_device(targetDevice).c_str(), SND_PCM_STREAM_CAPTURE, 0) < 0)
         {
             throw std::runtime_error("Failed to open I2S microphone: " + std::string(snd_strerror(errno)));
         }
         else
         {
-            spdlog::get("Microphone Logger")->info("Device {}: Opening device", targetDevice_);
+            logger_->info("Device {}: Opening device", targetDevice_);
+            snd_pcm_hw_free(handle_);
             if (snd_pcm_set_params(handle_, snd_pcm_format, snd_pcm_access, channels_, sampleRate_, allowResampling, latency ) < 0)
             {
                 throw std::runtime_error("Failed to set ALSA parameters: " + std::string(snd_strerror(errno)));
             }
             else
             {
-                spdlog::get("Microphone Logger")->info("Device {}: Opened", targetDevice_);
+                logger_->info("Device {}: Opened", targetDevice_);
             }
         }
 
         microphoneSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
         {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-            spdlog::get("Microphone Logger")->debug("Device {}: Received new values:", self->targetDevice_);
+            self->logger_->debug("Device {}: Received new values:", self->targetDevice_);
             for (int32_t v : value)
             {
-                spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->targetDevice_, v);
+                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
             }
         };
         SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->RegisterCallback(microphoneSignalCallback_, this);
@@ -46,10 +54,10 @@ public:
         microphoneLeftChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
         {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-            spdlog::get("Microphone Logger")->debug("Device {}: Received new Left Channel values:", self->targetDevice_);
+            self->logger_->debug("Device {}: Received new Left Channel values:", self->targetDevice_);
             for (int32_t v : value)
             {
-                spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->targetDevice_, v);
+                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
             }
         };
         SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
@@ -57,10 +65,10 @@ public:
         microphoneRightChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
         {
             I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-            spdlog::get("Microphone Logger")->debug("Device {}: Received new Right Channel values:", self->targetDevice_);
+            self->logger_->debug("Device {}: Received new Right Channel values:", self->targetDevice_);
             for (int32_t v : value)
             {
-                spdlog::get("Microphone Logger")->trace("Device {}: Value:{}", self->targetDevice_, v);
+                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
             }
         };
         SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->RegisterCallback(microphoneRightChannelSignalCallback_, this);
@@ -81,29 +89,29 @@ public:
 
     std::vector<int32_t> ReadAudioData()
     {
-        spdlog::get("Microphone Logger")->debug("Device {}: ReadAudioData: Start", targetDevice_);
+        logger_->debug("Device {}: ReadAudioData: Start", targetDevice_);
         std::vector<int32_t> buffer(numFrames_ * channels_);
         int framesRead = snd_pcm_readi(handle_, buffer.data(), numFrames_);
         if (framesRead < 0)
         {
-            spdlog::get("Microphone Logger")->error("Device {}: ReadAudioData: Error reading audio data: {}", targetDevice_, snd_strerror(framesRead));
+            logger_->error("Device {}: ReadAudioData: Error reading audio data: {}", targetDevice_, snd_strerror(framesRead));
             if (snd_pcm_recover(handle_, framesRead, 1) < 0)
             {
-                spdlog::get("Microphone Logger")->error("Device {}: ReadAudioData: Failed to recover from error: {} Resetting Stream.", targetDevice_, snd_strerror(framesRead));
+                logger_->error("Device {}: ReadAudioData: Failed to recover from error: {} Resetting Stream.", targetDevice_, snd_strerror(framesRead));
                 snd_pcm_prepare(handle_);  
             }
             else
             {
-                spdlog::get("Microphone Logger")->debug("Device {}: ReadAudioData: Recovered from error", targetDevice_);
+                logger_->debug("Device {}: ReadAudioData: Recovered from error", targetDevice_);
             }
         } 
         else if (framesRead != static_cast<int>(numFrames_))
         {
-            spdlog::get("Microphone Logger")->warn("Device {}: ReadAudioData: Partial read ({} frames read, expected {})", targetDevice_, framesRead, numFrames_);
+            logger_->warn("Device {}: ReadAudioData: Partial read ({} frames read, expected {})", targetDevice_, framesRead, numFrames_);
         }
         else
         {
-            spdlog::get("Microphone Logger")->debug("Device {}: ReadAudioData: Complete", targetDevice_);
+            logger_->debug("Device {}: ReadAudioData: Complete", targetDevice_);
         }
         return buffer;
     }
@@ -111,7 +119,7 @@ public:
     // Start reading audio data in a separate thread and call all registered callbacks when buffer is full
     void StartReadingMicrophone()
     {
-        spdlog::get("Microphone Logger")->debug("Device {}: StartReading", targetDevice_);
+        logger_->debug("Device {}: StartReading", targetDevice_);
         StopReading();
         stopReading_ = false;
         readingThread_ = std::thread([this]()
@@ -130,7 +138,7 @@ public:
                             SplitAudioData(buffer);
                         break;
                         default:
-                            spdlog::get("Microphone Logger")->error("Device {}: Invalid channel config.", targetDevice_);
+                            logger_->error("Device {}: Invalid channel config.", targetDevice_);
                         break;
                     }
                 }
@@ -182,7 +190,7 @@ public:
         {
             return;
         }
-        spdlog::get("Microphone Logger")->debug("Device {}: Audio data split started", targetDevice_);
+        logger_->debug("Device {}: Audio data split started", targetDevice_);
         // Reserve space for left and right channels
         std::vector<int32_t> leftChannel(numFrames_);
         std::vector<int32_t> rightChannel(numFrames_);
@@ -196,7 +204,7 @@ public:
         }
         SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->SetValue(leftChannel);
         SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->SetValue(rightChannel);
-        spdlog::get("Microphone Logger")->debug("Device {}: Audio data split complete", targetDevice_);
+        logger_->debug("Device {}: Audio data split complete", targetDevice_);
     }
 
     std::string find_device(std::string targetDevice)
@@ -216,27 +224,27 @@ public:
             // Open control interface for the card
             if ((err = snd_ctl_open(&handle, card_name.c_str(), 0)) < 0)
             {
-                spdlog::get("Microphone Logger")->error("Control open error for card {} : {}", card_name, snd_strerror(err));
+                logger_->error("Control open error for card {} : {}", card_name, snd_strerror(err));
                 continue;
             }
 
             // Get card info
             if ((err = snd_ctl_card_info(handle, info)) < 0)
             {
-                spdlog::get("Microphone Logger")->error("Control card info error for card {} : {}", card_name, snd_strerror(err));
+                logger_->error("Control card info error for card {} : {}", card_name, snd_strerror(err));
                 snd_ctl_close(handle);
                 continue;
             }
 
-            spdlog::get("Microphone Logger")->info("Card: {}" , snd_ctl_card_info_get_name(info));
-            spdlog::get("Microphone Logger")->info("Driver: {}", snd_ctl_card_info_get_driver(info));
+            logger_->info("Card: {}" , snd_ctl_card_info_get_name(info));
+            logger_->info("Driver: {}", snd_ctl_card_info_get_driver(info));
 
             // Find the first valid PCM device
             int pcm_device = -1;
             bool found = false;
             while (snd_ctl_pcm_next_device(handle, &pcm_device) >= 0 && pcm_device >= 0)
             {
-                spdlog::get("Microphone Logger")->info("PCM device: {}", pcm_device);
+                logger_->info("PCM device: {}", pcm_device);
                 if (!found)
                 {
                     found = true;
@@ -249,7 +257,7 @@ public:
             {
                 if (found) {
                     std::string resultingDevice = "plug" + card_name + "," + std::to_string(pcm_device);
-                    spdlog::get("Microphone Logger")->info("Found Target Card: {}", resultingDevice);
+                    logger_->info("Found Target Card: {}", resultingDevice);
                     return resultingDevice;
                 }
             }
@@ -259,6 +267,7 @@ public:
 public:
     // i2s Microphone Device Name
     std::string targetDevice_;
+    std::shared_ptr<spdlog::logger> logger_;
 private:
     std::string signal_Name_;
     unsigned int sampleRate_;
