@@ -9,7 +9,7 @@
 
 void Microphone_Callback(const std::vector<int32_t>& data, const std::string& deviceName)
 {
-    spdlog::get("Microphone Logger")->debug("Device {}: Callback Called", deviceName);
+    spdlog::get("Main Logger")->debug("Device {}: Callback Called", deviceName);
     // Convert the data vector to a string
     std::ostringstream oss;
     for (size_t i = 0; i < data.size(); ++i)
@@ -23,7 +23,7 @@ void Microphone_Callback(const std::vector<int32_t>& data, const std::string& de
     std::string dataStr = oss.str(); // The entire data as a string
 
     // Log the data as a trace message
-    spdlog::get("Microphone Logger")->trace("Device {}: Callback Data: {}", deviceName, dataStr);
+    spdlog::get("Main Logger")->trace("Device {}: Callback Data: {}", deviceName, dataStr);
 }
 
 void LaunchWebSocketServer()
@@ -42,7 +42,6 @@ void InitializeLogger(const std::string loggerName, spdlog::level::level_enum le
     {
         auto logger = spdlog::stdout_color_mt(loggerName);
         logger->set_level(level);
-        spdlog::register_logger(logger);
         logger->info("{} Configured", loggerName);
     } 
 }
@@ -53,9 +52,8 @@ void InitializeLoggers()
     InitializeLogger("Main Logger", spdlog::level::info);
     InitializeLogger("Deployment Manager", spdlog::level::info);
     InitializeLogger("Signal Logger", spdlog::level::info);
-    InitializeLogger("Setup Logger", spdlog::level::info);
     InitializeLogger("Microphone Logger", spdlog::level::info);
-    InitializeLogger("FFT Computer Logger", spdlog::level::trace);
+    InitializeLogger("FFT Computer Logger", spdlog::level::info);
 }
 
 
