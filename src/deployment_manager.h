@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <spdlog/spdlog.h>
 
+#pragma once
+
 namespace fs = std::filesystem;
 
 class DeploymentManager

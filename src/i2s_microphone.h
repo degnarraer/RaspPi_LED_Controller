@@ -10,6 +10,8 @@
 #include <spdlog/spdlog.h>
 #include "signal.h"
 
+#pragma once
+
 class I2SMicrophone {
 public:
     I2SMicrophone(const std::string& targetDevice, const std::string& signal_Name, unsigned int sampleRate, unsigned int channels, unsigned int numFrames, _snd_pcm_format snd_pcm_format, _snd_pcm_access snd_pcm_access, bool allowResampling, unsigned int latency)

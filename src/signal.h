@@ -5,6 +5,9 @@
 #include <vector>
 #include <memory>
 #include <spdlog/spdlog.h>
+#include "websocket_server.h"
+
+#pragma once
 
 // Templated Signal class
 template<typename T>
@@ -17,7 +20,15 @@ public:
         void* arg;
     };
 
-    Signal(const std::string& name) : name_(name), data_(std::make_shared<T>()) {}
+    Signal( const std::string& name)
+          : name_(name)
+          , data_(std::make_shared<T>())
+          {}
+    Signal( const std::string& name, std::shared_ptr<WebSocketSession> session)
+          : name_(name)
+          , data_(std::make_shared<T>())
+          , session_(session)
+          {}
 
     void SetValue(const T& value, void* arg = nullptr) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -75,6 +86,7 @@ private:
     std::shared_ptr<T> data_;
     mutable std::mutex mutex_;
     std::vector<CallbackData> callbacks_;  // Store callback and arg together
+    std::shared_ptr<WebSocketSession> session_;
 };
 
 class SignalManager {

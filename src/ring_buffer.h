@@ -4,6 +4,8 @@
 #include <iostream>
 #include <functional>
 
+#pragma once
+
 template <typename T>
 class RingBuffer {
 public:

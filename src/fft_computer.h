@@ -12,6 +12,8 @@
 #include <array>
 #include <cmath>
 
+#pragma once
+
 enum class ChannelType
 {
     Mono,

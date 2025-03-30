@@ -28,8 +28,8 @@ void Microphone_Callback(const std::vector<int32_t>& data, const std::string& de
 
 void LaunchWebSocketServer()
 {
-    boost::asio::io_context ioc;
-    WebSocketServer server(ioc, 8080);
+    WebSocketServer server(8080);
+    server.Run();
 }
 
 void InitializeLogger(const std::string loggerName, spdlog::level::level_enum level)
