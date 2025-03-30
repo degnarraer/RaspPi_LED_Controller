@@ -55,7 +55,7 @@
     }
 
 	// WebSocket setup
-    const socket = new WebSocket('ws://localhost:8765'); // Replace with your server IP if not local
+    const socket = new WebSocket('ws://ltop.local:8080');
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data); // Parse the incoming JSON data

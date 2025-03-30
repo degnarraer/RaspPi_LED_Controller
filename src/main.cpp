@@ -7,6 +7,8 @@
 #include <spdlog/spdlog.h>
 #include <sstream>
 
+WebSocketServer webSocketServer(8080);
+
 void Microphone_Callback(const std::vector<int32_t>& data, const std::string& deviceName)
 {
     spdlog::get("Main Logger")->debug("Device {}: Callback Called", deviceName);
@@ -28,8 +30,7 @@ void Microphone_Callback(const std::vector<int32_t>& data, const std::string& de
 
 void LaunchWebSocketServer()
 {
-    WebSocketServer server(8080);
-    server.Run();
+    webSocketServer.Run();
 }
 
 void InitializeLogger(const std::string loggerName, spdlog::level::level_enum level)
