@@ -61,7 +61,10 @@ list(FILTER SOURCES EXCLUDE REGEX "submodules/spdlog/bench/.*")
 list(FILTER SOURCES EXCLUDE REGEX "submodules/spdlog/tests/.*")
 
 # Output the list of files collected
-message(STATUS "STATUS: Collected source files: ${SOURCES}")
+message(STATUS "STATUS: Collected source files:")
+foreach(SOURCE_FILE ${SOURCES})
+    message(STATUS "  ${SOURCE_FILE}")
+endforeach()
 
 # Define the executable
 add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})

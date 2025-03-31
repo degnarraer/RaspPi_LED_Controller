@@ -7,10 +7,8 @@
 #include <functional>
 #include <atomic>
 #include <chrono>
-#include <spdlog/spdlog.h>
+#include "logger.h"
 #include "signal.h"
-
-#pragma once
 
 class I2SMicrophone {
 public:
@@ -18,12 +16,7 @@ public:
         : targetDevice_(targetDevice), signal_Name_(signal_Name), sampleRate_(sampleRate), channels_(channels), numFrames_(numFrames), stopReading_(false)
     {
         // Retrieve existing logger or create a new one
-        logger_ = spdlog::get("Microphone Logger");
-        if (!logger_)
-        {
-            logger_ = spdlog::stdout_color_mt("Microphone Logger");
-            spdlog::register_logger(logger_);
-        }
+        logger_ = InitializeLogger("I2s Microphone", spdlog::level::info);
         if (snd_pcm_open(&handle_, find_device(targetDevice).c_str(), SND_PCM_STREAM_CAPTURE, 0) < 0)
         {
             throw std::runtime_error("Failed to open I2S microphone: " + std::string(snd_strerror(errno)));

@@ -1,12 +1,11 @@
+#pragma once
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <cstdlib>
 #include <filesystem>
-#include <spdlog/spdlog.h>
-
-#pragma once
+#include "logger.h"
 
 namespace fs = std::filesystem;
 
@@ -16,15 +15,10 @@ class DeploymentManager
         DeploymentManager()
         {
             // Retrieve existing logger or create a new one
-            logger = spdlog::get("Deployment Manager");
-            if (!logger)
-            {
-                logger = spdlog::stdout_color_mt("Deployment Manager");
-                spdlog::register_logger(logger);
-            }
+            logger_ = InitializeLogger("Deployment Manager", spdlog::level::info);
         }
         ~DeploymentManager(){}
-        std::shared_ptr<spdlog::logger> logger;
+        std::shared_ptr<spdlog::logger> logger_;
 
         // Function to clear all contents from a folder without sudo
         void clearFolderContents(const std::string& folderPath)
@@ -33,7 +27,7 @@ class DeploymentManager
             {
                 if (!fs::exists(folderPath) || !fs::is_directory(folderPath))
                 {
-                    logger->error("Folder does not exist or is not a directory: {}", folderPath);
+                    logger_->error("Folder does not exist or is not a directory: {}", folderPath);
                     return;
                 }
 
@@ -45,14 +39,14 @@ class DeploymentManager
                     }
                     catch (const std::exception& e)
                     {
-                        //logger->error("Error removing file {}: {}", entry.path().string(), e.what());
+                        //logger_->error("Error removing file {}: {}", entry.path().string(), e.what());
                     }
                 }
-                logger->info("All contents removed from: {}", folderPath);
+                logger_->info("All contents removed from: {}", folderPath);
             }
             catch (const std::exception& e)
             {
-                logger->error("Error clearing folder: {}", e.what());
+                logger_->error("Error clearing folder: {}", e.what());
             }
         }
 
@@ -63,11 +57,11 @@ class DeploymentManager
             int result = system(cmd.c_str());
             if (result == 0)
             {
-                logger->info("All contents removed from: {} successfully (with sudo).", folderPath);
+                logger_->info("All contents removed from: {} successfully (with sudo).", folderPath);
             }
             else
             {
-                logger->error("Failed to clear contents of {} using sudo.", folderPath);
+                logger_->error("Failed to clear contents of {} using sudo.", folderPath);
             }
         }
 
@@ -79,7 +73,7 @@ class DeploymentManager
                 // Check if source directory exists
                 if (!fs::exists(sourceDir) || !fs::is_directory(sourceDir))
                 {
-                    logger->error("Source directory {} does not exist or is not a directory.", sourceDir);
+                    logger_->error("Source directory {} does not exist or is not a directory.", sourceDir);
                     return;
                 }
 
@@ -106,15 +100,15 @@ class DeploymentManager
                     else if (fs::is_regular_file(sourcePath))
                     {
                         // Copy file to target directory, replacing if necessary
-                        logger->info("Copying {} to {}.", sourcePathStr, targetPathStr);
+                        logger_->info("Copying {} to {}.", sourcePathStr, targetPathStr);
                         fs::copy(sourcePath, targetPath, fs::copy_options::overwrite_existing);
                     }
                 }
-                logger->info("All files copied successfully!");
+                logger_->info("All files copied successfully!");
             } 
             catch (const std::exception& e) 
             {
-                logger->info("Error: {}", e.what());
+                logger_->info("Error: {}", e.what());
             }
         }
 
@@ -124,7 +118,7 @@ class DeploymentManager
             {
                 if (!fs::exists(sourceDir) || !fs::is_directory(sourceDir))
                 {
-                    logger->error("Source directory {} does not exist or is not a directory.", sourceDir);
+                    logger_->error("Source directory {} does not exist or is not a directory.", sourceDir);
                     return;
                 }
 
@@ -134,7 +128,7 @@ class DeploymentManager
                     int createResult = system(createCmd.c_str());
                     if (createResult != 0)
                     {
-                        logger->error("Failed to create target directory with sudo: {}", targetDir);
+                        logger_->error("Failed to create target directory with sudo: {}", targetDir);
                         return;
                     }
                 }
@@ -157,16 +151,16 @@ class DeploymentManager
                         int copyResult = system(copyCmd.c_str());
                         if (copyResult != 0)
                         {
-                            logger->error("Failed to copy file: {} to {}", sourcePathStr, targetPathStr);
+                            logger_->error("Failed to copy file: {} to {}", sourcePathStr, targetPathStr);
                             return;
                         }
                     }
                 }
-                logger->info("All files copied successfully (with sudo)!");
+                logger_->info("All files copied successfully (with sudo)!");
             }
             catch (const std::exception &e)
             {
-                logger->error("Error copying folder contents with sudo: {}", e.what());
+                logger_->error("Error copying folder contents with sudo: {}", e.what());
             }
         }
 
@@ -206,43 +200,43 @@ class DeploymentManager
         {
             if (isPackageInstalled(packageName))
             {
-                logger->info("{} is already installed.", packageName);
+                logger_->info("{} is already installed.", packageName);
             }
             else
             {
-                logger->info("{} is not installed. Installing...", packageName);
+                logger_->info("{} is not installed. Installing...", packageName);
                 std::string installCmd = "sudo apt-get install -y " + packageName;
                 int result = system(installCmd.c_str());
                 if (result == 0)
                 {
-                    logger->info("{} installed successfully.", packageName);
+                    logger_->info("{} installed successfully.", packageName);
                 }
                 else
                 {
-                    logger->error("Error installing {}.", packageName);
+                    logger_->error("Error installing {}.", packageName);
                 }
             }
         }
 
         void startAndEnableNginx()
         {
-            logger->info("Starting nginx...");
+            logger_->info("Starting nginx...");
             int startResult = system("sudo systemctl start nginx");
             if (startResult != 0)
             {
-                logger->error("Failed to start nginx!");
+                logger_->error("Failed to start nginx!");
                 return;
             }
 
-            logger->info("Enabling nginx to start on boot...");
+            logger_->info("Enabling nginx to start on boot...");
             int enableResult = system("sudo systemctl enable nginx");
             if (enableResult != 0)
             {
-                logger->error("Failed to enable nginx on boot!");
+                logger_->error("Failed to enable nginx on boot!");
                 return;
             }
 
-            logger->info("NGINX started and enabled successfully!");
+            logger_->info("NGINX started and enabled successfully!");
         }
         /*
         int main() {

@@ -1,10 +1,10 @@
+#pragma once
 #include <vector>
 #include <atomic>
 #include <mutex>
 #include <iostream>
 #include <functional>
-
-#pragma once
+#include "logger.h"
 
 template <typename T>
 class RingBuffer {

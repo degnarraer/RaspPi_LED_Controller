@@ -1,9 +1,6 @@
-#include "kiss_fft.h"
+#pragma once
 #include <vector>
 #include <iostream>
-#include <spdlog/spdlog.h>
-#include "ring_buffer.h"
-#include "signal.h"
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -11,8 +8,10 @@
 #include <condition_variable>
 #include <array>
 #include <cmath>
-
-#pragma once
+#include "logger.h"
+#include "kiss_fft.h"
+#include "ring_buffer.h"
+#include "signal.h"
 
 enum class ChannelType
 {
@@ -49,12 +48,7 @@ class FFTComputer
             : name_(name), input_signal_name_(input_signal_name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), maxValue_(maxValue), stopFlag_(false)
         {
             // Retrieve existing logger or create a new one
-            logger = spdlog::get("FFT Computer Logger");
-            if (!logger)
-            {
-                logger = spdlog::stdout_color_mt("FFT Computer Logger");
-                spdlog::register_logger(logger);
-            }
+            logger = InitializeLogger("FFT Computer", spdlog::level::info);
 
             fft_ = kiss_fft_alloc(fft_bin_size_, 0, nullptr, nullptr);
             if (!fft_)
@@ -127,7 +121,7 @@ class FFTComputer
             auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel)
             {
                 FFTComputer* self = static_cast<FFTComputer*>(arg);
-                spdlog::get("FFT Computer Logger")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
+                spdlog::get("FFT Computer")->debug("Device {}: Received {} channel values:", self->name_, channelTypeToString(channel));
                 self->addData(value, channel);
             };
 
