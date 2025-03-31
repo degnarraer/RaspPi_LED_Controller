@@ -93,7 +93,9 @@ void WebSocketSession::do_write(const std::string& message)
 }
 
 WebSocketServer::WebSocketServer(short port)
-    : port_(port), acceptor_(ioc_, tcp::endpoint(tcp::v4(), port_))
+    : port_(port)
+    , ioc_()
+    , acceptor_(ioc_, tcp::endpoint(tcp::v4(), port_))
 {
     acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
     logger_ = InitializeLogger("Web Socket Server", spdlog::level::info);
@@ -114,7 +116,6 @@ void WebSocketServer::Run()
 
     if (!ioc_thread_.joinable())
     {
-        ioc_.restart();
         ioc_thread_ = std::thread([this]()
         {
             logger_->info("I/O Context thread started.");
