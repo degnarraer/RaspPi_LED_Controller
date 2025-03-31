@@ -4,10 +4,10 @@ WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server)
 {
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
-    logger_ = spdlog::get("WebSocketSessionLogger");
+    logger_ = spdlog::get("Web Socket Session");
     if (!logger_)
     {
-        logger_ = spdlog::stdout_color_mt("WebSocketSessionLogger");
+        logger_ = spdlog::stdout_color_mt("Web Socket Session");
     }
     logger_->info("Created new web socket session: {}", session_id_);
 }
@@ -109,7 +109,7 @@ void WebSocketServer::Run()
     if (!acceptor_.is_open())
     {
         acceptor_.open(tcp::v4());
-        logger_->info("WebSocket server acceptor is opened.");
+        logger_->info("acceptor is opened.");
     }
 
     if (!ioc_thread_.joinable())
@@ -117,7 +117,7 @@ void WebSocketServer::Run()
         ioc_.restart();
         ioc_thread_ = std::thread([this]()
         {
-            logger_->info("WebSocket server IOC thread started.");
+            logger_->info("I/O Context thread started.");
             ioc_.run();
         });
     }
@@ -129,14 +129,14 @@ void WebSocketServer::Stop()
     if (acceptor_.is_open())
     {
         acceptor_.close();
-        logger_->info("WebSocket server acceptor is closed.");
+        logger_->info("acceptor is closed.");
     }
     ioc_.stop();
-    logger_->info("WebSocket server IOC is stopped.");
+    logger_->info("I/O Context thread stopped.");
     if (ioc_thread_.joinable())
     {
         ioc_thread_.join();
-        logger_->info("WebSocket server IOC thread joined.");
+        logger_->info("I/O Context thread joined.");
     }
 }
 
@@ -149,7 +149,7 @@ void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
             shared_session->send_message(message);
         }
     }
-    logger_->info("Broadcasted to all WebSocket clients: {}", message);
+    logger_->info("Broadcasted to all clients: {}.", message);
 }
 
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
@@ -160,18 +160,18 @@ void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_B
         return;
     }
     backend_clients_[client->GetName()] = client;
-    logger_->info("Registered backend client: {}", client->GetName());
+    logger_->info("Registered backend client: {}.", client->GetName());
 }
 
 void WebSocketServer::deregister_backend_client(const std::string& client_name)
 {
     if (backend_clients_.erase(client_name))
     {
-        logger_->info("Deregistered backend client: {}", client_name);
+        logger_->info("Deregistered backend client: {}.", client_name);
     }
     else
     {
-        logger_->warn("Attempted to deregister unknown backend client: {}", client_name);
+        logger_->warn("Attempted to deregister unknown backend client: {}.", client_name);
     }
 }
 
@@ -184,20 +184,20 @@ void WebSocketServer::close_session(const std::string& session_id)
         {
             session->send_message("Session closing...");
             session->close();
-            logger_->info("Web Socket Session {} closed.", session_id);
+            logger_->info("Session {} closed.", session_id);
         }
         sessions_.erase(it);
     }
     else
     {
-        logger_->warn("Attempted to close unknown session: {}", session_id);
+        logger_->warn("Attempted to close unknown session: {}.", session_id);
     }
 }
 
 void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
 {
     sessions_[session->GetSessionID()] = session;
-    logger_->info("Web Socket Session {} registered.", session->GetSessionID());
+    logger_->info("Session {} registered.", session->GetSessionID());
 }
 
 void WebSocketServer::do_accept()
@@ -207,13 +207,14 @@ void WebSocketServer::do_accept()
         {
             if (!ec)
             {
+                logger_->info("Incomming Session.");
                 auto session = std::make_shared<WebSocketSession>(std::move(socket), *this);
                 register_session(session);
                 session->run();
             }
             else
             {
-                logger_->warn("Web Socket Server connection accept error: {}", ec.message());
+                logger_->warn("Connection accept error: {}.", ec.message());
             }
             do_accept();
         });

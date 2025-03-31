@@ -55,7 +55,7 @@ public:
                 self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
             }
         };
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone Left Channel")->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
 
         microphoneRightChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
         {
@@ -66,7 +66,7 @@ public:
                 self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
             }
         };
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->RegisterCallback(microphoneRightChannelSignalCallback_, this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone Right Channel")->RegisterCallback(microphoneRightChannelSignalCallback_, this);
 
     }
 
@@ -74,8 +74,8 @@ public:
     {
         StopReading();
         SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone")->UnregisterCallbackByArg(this);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->UnregisterCallbackByArg(this);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone Left Channel")->UnregisterCallbackByArg(this);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone Right Channel")->UnregisterCallbackByArg(this);
         if (handle_)
         {
             snd_pcm_close(handle_);
@@ -197,8 +197,8 @@ public:
             leftChannel.push_back(buffer[i * channels_]);         // Even indices are left channel
             rightChannel.push_back(buffer[i * channels_ + 1]);    // Odd indices are right channel
         }
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Left_Channel")->SetValue(leftChannel);
-        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone_Right_Channel")->SetValue(rightChannel);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone Left Channel")->SetValue(leftChannel);
+        SignalManager::GetInstance().GetSignal<std::vector<int32_t>>("Microphone Right Channel")->SetValue(rightChannel);
         logger_->debug("Device {}: Audio data split complete", targetDevice_);
     }
 

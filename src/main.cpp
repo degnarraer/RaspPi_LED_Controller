@@ -38,7 +38,7 @@ int main()
 
     webSocketServer.Run();
     I2SMicrophone mic = I2SMicrophone("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000);
-    FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", 8192, 48000, (2^23)-1);
+    FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (2^23)-1);
     mic.StartReadingMicrophone();
     //mic.StartReadingSineWave(1000);
     

@@ -22,14 +22,14 @@ public:
           : name_(name)
           , data_(std::make_shared<T>())
           {
-            logger_ = InitializeLogger(name_ + " Signal Logger" , spdlog::level::info);
+            logger_ = InitializeLogger(name + " Signal Logger" , spdlog::level::info);
           }
     Signal( const std::string& name, std::shared_ptr<WebSocketServer> server)
           : name_(name)
           , data_(std::make_shared<T>())
           , server_(server)
           {
-            logger_ = InitializeLogger(name_ + " Signal Logger" , spdlog::level::info);
+            logger_ = InitializeLogger(name + " Signal Logger" , spdlog::level::info);
             server->register_backend_client(this);
           }
 

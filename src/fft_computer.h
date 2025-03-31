@@ -44,8 +44,14 @@ static constexpr std::array<float, 32> SAE_BAND_CENTERS =
 class FFTComputer
 {
     public:
-        FFTComputer(const std::string name, const std::string input_signal_name, size_t fft_bin_size, unsigned int sampleRate, int32_t maxValue)
-            : name_(name), input_signal_name_(input_signal_name), fft_bin_size_(fft_bin_size), sampleRate_(sampleRate), maxValue_(maxValue), stopFlag_(false)
+        FFTComputer(const std::string name, const std::string input_signal_name, const std::string output_signal_name, size_t fft_bin_size, unsigned int sampleRate, int32_t maxValue)
+            : name_(name)
+            , input_signal_name_(input_signal_name)
+            , output_signal_name_(output_signal_name)
+            , fft_bin_size_(fft_bin_size)
+            , sampleRate_(sampleRate)
+            , maxValue_(maxValue)
+            , stopFlag_(false)
         {
             // Retrieve existing logger or create a new one
             logger = InitializeLogger("FFT Computer", spdlog::level::info);
@@ -127,17 +133,17 @@ class FFTComputer
 
             SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_)->RegisterCallback(
                 [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + "_Left_Channel")->RegisterCallback(
+            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel")->RegisterCallback(
                 [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + "_Right_Channel")->RegisterCallback(
+            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel")->RegisterCallback(
                 [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this);
         }
 
         void unregisterCallbacks()
         {
             SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_)->UnregisterCallbackByArg(this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + "_Left_Channel")->UnregisterCallbackByArg(this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + "_Right_Channel")->UnregisterCallbackByArg(this);
+            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel")->UnregisterCallbackByArg(this);
+            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel")->UnregisterCallbackByArg(this);
         }
 
         void processQueue()
@@ -191,11 +197,11 @@ class FFTComputer
                 break;
                 case ChannelType::Left:
                     logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + "_Left_Channel")->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel")->SetValue(saeBands);
                 break;
                 case ChannelType::Right:
                     logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + "_Right_Channel")->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel")->SetValue(saeBands);
                 break;
                 default:
                     logger->error("Device {}: Unsupported channel type:", name_);

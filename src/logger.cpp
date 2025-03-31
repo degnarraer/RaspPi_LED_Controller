@@ -14,13 +14,13 @@ std::shared_ptr<spdlog::logger> InitializeLogger(const std::string& loggerName, 
         logger->set_level(level);
         
         // Log a message that the logger was successfully configured
-        logger->info("{} Configured with level {}", loggerName, spdlog::level::to_str(level));
+        logger->info("logger configured with level {}", spdlog::level::to_str(level));
     }
     else
     {
         // If the logger already exists, ensure it's set to the correct level
         logger->set_level(level);
-        logger->info("{} already exists. Level set to {}", loggerName, spdlog::level::to_str(level));
+        logger->warn("logger already exists. Level set to {}", spdlog::level::to_str(level));
     }
 
     return logger;
