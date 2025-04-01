@@ -3,12 +3,8 @@
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server)
 {
+    logger_  = InitializeLogger("Web Socket Session", spdlog::level::info);
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
-    logger_ = spdlog::get("Web Socket Session");
-    if (!logger_)
-    {
-        logger_ = spdlog::stdout_color_mt("Web Socket Session");
-    }
     logger_->info("Created new web socket session: {}", session_id_);
 }
 
@@ -97,17 +93,20 @@ WebSocketServer::WebSocketServer(short port)
     , ioc_()
     , acceptor_(ioc_, tcp::endpoint(tcp::v4(), port_))
 {
-    acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
     logger_ = InitializeLogger("Web Socket Server", spdlog::level::info);
+    acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
+    logger_->debug("Instantiate");
 }
 
 WebSocketServer::~WebSocketServer()
 {
+    logger_->debug("Destroy");
     Stop();
 }
 
 void WebSocketServer::Run()
 {
+    logger_->debug("Run.");
     if (!acceptor_.is_open())
     {
         acceptor_.open(tcp::v4());
@@ -128,6 +127,7 @@ void WebSocketServer::Run()
 
 void WebSocketServer::Stop()
 {
+    logger_->debug("Stop.");
     if (acceptor_.is_open())
     {
         acceptor_.close();
@@ -144,6 +144,7 @@ void WebSocketServer::Stop()
 
 void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
 {
+    logger_->debug("Broadcast Message to Cliets: {}.", message);
     for (auto& [id, session] : sessions_)
     {
         if (auto shared_session = session.lock())
@@ -156,6 +157,7 @@ void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
 
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
 {
+    logger_->debug("Registering backend client: {}.", client->GetName());
     if (!client)
     {
         logger_->warn("Attempted to register a null backend client.");
@@ -167,6 +169,7 @@ void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_B
 
 void WebSocketServer::deregister_backend_client(const std::string& client_name)
 {
+    logger_->debug("Deregistering backend client: {}.", client_name);
     if (backend_clients_.erase(client_name))
     {
         logger_->info("Deregistered backend client: {}.", client_name);
@@ -179,6 +182,7 @@ void WebSocketServer::deregister_backend_client(const std::string& client_name)
 
 void WebSocketServer::close_session(const std::string& session_id)
 {
+    logger_->debug("Closing session.");
     auto it = sessions_.find(session_id);
     if (it != sessions_.end())
     {
@@ -198,12 +202,14 @@ void WebSocketServer::close_session(const std::string& session_id)
 
 void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
 {
+    logger_->debug("Registering session {}.", session->GetSessionID());
     sessions_[session->GetSessionID()] = session;
     logger_->info("Session {} registered.", session->GetSessionID());
 }
 
 void WebSocketServer::do_accept()
 {
+    logger_->debug("Do accept");
     acceptor_.async_accept(
         [this](beast::error_code ec, tcp::socket socket)
         {

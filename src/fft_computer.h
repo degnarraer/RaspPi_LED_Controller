@@ -12,6 +12,7 @@
 #include "kiss_fft.h"
 #include "ring_buffer.h"
 #include "signal.h"
+#include "websocket_server.h"
 
 enum class ChannelType
 {
@@ -44,13 +45,20 @@ static constexpr std::array<float, 32> SAE_BAND_CENTERS =
 class FFTComputer
 {
     public:
-        FFTComputer(const std::string name, const std::string input_signal_name, const std::string output_signal_name, size_t fft_bin_size, unsigned int sampleRate, int32_t maxValue)
+        FFTComputer( const std::string name
+                   , const std::string input_signal_name
+                   , const std::string output_signal_name
+                   , size_t fft_bin_size
+                   , unsigned int sampleRate
+                   , int32_t maxValue
+                   , std::shared_ptr<WebSocketServer> webSocketServer)
             : name_(name)
             , input_signal_name_(input_signal_name)
             , output_signal_name_(output_signal_name)
             , fft_bin_size_(fft_bin_size)
             , sampleRate_(sampleRate)
             , maxValue_(maxValue)
+            , webSocketServer_(webSocketServer)
             , stopFlag_(false)
         {
             // Retrieve existing logger or create a new one
@@ -111,6 +119,7 @@ class FFTComputer
         size_t fft_bin_size_;
         unsigned int sampleRate_;
         int32_t maxValue_;
+        std::shared_ptr<WebSocketServer> webSocketServer_;
 
         std::atomic<bool> stopFlag_;
         std::thread fftThread_;
@@ -193,15 +202,15 @@ class FFTComputer
             {
                 case ChannelType::Mono:
                     logger->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_)->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_, webSocketServer_)->SetValue(saeBands);
                 break;
                 case ChannelType::Left:
                     logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel")->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_)->SetValue(saeBands);
                 break;
                 case ChannelType::Right:
                     logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel")->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_)->SetValue(saeBands);
                 break;
                 default:
                     logger->error("Device {}: Unsupported channel type:", name_);
