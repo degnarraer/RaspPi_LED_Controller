@@ -7,3 +7,7 @@
 	path = submodules/kissfft
 	url = https://github.com/mborgerding/kissfft.git
 	branch = master
+[submodule "submodules/chart.js"]
+	path = submodules/chart.js
+	url = https://github.com/chartjs/Chart.js.git
+	branch = 3.9
