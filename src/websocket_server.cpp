@@ -36,6 +36,7 @@ std::string WebSocketSession::GetSessionID() const
 
 void WebSocketSession::send_message(const std::string& message)
 {
+    logger_->debug("Session: {} Send Message to Cliets: {}.", GetSessionID(), message);
     ws_.text(ws_.got_text());
     ws_.async_write(boost::asio::buffer(message),
         [self = shared_from_this()](beast::error_code ec, std::size_t)
@@ -49,6 +50,7 @@ void WebSocketSession::send_message(const std::string& message)
 
 void WebSocketSession::do_read()
 {
+    logger_->debug("Session: {} Do Read.", GetSessionID());
     ws_.async_read(buffer_,
         [self = shared_from_this()](beast::error_code ec, std::size_t bytes_transferred)
         {
@@ -64,15 +66,16 @@ void WebSocketSession::do_read()
 
 void WebSocketSession::on_read(std::size_t)
 {
+    logger_->debug("Session: {} On Read.", GetSessionID());
     auto message = beast::buffers_to_string(buffer_.data());
-    logger_->info("Received: {}", message);
+    logger_->trace("Received: {}", message);
     buffer_.consume(buffer_.size());
     do_write("Echo: " + message);
 }
 
 void WebSocketSession::do_write(const std::string& message)
 {
-    logger_->info("Send: {}", message);
+    logger_->debug("do write: {}", message);
     ws_.text(ws_.got_text());
     ws_.async_write(boost::asio::buffer(message),
         [self = shared_from_this()](beast::error_code ec, std::size_t)
@@ -152,7 +155,6 @@ void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
             shared_session->send_message(message);
         }
     }
-    logger_->info("Broadcasted to all clients: {}.", message);
 }
 
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
