@@ -116,6 +116,7 @@ void WebSocketServer::Run()
 
     if (!ioc_thread_.joinable())
     {
+        //ioc_.restart();
         ioc_thread_ = std::thread([this]()
         {
             logger_->info("I/O Context thread started.");
