@@ -41,11 +41,12 @@
     const socket = new WebSocket('ws://ltop.local:8080');
 
     socket.onmessage = function(event) {
+        console.log("Received message:", event.data); // Log the received message
+
         const data = JSON.parse(event.data); // Parse the incoming JSON data
 
         dataSeries.clear();
         dataSeries.append(data.x, data.y);
-
     };
 
     socket.onopen = function() {

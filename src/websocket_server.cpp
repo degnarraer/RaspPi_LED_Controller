@@ -3,7 +3,7 @@
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server)
 {
-    logger_  = InitializeLogger("Web Socket Session", spdlog::level::info);
+    logger_  = InitializeLogger("Web Socket Session", spdlog::level::debug);
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
     logger_->info("Created new web socket session: {}", session_id_);
 }
