@@ -8,31 +8,36 @@
 #include <boost/uuid/uuid_io.hpp>
 #include "logger.h"
 
-using boost::asio::ip::tcp;
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
+namespace asio = boost::asio;
+using tcp = asio::ip::tcp;
 
-class WebSocketServer; // Forward declaration
+class WebSocketServer;
 
 class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
 public:
-    WebSocketSession(tcp::socket socket, WebSocketServer& server);
+    explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
     void run();
     void close();
-    std::string GetSessionID() const;
     void send_message(const std::string& message);
+    std::string GetSessionID() const;
 
 private:
-    WebSocketServer& server_;
+    void do_read();
+    void on_read(std::size_t bytes_transferred);
+    void do_write();
+
     websocket::stream<beast::tcp_stream> ws_;
+    WebSocketServer& server_;
+    std::shared_ptr<spdlog::logger> logger_;
     beast::flat_buffer buffer_;
     std::string session_id_;
-    std::shared_ptr<spdlog::logger> logger_;
 
-    void do_read();
-    void on_read(std::size_t);
-    void do_write(const std::string& message);
+    std::deque<std::string> outgoing_messages_;
+    bool writing_ = false;
+    std::mutex write_mutex_;
 };
 
 class IWebSocketServer_BackendClient

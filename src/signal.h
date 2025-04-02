@@ -9,6 +9,59 @@
 #include "logger.h"
 #include "websocket_server.h"
 
+
+struct Point
+{
+    float x;
+    float y;
+};
+
+auto point_to_json_encoder = [](const Point& value) -> std::string
+{
+    std::ostringstream oss;
+    oss << "{ \"x\": " << value.x << ", \"y\": " << value.y << " }";
+    return oss.str();
+};
+
+template <typename T>
+std::string encode_labels_values_from_2_vectors(const std::vector<std::string>& labels, const std::vector<T>& values)
+{
+    std::ostringstream oss;
+
+    // Ensure both vectors are of the same size
+    if (labels.size() != values.size())
+    {
+        throw std::invalid_argument("Labels and values vectors must have the same size.");
+    }
+
+    // Create JSON format
+    oss << "{ \"labels\": [";
+    for (size_t i = 0; i < labels.size(); ++i)
+    {
+        if (i > 0) oss << ", ";
+        oss << "\"" << labels[i] << "\"";
+    }
+    oss << "], \"values\": [";
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        if (i > 0) oss << ", ";
+        oss << values[i];
+    }
+    oss << "] }";
+
+    return oss.str();
+}
+
+std::string encode_FFT_Bands(const std::vector<float>& values)
+{
+    std::vector<std::string> labels;
+    for (int i = 0; i < 32; ++i)
+    {
+        labels.push_back(std::to_string(i));
+    }
+    return encode_labels_values_from_2_vectors<float>(labels, values);
+}
+
 template <typename T>
 std::string to_string(const std::vector<T>& vec)
 {
@@ -24,6 +77,7 @@ std::string to_string(const std::vector<T>& vec)
 }
 
 
+
 // Templated Signal class
 template<typename T>
 class Signal : public IWebSocketServer_BackendClient
@@ -31,6 +85,8 @@ class Signal : public IWebSocketServer_BackendClient
 {
 public:
     using Callback = std::function<void(const T&, void*)>;
+    using JsonEncoder = std::function<std::string(const T&)>;
+
     struct CallbackData
     {
         Callback callback;
@@ -41,14 +97,16 @@ public:
         : name_(name)
         , webSocketServer_(nullptr)
         , data_(std::make_shared<T>())
+        , encoder_(nullptr)
     {
         logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
     }
 
-    explicit Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer)
+    explicit Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder encoder = nullptr)
         : name_(name)
         , webSocketServer_(webSocketServer)
         , data_(std::make_shared<T>())
+        , encoder_(encoder ? encoder : [](const T& value) { return to_string(value); })
     {
         logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
     }
@@ -124,7 +182,8 @@ private:
     std::vector<CallbackData> callbacks_;
     std::shared_ptr<WebSocketServer> webSocketServer_;
     std::shared_ptr<spdlog::logger> logger_;
-    
+    JsonEncoder encoder_;  // JSON Encoder function
+
     void NotifyClients(const T& value, void* arg)
     {
         logger_->debug("NotifyClients.");
@@ -136,13 +195,15 @@ private:
 
     void NotifyWebSocket(const T& value)
     {
-        if (webSocketServer_)
+        if (webSocketServer_ && encoder_)
         {
-            webSocketServer_->broadcast_message_to_websocket(to_string(value));
+            std::string jsonMessage = encoder_(value);
+            webSocketServer_->broadcast_message_to_websocket(jsonMessage);
         }
     }
 };
 
+// Signal Manager class
 class SignalManager
 {
 public:
@@ -167,7 +228,7 @@ public:
     }
 
     template<typename T>
-    std::shared_ptr<Signal<T>> GetSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer)
+    std::shared_ptr<Signal<T>> GetSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, typename Signal<T>::JsonEncoder encoder = nullptr)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = signals_.find(name);
@@ -175,7 +236,7 @@ public:
         {
             return std::static_pointer_cast<Signal<T>>(it->second);
         }
-        auto signal = std::make_shared<Signal<T>>(name, webSocketServer);
+        auto signal = std::make_shared<Signal<T>>(name, webSocketServer, encoder);
         signal->Setup();
         signals_[name] = signal;
         return signal;

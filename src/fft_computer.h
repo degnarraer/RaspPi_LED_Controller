@@ -202,15 +202,15 @@ class FFTComputer
             {
                 case ChannelType::Mono:
                     logger->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_, webSocketServer_)->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
                 break;
                 case ChannelType::Left:
                     logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_)->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
                 break;
                 case ChannelType::Right:
                     logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_)->SetValue(saeBands);
+                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
                 break;
                 default:
                     logger->error("Device {}: Unsupported channel type:", name_);
