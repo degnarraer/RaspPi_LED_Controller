@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Live Chart</title>
+</head>
+<body>
+    <div>
+        <canvas id="myChart"></canvas>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        const ctx = document.getElementById('myChart').getContext('2d');
+
+        // Initialize Chart.js
+        const myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Live Data',
+                    data: [],
+                    borderWidth: 1,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)'
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, min: 0, max: 1 }
+                },
+                animation: {
+                    duration: 20, // Set the duration of the animation in milliseconds (200ms is very short)
+                    easing: 'linear' // Optional: Use 'linear' easing for a smooth animation
+                }
+            }
+        });
+
+        window.onload = function() {
+            const socket = new WebSocket('ws://localhost:8080');
+
+            socket.onmessage = function(event) {
+                console.log("Received message:", event.data);
+                try {
+                    const data = JSON.parse(event.data);  // Expecting { labels: [...], values: [...] }
+                    myChart.data.labels = data.labels;  // X-axis labels
+                    myChart.data.datasets[0].data = data.values; // Y-axis values
+                    myChart.update();
+                } catch (error) {
+                    console.error("Error parsing WebSocket data:", error);
+                }
+            };
+
+            socket.onopen = function() {
+                console.log('WebSocket connection established');
+            };
+
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+
+            socket.onclose = function() {
+                console.log('WebSocket connection closed');
+            };
+        }
+    </script>
+</body>
+</html>

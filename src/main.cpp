@@ -1,46 +1,48 @@
 #include <iostream>
 #include "signal.h"
 #include "i2s_microphone.h"
-#include <spdlog/spdlog.h>
+#include "fft_computer.h"
+#include "websocket_server.h"
+#include "deployment_manager.h"
+#include "logger.h"
 #include <sstream>
+
+std::shared_ptr<WebSocketServer> webSocketServer = std::make_shared<WebSocketServer>(8080);
+std::shared_ptr<spdlog::logger> logger_;
+DeploymentManager deploymentManger;
 
 void Microphone_Callback(const std::vector<int32_t>& data, const std::string& deviceName)
 {
-    spdlog::get("Microphone Logger")->debug("Device {}: Callback Called", deviceName);
+    logger_->debug("Device {}: Callback Called", deviceName);
     // Convert the data vector to a string
     std::ostringstream oss;
-    for (size_t i = 0; i < data.size(); ++i) {
+    for (size_t i = 0; i < data.size(); ++i)
+    {
         oss << data[i];
-        if (i != data.size() - 1) {
+        if (i != data.size() - 1)
+        {
             oss << ", "; // Add comma separator between values
         }
     }
     std::string dataStr = oss.str(); // The entire data as a string
 
     // Log the data as a trace message
-    spdlog::get("Microphone Logger")->trace("Device {}: Callback Data: {}", deviceName, dataStr);
+    logger_->trace("Device {}: Callback Data: {}", deviceName, dataStr);
 }
 
-void InitializeLoggers() {
-    spdlog::set_level(spdlog::level::info);
-    if (!spdlog::get("Setup Logger")) {
-        auto logger = spdlog::stdout_color_mt("Setup Logger");
-        logger->set_level(spdlog::level::info);
-        logger->info("Setup Logger Configured");
-    }
-    if (!spdlog::get("Microphone Logger")) {
-        auto logger = spdlog::stdout_color_mt("Microphone Logger");
-        logger->set_level(spdlog::level::info);
-        logger->info("Microphone Logger Configured");
-    } 
-}
+int main()
+{
+    logger_ = InitializeLogger("Main Logger", spdlog::level::info);
+    deploymentManger.clearFolderContentsWithSudo("/var/www/html");
+    deploymentManger.copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/data", "/var/www/html");
 
-int main() {
-    InitializeLoggers();
-    I2SMicrophone mic = I2SMicrophone("plughw:0,0", 44100, 2, 100);
-    mic.ReadAudioData();
-    mic.RegisterCallback(Microphone_Callback);
-    mic.StartReading();
+    webSocketServer->Run();
+    I2SMicrophone mic = I2SMicrophone("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000);
+    FFTComputer fftComputer = FFTComputer("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
+    mic.StartReadingMicrophone();
+    //mic.StartReadingSineWave(1000);
+    
     std::cin.get(); // Wait for user input to terminate the program
+
     return 0;
 }
