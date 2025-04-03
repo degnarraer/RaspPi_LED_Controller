@@ -44,7 +44,7 @@ const myChart = new Chart(ctx, {
                     // Transition from Gold (high) to Blue (low), with Red for the peak
                     let r = Math.round(255 * (ratio));  // Red stays high, transitions to gold then blue
                     let g = Math.round(255 * (ratio));  // Gold stays yellowish, then transitions
-                    let b = Math.round(255 * (1 - ratio));    // Blue increases as value decreases
+                    let b = Math.round(200 * (1 - ratio));    // Blue increases as value decreases
 
                     return `rgba(${r}, ${g}, ${b}, 0.8)`; // Alpha set to 0.8
                 });

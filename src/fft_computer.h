@@ -152,17 +152,40 @@ class FFTComputer
 
         void processQueue()
         {
+            std::vector<int32_t> accumulatedData;  // Buffer for incoming data
+            size_t requiredSamples = fft_size_;    // 8192 samples required for FFT
+            size_t overlapSamples = fft_size_ / 4; // 75% overlap (2048 samples)
+            size_t nonOverlappingSamples = requiredSamples - overlapSamples; // Non-overlapping part
+
             while (!stopFlag_)
             {
                 DataPacket dataPacket{};
+                
                 {
                     std::unique_lock<std::mutex> lock(queueMutex_);
                     cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
                     if (stopFlag_) break;
+                    
                     dataPacket = std::move(dataQueue_.front());
                     dataQueue_.pop();
                 }
-                processFFT(dataPacket);
+
+                // Accumulate the incoming data
+                accumulatedData.insert(accumulatedData.end(), dataPacket.data.begin(), dataPacket.data.end());
+
+                // Process when we have enough data for the FFT with overlap
+                while (accumulatedData.size() >= requiredSamples)
+                {
+                    // Take the first `requiredSamples` from the accumulated data for FFT
+                    std::vector<int32_t> fftData(accumulatedData.begin(), accumulatedData.begin() + requiredSamples);
+
+                    // Remove the processed data from the front of the buffer, but keep the overlap
+                    accumulatedData.erase(accumulatedData.begin(), accumulatedData.begin() + nonOverlappingSamples);
+
+                    // Process FFT on this chunk of data
+                    DataPacket fftPacket{ std::move(fftData), dataPacket.channel };
+                    processFFT(fftPacket);  // Call the existing FFT processing function
+                }
             }
         }
 
