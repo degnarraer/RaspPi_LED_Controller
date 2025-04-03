@@ -36,26 +36,20 @@ std::string channelTypeToString(ChannelType channel)
     }
 }
 
-static constexpr std::array<float, 32> SAE_BAND_CENTERS =
-{
-    20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,
-    800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
-};
-
 class FFTComputer
 {
     public:
         FFTComputer( const std::string name
                    , const std::string input_signal_name
                    , const std::string output_signal_name
-                   , size_t fft_bin_size
+                   , size_t fft_size
                    , unsigned int sampleRate
                    , int32_t maxValue
                    , std::shared_ptr<WebSocketServer> webSocketServer)
             : name_(name)
             , input_signal_name_(input_signal_name)
             , output_signal_name_(output_signal_name)
-            , fft_bin_size_(fft_bin_size)
+            , fft_size_(fft_size)
             , sampleRate_(sampleRate)
             , maxValue_(maxValue)
             , webSocketServer_(webSocketServer)
@@ -64,12 +58,12 @@ class FFTComputer
             // Retrieve existing logger or create a new one
             logger = InitializeLogger("FFT Computer", spdlog::level::info);
 
-            fft_ = kiss_fft_alloc(fft_bin_size_, 0, nullptr, nullptr);
+            fft_ = kiss_fft_alloc(fft_size_, 0, nullptr, nullptr);
             if (!fft_)
             {
                 throw std::runtime_error("Failed to allocate memory for FFT.");
             }
-            fftOutput_.resize(fft_bin_size_);        
+            fftOutput_.resize(fft_size_);        
             registerCallbacks();
             fftThread_ = std::thread(&FFTComputer::processQueue, this);
         }
@@ -116,7 +110,7 @@ class FFTComputer
         std::string name_;
         std::string input_signal_name_;
         std::string output_signal_name_;
-        size_t fft_bin_size_;
+        size_t fft_size_;
         unsigned int sampleRate_;
         int32_t maxValue_;
         std::shared_ptr<WebSocketServer> webSocketServer_;
@@ -129,6 +123,7 @@ class FFTComputer
         kiss_fft_cfg fft_;
         std::vector<kiss_fft_cpx> fftOutput_;
         std::function<void(const std::vector<float>&, ChannelType)> fftCallback_;
+        const float sqrt2 = std::sqrt(2.0);
         std::shared_ptr<spdlog::logger> logger;
 
         void registerCallbacks()
@@ -173,8 +168,8 @@ class FFTComputer
 
         void processFFT(const DataPacket& dataPacket)
         {
-            std::vector<kiss_fft_cpx> inputData(fft_bin_size_);
-            for (size_t i = 0; i < std::min(fft_bin_size_, dataPacket.data.size()); ++i)
+            std::vector<kiss_fft_cpx> inputData(fft_size_);
+            for (size_t i = 0; i < std::min(fft_size_, dataPacket.data.size()); ++i)
             {
                 inputData[i].r = static_cast<float>(dataPacket.data[i]);
                 inputData[i].i = 0;
@@ -182,10 +177,10 @@ class FFTComputer
 
             kiss_fft(fft_, inputData.data(), fftOutput_.data());
 
-            std::vector<float> magnitudes(fft_bin_size_, 0.0f);
+            std::vector<float> magnitudes(fft_size_, 0.0f);
             std::vector<float> saeBands(32, 0.0f);
             const float max_int32 = std::numeric_limits<int32_t>::max();
-            for (size_t i = 0; i < fft_bin_size_; ++i)
+            for (size_t i = 0; i < fft_size_; ++i)
             {
                 magnitudes[i] = sqrt(fftOutput_[i].r * fftOutput_[i].r + fftOutput_[i].i * fftOutput_[i].i);
                 magnitudes[i] /= maxValue_;
@@ -230,19 +225,63 @@ class FFTComputer
         }
 
         void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands)
-        {
-            float freqResolution = static_cast<float>(sampleRate_) / fft_bin_size_;
-            for (size_t i = 0; i < 32; ++i)
+        {            
+            float freqResolution = static_cast<float>(sampleRate_) / fft_size_;
+
+            for (size_t i = 0; i < ISO_32_BAND_CENTERS.size(); ++i)
             {
-                float bandCenter = SAE_BAND_CENTERS[i];
-                size_t binStart = static_cast<size_t>((bandCenter / std::sqrt(2.0)) / freqResolution);
-                size_t binEnd = static_cast<size_t>((bandCenter * std::sqrt(2.0)) / freqResolution);
-                
-                for (size_t j = binStart; j < binEnd && j < fft_bin_size_; ++j)
+                float lowerFreq, upperFreq;
+
+                if (i == 0)
                 {
-                    saeBands[i] += magnitudes[j];
+                    lowerFreq = ISO_32_BAND_CENTERS[i] / sqrt2; // First band: Lower bound is half of center
                 }
-                saeBands[i] /= (binEnd - binStart + 1);
+                else
+                {
+                    lowerFreq = (ISO_32_BAND_CENTERS[i - 1] + ISO_32_BAND_CENTERS[i]) / 2.0f;
+                }
+
+                if (i == ISO_32_BAND_CENTERS.size() - 1)
+                {
+                    upperFreq = ISO_32_BAND_CENTERS[i] * sqrt2; // Last band: Upper bound extends beyond
+                }
+                else
+                {
+                    upperFreq = (ISO_32_BAND_CENTERS[i] + ISO_32_BAND_CENTERS[i + 1]) / 2.0f;
+                }
+
+                size_t binStart = static_cast<size_t>(std::floor(lowerFreq / freqResolution));
+                size_t binEnd = static_cast<size_t>(std::ceil(upperFreq / freqResolution));
+
+                // Ensure bin ranges are within bounds
+                binStart = std::min(binStart, fft_size_ - 1);
+                binEnd = std::min(binEnd, fft_size_ - 1);
+
+                saeBands[i] = 0.0f;
+                size_t count = 0;
+
+                for (size_t j = binStart; j <= binEnd; ++j)
+                {
+                    saeBands[i] += magnitudes[j] * magnitudes[j]; // Sum squared magnitudes (power)
+                    ++count;
+                }
+
+                // Compute power-based normalization (RMS of the power in the band)
+                if (count > 0)
+                {
+                    saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count)); // Square root of mean power
+                }
             }
+        }
+ 
+        static constexpr std::array<float, 32> ISO_32_BAND_CENTERS =
+        {
+            16, 20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,
+            800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
+        };
+
+        double getFFTFrequency(int binIndex)
+        {
+            return (sampleRate_ / fft_size_) * binIndex;
         }
 };

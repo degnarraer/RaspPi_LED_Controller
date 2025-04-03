@@ -4,7 +4,7 @@ const size_t MAX_QUEUE_SIZE = 500;
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server)
 {
-    logger_ = InitializeLogger("Web Socket Session", spdlog::level::debug);
+    logger_ = InitializeLogger("Web Socket Session", spdlog::level::info);
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
     logger_->info("Created new WebSocket session: {}", session_id_);
 }
