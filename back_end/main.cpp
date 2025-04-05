@@ -34,7 +34,7 @@ int main()
 {
     logger_ = InitializeLogger("Main Logger", spdlog::level::info);
     deploymentManger.clearFolderContentsWithSudo("/var/www/html");
-    deploymentManger.copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/data", "/var/www/html");
+    deploymentManger.copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/front_end/dist", "/var/www/html");
 
     webSocketServer->Run();
     I2SMicrophone mic = I2SMicrophone("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000);

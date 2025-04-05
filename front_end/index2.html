@@ -56,7 +56,7 @@ const myChart = new Chart(ctx, {
             y: { 
                 beginAtZero: true, 
                 min: 0, 
-                max: 5 
+                max: 10 
             },
             x: {
                 barThickness: 'flex',
@@ -82,7 +82,7 @@ const myChart = new Chart(ctx, {
                 ctx.save();
                 fallingDots.forEach(dot => {
                     ctx.beginPath();
-                    ctx.arc(dot.x, dot.y, 5, 0, Math.PI * 2);
+                    ctx.arc(dot.x, dot.y, 10, 0, Math.PI * 2);
                     ctx.fillStyle = 'rgba(255, 99, 132, 1)';
                     ctx.fill();
                 });
@@ -91,7 +91,6 @@ const myChart = new Chart(ctx, {
         }
     }
 });
-
 
 // Function to update the falling dots
 function updateFallingDots() {
