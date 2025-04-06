@@ -45,11 +45,7 @@ function App() {
         {/* Show the chart if showChart is true */}
         {showChart && (
           <WebSocketWrapper>
-            <LiveBarChart
-              labels={labels}
-              initialData={initialData}
-              signalName="fft"
-            />
+            <LiveBarChart labels={labels} initialData={initialData} signalName="Band Data"/>
           </WebSocketWrapper>
         )}
       </div>

@@ -9,7 +9,6 @@
 #include "logger.h"
 #include "websocket_server.h"
 
-
 struct Point
 {
     float x;
@@ -23,8 +22,15 @@ auto point_to_json_encoder = [](const Point& value) -> std::string
     return oss.str();
 };
 
+std::string encode_signal_name_and_value(const std::string& signal, std::string value)
+{
+    std::ostringstream oss;
+    oss << "{ \"signal\": \"" << signal << "\", \"value\": \"" << value << "\" }";
+    return oss.str(); 
+}
+
 template <typename T>
-std::string encode_labels_values_from_2_vectors(const std::vector<std::string>& labels, const std::vector<T>& values)
+std::string encode_labels_values_from_2_vectors(const std::string& signal, const std::vector<std::string>& labels, const std::vector<T>& values)
 {
     std::ostringstream oss;
 
@@ -52,12 +58,12 @@ std::string encode_labels_values_from_2_vectors(const std::vector<std::string>& 
     return oss.str();
 }
 
-std::string encode_FFT_Bands(const std::vector<float>& values)
+std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>& values)
 {
     std::vector<std::string> labels = { "16 Hz", "20 Hz", "25 Hz", "31.5 Hz", "40 Hz", "50 Hz", "63 Hz", "80 Hz", "100 Hz",
         "125 Hz", "160 Hz", "200 Hz", "250 Hz", "315 Hz", "400 Hz", "500 Hz", "630 Hz", "800 Hz", "1000 Hz", "1250 Hz", "1600 Hz", 
         "2000 Hz", "2500 Hz", "3150 Hz", "4000 Hz", "5000 Hz", "6300 Hz", "8000 Hz", "10000 Hz", "12500 Hz", "16000 Hz", "20000 Hz" };    
-    return encode_labels_values_from_2_vectors<float>(labels, values);
+    return encode_labels_values_from_2_vectors<float>(signal, labels, values);
 }
 
 template <typename T>
@@ -74,8 +80,6 @@ std::string to_string(const std::vector<T>& vec)
     return oss.str();
 }
 
-
-
 // Templated Signal class
 template<typename T>
 class Signal : public IWebSocketServer_BackendClient
@@ -83,7 +87,7 @@ class Signal : public IWebSocketServer_BackendClient
 {
 public:
     using Callback = std::function<void(const T&, void*)>;
-    using JsonEncoder = std::function<std::string(const T&)>;
+    using JsonEncoder = std::function<std::string(const std::string&, const T&)>;
 
     struct CallbackData
     {
@@ -104,7 +108,7 @@ public:
         : name_(name)
         , webSocketServer_(webSocketServer)
         , data_(std::make_shared<T>())
-        , encoder_(encoder ? encoder : [](const T& value) { return to_string(value); })
+        , encoder_(encoder ? encoder : [](const std::string name, const T& value) { return to_string(value); })
     {
         logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
     }
@@ -180,7 +184,7 @@ private:
     std::vector<CallbackData> callbacks_;
     std::shared_ptr<WebSocketServer> webSocketServer_;
     std::shared_ptr<spdlog::logger> logger_;
-    JsonEncoder encoder_;  // JSON Encoder function
+    JsonEncoder encoder_;
 
     void NotifyClients(const T& value, void* arg)
     {
@@ -195,7 +199,7 @@ private:
     {
         if (webSocketServer_ && encoder_)
         {
-            std::string jsonMessage = encoder_(value);
+            std::string jsonMessage = encoder_(name_, value);
             webSocketServer_->broadcast_message_to_websocket(jsonMessage);
         }
     }
