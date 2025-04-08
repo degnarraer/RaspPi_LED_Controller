@@ -1,4 +1,3 @@
-
 [submodule "spdlog"]
 	path = submodules/spdlog
 	url = https://github.com/gabime/spdlog.git
@@ -7,7 +6,7 @@
 	path = submodules/kissfft
 	url = https://github.com/mborgerding/kissfft.git
 	branch = master
-[submodule "submodules/chart.js"]
-	path = submodules/chart.js
-	url = https://github.com/chartjs/Chart.js.git
-	branch = 3.9
+[submodule "submodules/rpi_ws281x"]
+	path = submodules/rpi_ws281x
+	url = https://github.com/jgarff/rpi_ws281x.git
+	branch = master
