@@ -83,7 +83,6 @@ void WebSocketSession::do_read()
             if (ec)
             {
                 self->logger_->warn("Read error: {}", ec.message());
-                self->server_.close_session(self->GetSessionID());
                 return;
             }
             self->on_read(bytes_transferred);

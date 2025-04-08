@@ -4,16 +4,17 @@ interface LiveBarChartProps
 {
     labels: string[];
     initialData: number[];
-    signalName: string;
+    signal: string;
     socket?: WebSocket;
 }
 
-const LiveBarChart: React.FC<LiveBarChartProps> = ({ labels, initialData, signalName, socket }) =>
+const LiveBarChart: React.FC<LiveBarChartProps> = ({ labels, initialData, signal, socket }) =>
 {
     const [Chart, setChart] = useState<any>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const chartRef = useRef<any | null>(null);
-    const [data, setData] = useState<number[]>(initialData);
+    const [dataValues, setDataValues] = useState<number[]>(initialData);
+    const [dataLabels, setDataLabels] = useState<string[]>(labels);
 
     useEffect(() =>
     {
@@ -28,31 +29,25 @@ const LiveBarChart: React.FC<LiveBarChartProps> = ({ labels, initialData, signal
     useEffect(() =>
     {
         if (!socket) return;
-
-        const handleMessage = (event: MessageEvent) =>
-        {
-            console.log(event.data);
-            try
-            {
+        const handleMessage = (event: MessageEvent) => {
+            console.log('Raw WebSocket message:', event.data);
+            try {
                 const parsed = JSON.parse(event.data);
-                if (parsed.signal === signalName && Array.isArray(parsed.payload))
-                {
-                    setData(parsed.payload);
+                console.log('Parsed WebSocket message:', parsed);
+                if ( parsed && parsed.signal === signal ) {
+                    setDataValues(parsed.values);
+                    setDataLabels(parsed.labels);
                 }
-            }
-            catch (e)
-            {
+            } catch (e) {
                 console.error('Invalid WebSocket message format:', e);
             }
         };
-
         socket.addEventListener('message', handleMessage);
-
         return () =>
         {
             socket.removeEventListener('message', handleMessage);
         };
-    }, [socket, signalName]);
+    }, [socket, signal]);
 
     useEffect(() =>
     {
@@ -69,11 +64,11 @@ const LiveBarChart: React.FC<LiveBarChartProps> = ({ labels, initialData, signal
         chartRef.current = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels,
+                labels: dataLabels,
                 datasets: [
                     {
                         label: 'Live Data',
-                        data: data,
+                        data: dataValues,
                         borderWidth: 1,
                         backgroundColor: (context: any) =>
                         {
@@ -121,7 +116,7 @@ const LiveBarChart: React.FC<LiveBarChartProps> = ({ labels, initialData, signal
         {
             chartRef.current?.destroy();
         };
-    }, [labels, data, Chart]);
+    }, [dataLabels, dataValues, Chart]);
 
     return <canvas ref={canvasRef} />;
 };

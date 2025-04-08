@@ -15,23 +15,42 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   const [socket, setSocket] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(url);
-    setSocket(ws);
+    let ws: WebSocket | null = null;
+    let reconnectInterval: ReturnType<typeof setInterval> | null = null;
 
-    ws.onopen = () => {
-      console.log('WebSocket connected');
+    const connect = () => {
+      if (ws) {
+        return;
+      }
+
+      ws = new WebSocket(url);
+      setSocket(ws);
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        if (reconnectInterval) {
+          clearInterval(reconnectInterval);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected. Attempting reconnect in 2 seconds...');
+        if (!reconnectInterval) {
+          reconnectInterval = setInterval(connect, 2000); // Retry every 2 seconds
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        ws?.close();
+      };
     };
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+    connect();
 
     return () => {
-      ws.close();
+      if (reconnectInterval) clearInterval(reconnectInterval);
+      if (ws) ws.close();
     };
   }, [url]);
 

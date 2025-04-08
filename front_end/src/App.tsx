@@ -6,13 +6,18 @@ import WebSocketWrapper from './components/WebSocketWrapper';
 
 function App() {
   const [visible, setVisible] = useState(false);
-  const [showChart, setShowChart] = useState(false);
+  const [showLeftChart, setShowLeftChart] = useState(false);
+  const [showRightChart, setShowRightChart] = useState(false);
 
   const openDrawer = () => setVisible(true);
   const closeDrawer = () => setVisible(false);
 
-  const handleChartLinkClick = () => {
-    setShowChart(true);
+  const handleLeftChartLinkClick = () => {
+    setShowLeftChart(true);
+    closeDrawer();
+  };
+  const handleRightChartLinkClick = () => {
+    setShowRightChart(true);
     closeDrawer();
   };
 
@@ -38,14 +43,21 @@ function App() {
         <Drawer title="Navigation" placement="left" onClose={closeDrawer} visible={visible}>
           <Menu>
             <Menu.Item key="1">Home</Menu.Item>
-            <Menu.Item key="2" onClick={handleChartLinkClick}>Live Bar Chart</Menu.Item>
+            <Menu.Item key="2" onClick={handleLeftChartLinkClick}>Left Mic Bands</Menu.Item>
+            <Menu.Item key="3" onClick={handleRightChartLinkClick}>Right Mic Bands</Menu.Item>
           </Menu>
         </Drawer>
 
-        {/* Show the chart if showChart is true */}
-        {showChart && (
+        {/* Show the Left chart if showChart is true */}
+        {showLeftChart && (
           <WebSocketWrapper>
-            <LiveBarChart labels={labels} initialData={initialData} signalName="Band Data"/>
+            <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Left Channel"/>
+          </WebSocketWrapper>
+        )}
+        {/* Show the Right chart if showChart is true */}
+        {showRightChart && (
+          <WebSocketWrapper>
+            <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Right Channel"/>
           </WebSocketWrapper>
         )}
       </div>

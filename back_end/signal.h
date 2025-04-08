@@ -8,6 +8,9 @@
 #include <unordered_map>
 #include "logger.h"
 #include "websocket_server.h"
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 struct Point
 {
@@ -15,55 +18,51 @@ struct Point
     float y;
 };
 
+// Encodes a Point object as a JSON string
 auto point_to_json_encoder = [](const Point& value) -> std::string
 {
-    std::ostringstream oss;
-    oss << "{ \"x\": " << value.x << ", \"y\": " << value.y << " }";
-    return oss.str();
+    json j;
+    j["x"] = value.x;
+    j["y"] = value.y;
+    return j.dump();
 };
 
-std::string encode_signal_name_and_value(const std::string& signal, std::string value)
+// Encodes a signal and a value (as a JSON object or value) into a JSON string
+std::string encode_signal_name_and_value(const std::string& signal, const json& value)
 {
-    std::ostringstream oss;
-    oss << "{ \"signal\": \"" << signal << "\", \"value\": \"" << value << "\" }";
-    return oss.str(); 
+    json j;
+    j["signal"] = signal;
+    j["value"] = value;
+    return j.dump();
 }
 
+// Encodes labels and values into a single JSON object
 template <typename T>
-std::string encode_labels_values_from_2_vectors(const std::string& signal, const std::vector<std::string>& labels, const std::vector<T>& values)
+json encode_labels_values_from_2_vectors(const std::vector<std::string>& labels, const std::vector<T>& values)
 {
-    std::ostringstream oss;
-
-    // Ensure both vectors are of the same size
     if (labels.size() != values.size())
     {
         throw std::invalid_argument("Labels and values vectors must have the same size.");
     }
 
-    // Create JSON format
-    oss << "{ \"labels\": [";
-    for (size_t i = 0; i < labels.size(); ++i)
-    {
-        if (i > 0) oss << ", ";
-        oss << "\"" << labels[i] << "\"";
-    }
-    oss << "], \"values\": [";
-    for (size_t i = 0; i < values.size(); ++i)
-    {
-        if (i > 0) oss << ", ";
-        oss << values[i];
-    }
-    oss << "] }";
-
-    return oss.str();
+    json j;
+    j["labels"] = labels;
+    j["values"] = values;
+    return j;
 }
 
+// Wraps the FFT band signal with predefined labels and values
 std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>& values)
 {
-    std::vector<std::string> labels = { "16 Hz", "20 Hz", "25 Hz", "31.5 Hz", "40 Hz", "50 Hz", "63 Hz", "80 Hz", "100 Hz",
-        "125 Hz", "160 Hz", "200 Hz", "250 Hz", "315 Hz", "400 Hz", "500 Hz", "630 Hz", "800 Hz", "1000 Hz", "1250 Hz", "1600 Hz", 
-        "2000 Hz", "2500 Hz", "3150 Hz", "4000 Hz", "5000 Hz", "6300 Hz", "8000 Hz", "10000 Hz", "12500 Hz", "16000 Hz", "20000 Hz" };    
-    return encode_labels_values_from_2_vectors<float>(signal, labels, values);
+    std::vector<std::string> labels = {
+        "16 Hz", "20 Hz", "25 Hz", "31.5 Hz", "40 Hz", "50 Hz", "63 Hz", "80 Hz", "100 Hz",
+        "125 Hz", "160 Hz", "200 Hz", "250 Hz", "315 Hz", "400 Hz", "500 Hz", "630 Hz", "800 Hz", "1000 Hz", "1250 Hz",
+        "1600 Hz", "2000 Hz", "2500 Hz", "3150 Hz", "4000 Hz", "5000 Hz", "6300 Hz", "8000 Hz", "10000 Hz", "12500 Hz",
+        "16000 Hz", "20000 Hz"
+    };
+
+    json valueJson = encode_labels_values_from_2_vectors(labels, values);
+    return encode_signal_name_and_value(signal, valueJson);
 }
 
 template <typename T>
@@ -108,7 +107,7 @@ public:
         : name_(name)
         , webSocketServer_(webSocketServer)
         , data_(std::make_shared<T>())
-        , encoder_(encoder ? encoder : [](const std::string name, const T& value) { return to_string(value); })
+        , encoder_(encoder ? encoder : [](const std::string signal, const T& value) { return to_string(value); })
     {
         logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
     }
@@ -178,7 +177,7 @@ public:
     }
 
 private:
-    std::string name_;
+    const std::string& name_;
     std::shared_ptr<T> data_;
     mutable std::mutex mutex_;
     std::vector<CallbackData> callbacks_;
