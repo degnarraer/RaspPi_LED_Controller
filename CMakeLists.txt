@@ -110,6 +110,8 @@ project(RaspPi_LED_Controller)
         message(STATUS "  node is installed: ${NODE_VERSION}")
     endif()
 
+############ Add WS2812 Library ############
+    add_subdirectory(${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x)
 
 ############ Get all cpp and h files ############
     message(STATUS "STEP: Getting all included files")
@@ -145,7 +147,8 @@ project(RaspPi_LED_Controller)
 
 ############ Link Libraries ############
     message(STATUS "STEP: Linking")
-    target_link_libraries(RaspPi_LED_Controller PRIVATE asound)
-    #target_link_libraries(RaspPi_LED_Controller PRIVATE ${Boost_LIBRARIES})
+    target_link_libraries(RaspPi_LED_Controller PRIVATE asound
+        ws2811
+    )
 
 
