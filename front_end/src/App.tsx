@@ -6,20 +6,10 @@ import WebSocketWrapper from './components/WebSocketWrapper';
 
 function App() {
   const [visible, setVisible] = useState(false);
-  const [showLeftChart, setShowLeftChart] = useState(false);
-  const [showRightChart, setShowRightChart] = useState(false);
+  const [screen, setScreen] = useState('home');
 
   const openDrawer = () => setVisible(true);
   const closeDrawer = () => setVisible(false);
-
-  const handleLeftChartLinkClick = () => {
-    setShowLeftChart(true);
-    closeDrawer();
-  };
-  const handleRightChartLinkClick = () => {
-    setShowRightChart(true);
-    closeDrawer();
-  };
 
   const labels = [
     '16 Hz', '20 Hz', '25 Hz', '31.5 Hz', '40 Hz', '50 Hz', '63 Hz', '80 Hz', '100 Hz', '125 Hz', 
@@ -33,33 +23,51 @@ function App() {
     2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2
   ];
 
+  function HomeScreen() {
+    return <h1>Home Screen</h1>;
+}
+
+function BandsLeftChannelScreen() {
+  return(
+      <div><h1>Left Bands Channel</h1>
+        <div>
+          <WebSocketWrapper>
+            <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Left Channel"/>
+          </WebSocketWrapper>
+        </div>
+      </div>
+  );
+}
+
+
+function BandsRightChannelScreen() {
+  return(
+    <div><h1>Right Bands Channel</h1>
+        <div>
+          <WebSocketWrapper>
+            <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Right Channel"/>
+          </WebSocketWrapper>
+        </div>
+    </div>
+  );
+}
+
   return (
     <WebSocketProvider url="ws://ltop.local:8080">
       <div>
         <Button type="primary" onClick={openDrawer}>
           Open Menu
         </Button>
-
         <Drawer title="Navigation" placement="left" onClose={closeDrawer} visible={visible}>
           <Menu>
-            <Menu.Item key="1">Home</Menu.Item>
-            <Menu.Item key="2" onClick={handleLeftChartLinkClick}>Left Mic Bands</Menu.Item>
-            <Menu.Item key="3" onClick={handleRightChartLinkClick}>Right Mic Bands</Menu.Item>
+            <Menu.Item key="1" onClick={() => { setScreen('home'); closeDrawer(); }}>Home</Menu.Item>
+            <Menu.Item key="2" onClick={() => { setScreen('bands right channel'); closeDrawer(); }}>Bands Right Channel</Menu.Item>
+            <Menu.Item key="3" onClick={() => { setScreen('bands left channel'); closeDrawer(); }}>Bands Left Channel</Menu.Item>
           </Menu>
         </Drawer>
-
-        {/* Show the Left chart if showChart is true */}
-        {showLeftChart && (
-          <WebSocketWrapper>
-            <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Left Channel"/>
-          </WebSocketWrapper>
-        )}
-        {/* Show the Right chart if showChart is true */}
-        {showRightChart && (
-          <WebSocketWrapper>
-            <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Right Channel"/>
-          </WebSocketWrapper>
-        )}
+        {screen === 'home' && <HomeScreen />}
+        {screen === 'bands right channel' && <BandsRightChannelScreen />}
+        {screen === 'bands left channel' && <BandsLeftChannelScreen />}
       </div>
     </WebSocketProvider>
   );
