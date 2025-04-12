@@ -198,6 +198,7 @@ private:
     {
         if (webSocketServer_ && encoder_)
         {
+            logger_->debug("NotifyWebSocket: {}", to_string(value));
             std::string jsonMessage = encoder_(name_, value);
             webSocketServer_->broadcast_message_to_websocket(jsonMessage);
         }

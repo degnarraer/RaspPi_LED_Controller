@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { Component, createRef } from 'react';
 
 interface LiveBarChartProps
 {
@@ -8,117 +8,175 @@ interface LiveBarChartProps
     socket?: WebSocket;
 }
 
-const LiveBarChart: React.FC<LiveBarChartProps> = ({ labels, initialData, signal, socket }) =>
+interface LiveBarChartState
 {
-    const [Chart, setChart] = useState<any>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const chartRef = useRef<any | null>(null);
-    const [dataValues, setDataValues] = useState<number[]>(initialData);
-    const [dataLabels, setDataLabels] = useState<string[]>(labels);
+    dataLabels: string[];
+    dataValues: number[];
+}
 
-    useEffect(() =>
+export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarChartState>
+{
+    private canvasRef = createRef<HTMLCanvasElement>();
+    private chart: any = null;
+    private ChartJS: any = null;
+
+    constructor(props: LiveBarChartProps)
     {
-        import('chart.js').then((module) =>
+        super(props);
+
+        this.state = 
         {
-            setChart(module.Chart);
-            module.Chart.register(...module.registerables);
+            dataLabels: props.labels ?? [],
+            dataValues: props.initialData ?? [],
+        };
+    }
+
+    componentDidMount()
+    {
+        this.loadChartLibrary().then(() =>
+        {
+            this.createChart();
         });
 
-    }, []);
+        this.setupSocket();
+    }
 
-    useEffect(() =>
+    componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState)
     {
-        if (!socket) return;
-        const handleMessage = (event: MessageEvent) => {
-            console.log('Raw WebSocket message:', event.data);
-            try {
-                const parsed = JSON.parse(event.data);
-                console.log('Parsed WebSocket message:', parsed);
-                if ( parsed && parsed.signal === signal ) {
-                    setDataValues(parsed.values);
-                    setDataLabels(parsed.labels);
-                }
-            } catch (e) {
-                console.error('Invalid WebSocket message format:', e);
-            }
-        };
-        socket.addEventListener('message', handleMessage);
-        return () =>
+        if ( prevState.dataValues !== this.state.dataValues || prevState.dataLabels !== this.state.dataLabels )
         {
-            socket.removeEventListener('message', handleMessage);
-        };
-    }, [socket, signal]);
-
-    useEffect(() =>
-    {
-        if (!canvasRef.current || !Chart) return;
-
-        const ctx = canvasRef.current.getContext('2d');
-        if (!ctx) return;
-
-        if (chartRef.current)
-        {
-            chartRef.current.destroy();
+            this.updateChart();
         }
+    }
 
-        chartRef.current = new Chart(ctx, {
+    componentWillUnmount()
+    {
+        this.teardownSocket();
+        if (this.chart)
+        {
+            this.chart.destroy();
+        }
+    }
+
+    async loadChartLibrary()
+    {
+        const module = await import('chart.js');
+        this.ChartJS = module.Chart;
+        this.ChartJS.register(...module.registerables);
+    }
+
+    createChart()
+    {
+        const ctx = this.canvasRef.current?.getContext('2d');
+        if (!ctx || !this.ChartJS) return;
+
+        this.chart = new this.ChartJS(ctx, 
+        {
             type: 'bar',
-            data: {
-                labels: dataLabels,
-                datasets: [
+            data: 
+            {
+                labels: this.state.dataLabels,
+                datasets: 
+                [
                     {
                         label: 'Live Data',
-                        data: dataValues,
+                        data: this.state.dataValues,
+                        backgroundColor: this.getBarColors(this.state.dataValues),
                         borderWidth: 1,
-                        backgroundColor: (context: any) =>
-                        {
-                            const chartData = context.chart.data.datasets[0].data as number[];
-                            if (!chartData.length)
-                            {
-                                return 'rgba(54, 162, 235, 0.6)';
-                            }
-
-                            const maxVal = Math.max(...chartData);
-                            const minVal = Math.min(...chartData);
-
-                            return chartData.map((value) =>
-                            {
-                                if (value === maxVal)
-                                {
-                                    return 'rgba(255, 0, 0, 1)';
-                                }
-                                const ratio = maxVal === minVal ? 0 : (value - minVal) / (maxVal - minVal);
-                                const r = Math.round(255 * ratio);
-                                const g = Math.round(255 * ratio);
-                                const b = Math.round(200 * (1 - ratio));
-                                return `rgba(${r}, ${g}, ${b}, 0.8)`;
-                            });
-                        },
                     },
                 ],
             },
-            options: {
-                scales: {
+            options: 
+            {
+                scales: 
+                {
                     y: { beginAtZero: true, min: 0, max: 10 },
                     x: { grid: { display: false }, ticks: { display: true } },
                 },
                 layout: { padding: 0 },
                 elements: { bar: { borderWidth: 1 } },
-                animation: {
+                animation: 
+                {
                     duration: 10,
                     easing: 'linear',
                 },
                 plugins: {},
             },
         });
+    }
 
-        return () =>
+    updateChart()
+    {
+        if (!this.chart) return;
+
+        this.chart.data.labels = this.state.dataLabels;
+        this.chart.data.datasets[0].data = this.state.dataValues;
+        this.chart.data.datasets[0].backgroundColor = this.getBarColors(this.state.dataValues);
+        this.chart.update();
+    }
+
+    getBarColors(values: number[] = []): string[]
+    {
+        if (!Array.isArray(values) || values.length === 0)
         {
-            chartRef.current?.destroy();
-        };
-    }, [dataLabels, dataValues, Chart]);
+            return ['rgba(54, 162, 235, 0.6)'];
+        }
 
-    return <canvas ref={canvasRef} />;
-};
+        const max = Math.max(...values);
+        const min = Math.min(...values);
 
-export default LiveBarChart;
+        return values.map((value) =>
+        {
+            if (value === max)
+            {
+                return 'rgba(255, 0, 0, 1)';
+            }
+
+            const ratio = max === min ? 0 : (value - min) / (max - min);
+            const r = Math.round(255 * ratio);
+            const g = Math.round(255 * ratio);
+            const b = Math.round(200 * (1 - ratio));
+            return `rgba(${r}, ${g}, ${b}, 0.8)`;
+        });
+    }
+
+    setupSocket()
+    {
+        const { socket } = this.props;
+        if (!socket) return;
+        socket.addEventListener('message', this.handleSocketMessage);
+    }
+
+    teardownSocket()
+    {
+        const { socket } = this.props;
+        if (!socket) return;
+        socket.removeEventListener('message', this.handleSocketMessage);
+    }
+
+    handleSocketMessage = (event: MessageEvent) =>
+    {
+        try
+        {
+            console.log(event.data);
+            const parsed = JSON.parse(event.data);
+            if (parsed && parsed.signal === this.props.signal && Array.isArray(parsed.values) && Array.isArray(parsed.labels))
+            {
+                this.setState(
+                {
+                    dataLabels: parsed.labels,
+                    dataValues: parsed.values,
+                });
+            }
+        }
+        catch (e)
+        {
+            console.error('Invalid WebSocket message format:', e);
+        }
+    };
+
+    render()
+    {
+        return <canvas ref={this.canvasRef} />;
+    }
+}

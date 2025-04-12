@@ -135,12 +135,12 @@ project(RaspPi_LED_Controller)
         message(STATUS "    ${SOURCE_FILE}")
     endforeach()
 
-############ Define Executable ############
     message(STATUS "STEP: Defining Executable")
     add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
 
     # Step 7: Include necessary directories
     include_directories(
+        ${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x/include
         ${CMAKE_SOURCE_DIR}/submodules/spdlog/include
         ${CMAKE_SOURCE_DIR}/submodules/kissfft
     )
