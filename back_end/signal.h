@@ -165,12 +165,6 @@ public:
 
     const std::string& GetName() const { return name_; }
 
-    // IWebSocketServer_BackendClient Interface
-    std::string GetName() override
-    {
-        return name_;
-    }
-
     void on_message_received_from_web_socket(const std::string& message) override
     {
         logger_->info("Received WebSocket message: {}", message);

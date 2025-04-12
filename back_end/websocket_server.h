@@ -44,7 +44,7 @@ class IWebSocketServer_BackendClient
 {
 public:
     virtual ~IWebSocketServer_BackendClient() = default;
-    virtual std::string GetName() = 0;
+    virtual const std::string& GetName() const = 0;
     virtual void on_message_received_from_web_socket(const std::string& message) = 0;
 };
 

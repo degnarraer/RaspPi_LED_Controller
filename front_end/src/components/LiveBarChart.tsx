@@ -5,7 +5,7 @@ interface LiveBarChartProps
     labels: string[];
     initialData: number[];
     signal: string;
-    socket?: WebSocket;
+    socket: WebSocket | null;
 }
 
 interface LiveBarChartState
