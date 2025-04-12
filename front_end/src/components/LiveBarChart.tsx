@@ -158,14 +158,15 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     {
         try
         {
-            console.log(event.data);
             const parsed = JSON.parse(event.data);
-            if (parsed && parsed.signal === this.props.signal && Array.isArray(parsed.values) && Array.isArray(parsed.labels))
+            if ( parsed && parsed.signal === this.props.signal &&
+                 Array.isArray(parsed.value.values) &&
+                 Array.isArray(parsed.value.labels) )
             {
                 this.setState(
                 {
-                    dataLabels: parsed.labels,
-                    dataValues: parsed.values,
+                    dataLabels: parsed.value.labels,
+                    dataValues: parsed.value.values,
                 });
             }
         }
