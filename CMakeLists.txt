@@ -1,30 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(RaspPi_LED_Controller)
 
-
-############ Check for Required Things ############
-    message(STATUS "STEP: Checking for required things")
-    # Look for the ALSA library
-    find_library(ALSA_LIBRARY NAMES asound)
-
-    if(NOT ALSA_LIBRARY)
-        message(FATAL_ERROR "ALSA (asound) library not found.")
-    else()
-        message(STATUS "  ALSA library found at ${ALSA_LIBRARY}")
-    endif()
-
-    # Find Boost libraries (including Boost.Python)
-    find_package(Boost REQUIRED COMPONENTS Python)
-
-    if(Boost_FOUND)
-        message(STATUS "  Boost.Python found!")
-        message(STATUS "  Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
-        message(STATUS "  Boost_LIBRARIES: ${Boost_LIBRARIES}")
-    else()
-        message(FATAL_ERROR "Boost.Python not found. Please install libboost-python3-dev.")
-    endif()
-
-
 ############ Setup Build Output Folders ############
     message(STATUS "STEP: Setting up Build Output Folders")
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/lib")
@@ -36,7 +12,6 @@ project(RaspPi_LED_Controller)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/bin")
     message(STATUS "  Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
-
 ############ Install Required Packages ############
     message(STATUS "STEP: Installing required Packages")
     set(PACKAGES 
@@ -44,7 +19,7 @@ project(RaspPi_LED_Controller)
         nlohmann-json3-dev
         cmake
         libboost-all-dev
-        nodejs  # Installed via NodeSource, but still included in case it's valid
+        nodejs
         nginx
         python3-pip
     )
@@ -76,6 +51,27 @@ project(RaspPi_LED_Controller)
         endif()
     endforeach()
 
+############ Check for Required Things ############
+    message(STATUS "STEP: Checking for required things")
+    # Look for the ALSA library
+    find_library(ALSA_LIBRARY NAMES asound)
+
+    if(NOT ALSA_LIBRARY)
+        message(FATAL_ERROR "ALSA (asound) library not found.")
+    else()
+        message(STATUS "  ALSA library found at ${ALSA_LIBRARY}")
+    endif()
+
+    # Find Boost libraries (including Boost.Python)
+    find_package(Boost REQUIRED COMPONENTS Python)
+
+    if(Boost_FOUND)
+        message(STATUS "  Boost.Python found!")
+        message(STATUS "  Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+        message(STATUS "  Boost_LIBRARIES: ${Boost_LIBRARIES}")
+    else()
+        message(FATAL_ERROR "Boost.Python not found. Please install libboost-python3-dev.")
+    endif()
 
 ############ Manually Setup NPM ############
     message(STATUS "STEP: Setting up NPM")
@@ -138,7 +134,7 @@ project(RaspPi_LED_Controller)
     message(STATUS "STEP: Defining Executable")
     add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
 
-    # Step 7: Include necessary directories
+    # Include necessary directories
     include_directories(
         ${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x/include
         ${CMAKE_SOURCE_DIR}/submodules/spdlog/include

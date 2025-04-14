@@ -28,13 +28,26 @@ void WebSocketSession::run()
 
 void WebSocketSession::close()
 {
-    logger_->debug("Session: {} Close.", GetSessionID());
-    beast::error_code ec;
-    ws_.close(websocket::close_code::normal, ec);
-    if (ec)
+    if (!ws_.is_open())
     {
-        logger_->warn("Error closing session: {}", ec.message());
+        logger_->info("Session {} already closed.", GetSessionID());
+        return;
     }
+
+    logger_->debug("Session: {} Async Close.", GetSessionID());
+
+    ws_.async_close(websocket::close_code::normal,
+        [self = shared_from_this()](beast::error_code ec)
+        {
+            if (ec)
+            {
+                self->logger_->warn("Error during async_close: {}", ec.message());
+            }
+            else
+            {
+                self->logger_->info("Session {} closed cleanly.", self->GetSessionID());
+            }
+        });
 }
 
 std::string WebSocketSession::GetSessionID() const
@@ -52,10 +65,10 @@ void WebSocketSession::send_message(const std::string& message)
             {
                 std::lock_guard<std::mutex> lock(self->write_mutex_);
 
-                // If queue is full, drop the oldest message
                 if (self->outgoing_messages_.size() >= MAX_QUEUE_SIZE)
                 {
                     self->outgoing_messages_.pop_front();
+                    self->logger_->warn("Session {}: Dropped Message.", self->GetSessionID());
                 }
 
                 self->outgoing_messages_.push_back(message);
@@ -77,81 +90,98 @@ void WebSocketSession::send_message(const std::string& message)
 void WebSocketSession::do_read()
 {
     logger_->debug("Session: {} Do Read.", GetSessionID());
+
     ws_.async_read(buffer_,
         [self = shared_from_this()](beast::error_code ec, std::size_t bytes_transferred)
         {
             if (ec)
             {
-                self->logger_->warn("Read error: {}", ec.message());
+                self->logger_->warn("Session {}: Read error: {}", self->GetSessionID(), ec.message());
                 return;
             }
             self->on_read(bytes_transferred);
+            self->do_read();
         });
 }
 
 void WebSocketSession::on_read(std::size_t)
 {
     logger_->debug("Session: {} On Read.", GetSessionID());
+
     auto message = beast::buffers_to_string(buffer_.data());
     logger_->trace("Received: {}", message);
+
     buffer_.consume(buffer_.size());
-    send_message("Echo: " + message);
+
+    try
+    {
+        // Parse the incoming message as JSON
+        json incoming = json::parse(message);
+
+        // Log something from the JSON (optional)
+        if (incoming.contains("type") && incoming.contains("message"))
+        {
+            logger_->trace("Message type: {}", incoming["type"].get<std::string>());
+            switch(string_to_type_.at(incoming["type"]))
+            {
+                case MessageType::Subscribe:
+                    logger_->info("Session: {} Subscribe Message", GetSessionID());
+                    subscribe_to_signal(incoming["signal"]);
+                break;
+                case MessageType::Unsubscribe:
+                    logger_->info("Session: {} Unsubscribe Message", GetSessionID());
+                    unsubscribe_from_signal(incoming["signal"]);
+                break;
+                case MessageType::Text:
+                    logger_->info("Session: {} Text Message", GetSessionID());
+                break;
+                case MessageType::Signal:
+                    logger_->info("Session: {} Signal Message", GetSessionID());
+                break;
+                case MessageType::Unknown:
+                default:
+                    logger_->warn("Session: {} Unknown Message", GetSessionID());
+                break;
+            }
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = incoming["message"];
+            send_message(response.dump());
+        }
+        else
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Unsupported Message Format";
+            send_message(response.dump());
+        }
+
+    }
+    catch (const std::exception& e)
+    {
+        logger_->warn("Session {}: Failed to parse JSON: {}", GetSessionID(), e.what());
+
+        // You can also send a structured error message
+        json error;
+        error["type"] = "error";
+        error["message"] = "Invalid JSON";
+        send_message(error.dump());
+    }
 }
 
 void WebSocketSession::do_write()
 {
     logger_->debug("Session: {} Do Write.", GetSessionID());
 
-    // Check if the WebSocket is open, if not, attempt to reconnect
     if (!ws_.is_open())
     {
         logger_->warn("WebSocket not open, retrying connection...");
-        auto retry_attempts = 5;  // Number of retry attempts for WebSocket connection
-        auto retry_delay = std::chrono::seconds(2);  // Delay between retries (e.g., 2 seconds)
-
-        // Lambda to handle retry logic for reconnecting and then writing
-        std::function<void()> retry_connection;
-
-        retry_connection = [self = shared_from_this(), retry_attempts, retry_delay, &retry_connection]() mutable
-        {
-            if (retry_attempts > 0)
-            {
-                self->logger_->debug("Retry attempt {} of {}", 6 - retry_attempts, 5);
-                std::this_thread::sleep_for(retry_delay);  // Delay before retrying connection
-                retry_attempts--;  // Decrease retry attempts
-                
-                // Try reconnecting by calling async_accept again or other reconnect strategy
-                self->ws_.async_accept(
-                    [self, &retry_connection](beast::error_code ec)
-                    {
-                        if (!ec)
-                        {
-                            self->logger_->info("WebSocket successfully reconnected.");
-                            self->do_write();  // Once reconnected, attempt to write
-                        }
-                        else
-                        {
-                            self->logger_->warn("Reconnection attempt failed: {}", ec.message());
-                            // Retry connection again in case of failure
-                            retry_connection(); // Recursive retry
-                        }
-                    });
-            }
-            else
-            {
-                self->logger_->error("Failed to reconnect to WebSocket after multiple attempts.");
-                self->writing_ = false;  // Stop further write attempts after all retries fail
-            }
-        };
-
-        // Start retry logic for connection
-        retry_connection(); // Initiate the first retry attempt
-        return;  // Exit do_write and retry connection before attempting to send data
+        retry_connection(5);
+        return;
     }
 
-    // If WebSocket is open, continue with the normal writing process
     std::string message;
-    {   // Lock only while accessing the queue
+    {
         std::lock_guard<std::mutex> lock(write_mutex_);
         if (outgoing_messages_.empty())
         {
@@ -161,27 +191,101 @@ void WebSocketSession::do_write()
         }
 
         message = std::move(outgoing_messages_.front());
-        outgoing_messages_.pop_front();  // Remove the front message from the queue
+        outgoing_messages_.pop_front();
     }
 
-    // Start writing the message asynchronously
-    ws_.text(ws_.got_text());  // Ensure WebSocket text mode is set
+    ws_.text(ws_.got_text());
     ws_.async_write(asio::buffer(message),
-        [self = shared_from_this()](beast::error_code ec, std::size_t)
+        beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this()));
+}
+
+void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transferred)
+{
+    boost::ignore_unused(bytes_transferred);
+
+    if (ec)
+    {
+        logger_->warn("Write error: {}", ec.message());
+        writing_ = false;
+        return;
+    }
+
+    logger_->debug("Message sent successfully. Continuing to write if more messages exist.");
+    do_write();
+}
+
+
+void WebSocketSession::retry_connection(int remaining_attempts)
+{
+    if (remaining_attempts <= 0)
+    {
+        logger_->error("Failed to reconnect to WebSocket after multiple attempts.");
+        writing_ = false;
+        return;
+    }
+
+    logger_->debug("Retrying WebSocket connection... attempts left: {}", remaining_attempts);
+
+    auto timer = std::make_shared<asio::steady_timer>(ws_.get_executor(), std::chrono::seconds(2));
+    timer->async_wait([self = shared_from_this(), remaining_attempts, timer](const beast::error_code& ec)
+    {
+        if (ec)
         {
-            if (ec)
+            self->logger_->warn("Session {}: Timer error during reconnection: {}", self->GetSessionID(), ec.message());
+            return;
+        }
+
+        self->ws_.async_accept([self, remaining_attempts](beast::error_code ec)
+        {
+            if (!ec)
             {
-                self->logger_->warn("Write error: {}", ec.message());
-                self->writing_ = false;
+                self->logger_->info("Session {}: WebSocket successfully reconnected.", self->GetSessionID());
+                self->do_write();
             }
             else
             {
-                self->logger_->debug("Message sent successfully. Continuing to write if more messages exist.");
-                self->do_write();  // Continue writing if more messages are available
+                self->logger_->warn("Session {}: Reconnection attempt failed: {}", self->GetSessionID(), ec.message());
+                self->retry_connection(remaining_attempts - 1);
             }
         });
+    });
 }
 
+void WebSocketSession::subscribe_to_signal(const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    subscribed_signals_.insert(signal_name);
+}
+
+void WebSocketSession::unsubscribe_from_signal(const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    subscribed_signals_.erase(signal_name);
+}
+
+bool WebSocketSession::is_subscribed_to(const std::string& signal_name) const
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    return subscribed_signals_.count(signal_name) > 0;
+}
+
+const std::unordered_map<std::string, MessageTypeHelper::MessageType> MessageTypeHelper::string_to_type_ = {
+    {"subscribe", MessageTypeHelper::MessageType::Subscribe},
+    {"unsubscribe", MessageTypeHelper::MessageType::Unsubscribe},
+    {"text", MessageTypeHelper::MessageType::Text},
+    {"signal", MessageTypeHelper::MessageType::Signal},
+    {"echo", MessageTypeHelper::MessageType::Echo},
+    {"unknown", MessageTypeHelper::MessageType::Unknown},
+};
+
+const std::unordered_map<MessageTypeHelper::MessageType, std::string> MessageTypeHelper::type_to_string_ = {
+    {MessageTypeHelper::MessageType::Subscribe, "subscribe"},
+    {MessageTypeHelper::MessageType::Unsubscribe, "unsubscribe"},
+    {MessageTypeHelper::MessageType::Text, "text"},
+    {MessageTypeHelper::MessageType::Signal, "signal"},
+    {MessageTypeHelper::MessageType::Echo, "echo"},
+    {MessageTypeHelper::MessageType::Unknown, "unknown"},
+};
 
 WebSocketServer::WebSocketServer(short port)
     : ioc_()
@@ -253,6 +357,26 @@ void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
     }
 }
 
+void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    for (auto it = sessions_.begin(); it != sessions_.end();)
+    {
+        if (auto session = it->second.lock())
+        {
+            if (session->is_subscribed_to(signal_name))
+            {
+                session->send_message(message);
+            }
+            ++it;
+        }
+        else
+        {
+            it = sessions_.erase(it);
+        }
+    }
+}
+
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
 {
     logger_->debug("Registering backend client: {}.", client->GetName());
@@ -288,7 +412,7 @@ void WebSocketServer::close_session(const std::string& session_id)
         {
             session->send_message("Session closing...");
             session->close();
-            logger_->info("Session {} closed.", session_id);
+            logger_->info("Session {}: Closed.", session_id);
         }
         sessions_.erase(it);
     }
@@ -300,9 +424,9 @@ void WebSocketServer::close_session(const std::string& session_id)
 
 void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
 {
-    logger_->debug("Registering session {}.", session->GetSessionID());
+    logger_->debug("Registering Session {}.", session->GetSessionID());
     sessions_[session->GetSessionID()] = session;
-    logger_->info("Session {} registered.", session->GetSessionID());
+    logger_->info("Session {}: Registered.", session->GetSessionID());
 }
 
 void WebSocketServer::do_accept()
