@@ -123,7 +123,7 @@ export default class MirroredVerticalBarChart extends Component<MirroredVertical
                     },
                 },
                 animation: {
-                    duration: 100,
+                    duration: 10,
                     easing: 'linear',
                 },
             },
