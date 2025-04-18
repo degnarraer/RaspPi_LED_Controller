@@ -4,10 +4,9 @@ import { WebSocketContext } from './components/WebSocketContext';
 import LiveBarChart from './components/LiveBarChart';
 
 function App() {
-  const socket = useContext(WebSocketContext);
   const [visible, setVisible] = useState(false);
   const [screen, setScreen] = useState('home');
-
+  const webSocketContext = useContext(WebSocketContext);
   const openDrawer = () => setVisible(true);
   const closeDrawer = () => setVisible(false);
   
@@ -29,7 +28,7 @@ function BandsLeftChannelScreen() {
   ];
   return(
     <div><h1>Left Bands Channel</h1>
-      <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Left Channel" socket={socket}/>
+      <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Left Channel" webSocketContext={webSocketContext}/>
     </div>
   );
 }
@@ -49,7 +48,7 @@ function BandsRightChannelScreen() {
   ];
   return(
     <div><h1>Right Bands Channel</h1>
-      <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Right Channel" socket={socket}/>
+      <LiveBarChart labels={labels} initialData={initialData} signal="FFT Bands Right Channel" webSocketContext={webSocketContext}/>
     </div>
   );
 }

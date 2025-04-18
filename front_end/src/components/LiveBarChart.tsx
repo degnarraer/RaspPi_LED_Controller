@@ -1,11 +1,12 @@
 import { Component, createRef } from 'react';
+import { WebSocketContextValue } from './WebSocketContext';
 
 interface LiveBarChartProps
 {
     labels: string[];
     initialData: number[];
     signal: string;
-    socket: WebSocket | null;
+    webSocketContext: WebSocketContextValue;
 }
 
 interface LiveBarChartState
@@ -43,7 +44,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState)
     {
-        if ( prevState.dataValues !== this.state.dataValues || prevState.dataLabels !== this.state.dataLabels )
+        if (prevState.dataValues !== this.state.dataValues || prevState.dataLabels !== this.state.dataLabels)
         {
             this.updateChart();
         }
@@ -142,14 +143,16 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     setupSocket()
     {
-        const { socket } = this.props;
+        const { webSocketContext } = this.props;
+        const [, , , socket] = webSocketContext;
         if (!socket) return;
         socket.addEventListener('message', this.handleSocketMessage);
     }
 
     teardownSocket()
     {
-        const { socket } = this.props;
+        const { webSocketContext } = this.props;
+        const [, , , socket] = webSocketContext;
         if (!socket) return;
         socket.removeEventListener('message', this.handleSocketMessage);
     }
@@ -159,9 +162,9 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         try
         {
             const parsed = JSON.parse(event.data);
-            if ( parsed && parsed.signal === this.props.signal &&
-                 Array.isArray(parsed.value.values) &&
-                 Array.isArray(parsed.value.labels) )
+            if (parsed && parsed.signal === this.props.signal &&
+                Array.isArray(parsed.value.values) &&
+                Array.isArray(parsed.value.labels))
             {
                 this.setState(
                 {

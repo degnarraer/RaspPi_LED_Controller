@@ -1,4 +1,5 @@
 #include "websocket_server.h"
+#include <iostream>
 const size_t MAX_QUEUE_SIZE = 500;
 
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
@@ -109,16 +110,12 @@ void WebSocketSession::do_read()
 void WebSocketSession::on_read(std::size_t)
 {
     logger_->debug("Session: {} On Read.", GetSessionID());
-
     auto message = beast::buffers_to_string(buffer_.data());
     logger_->info("Received: {}", message);
-
     buffer_.consume(buffer_.size());
-
     try
     {
         json incoming = json::parse(message);
-
         if (incoming.contains("type") && incoming.contains("message"))
         {
             logger_->trace("Message type: {}", incoming["type"].get<std::string>());
@@ -144,7 +141,6 @@ void WebSocketSession::on_read(std::size_t)
                     logger_->warn("Session: {} Unknown Message", GetSessionID());
                     break;
             }
-
             json response;
             response["type"] = type_to_string_.at(MessageType::Echo);
             response["message"] = incoming["message"];
@@ -254,44 +250,69 @@ const std::unordered_map<MessageTypeHelper::MessageType, std::string> MessageTyp
 WebSocketServer::WebSocketServer(short port)
     : ioc_()
     , port_(port)
-    , acceptor_(ioc_, tcp::endpoint(tcp::v4(), port_))
+    , acceptor_(ioc_)
 {
-    logger_ = spdlog::stdout_color_mt("websocket_server");
-    logger_->set_level(spdlog::level::info);
-
     try
     {
-        auto endpoint = acceptor_.local_endpoint();
-        auto server_ip = endpoint.address().to_string();
-        auto server_port = endpoint.port();
-        logger_->info("WebSocket Server is running on {}:{}.", server_ip, server_port);
+        boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v6(), port_);
+        acceptor_.open(endpoint.protocol());
+
+        acceptor_.set_option(boost::asio::ip::v6_only(false));
+        acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
+
+        acceptor_.bind(endpoint);
+        acceptor_.listen();
+
+        logger_ = spdlog::get("WebSocket Server");
+        if (!logger_)
+        {
+            logger_ = spdlog::stdout_color_mt("WebSocket Server");
+        }
+        logger_->set_level(spdlog::level::info);
+
+        auto bound_endpoint = acceptor_.local_endpoint();
+        logger_->info("WebSocket Server is running on {}:{}.",
+                      bound_endpoint.address().to_string(), bound_endpoint.port());
     }
     catch (const std::exception& e)
     {
-        logger_->error("Error retrieving server binding: {}.", e.what());
+        if (logger_)
+            logger_->error("Error setting up WebSocket server: {}", e.what());
+        else
+            std::cerr << "Error setting up WebSocket server: " << e.what() << std::endl;
+        throw;
     }
 
     try
     {
         boost::asio::ip::tcp::resolver resolver(ioc_);
         boost::asio::ip::tcp::resolver::query query(boost::asio::ip::host_name(), "");
-        auto it = resolver.resolve(query);
-        for (; it != boost::asio::ip::tcp::resolver::iterator(); ++it)
+
+        for (auto it = resolver.resolve(query); it != boost::asio::ip::tcp::resolver::iterator(); ++it)
         {
             auto addr = it->endpoint().address();
-            if (addr.is_v4() && !addr.is_loopback())
+
+            if (!addr.is_loopback() && !addr.is_unspecified())
             {
-                logger_->info("Detected LAN IP: {}", addr.to_string());
-                break;
+                if (addr.is_v4())
+                {
+                    logger_->info("Detected LAN IPv4: {}", addr.to_string());
+                }
+                else if (addr.is_v6())
+                {
+                    if (!addr.to_string().rfind("fe80", 0) == 0)
+                    {
+                        logger_->info("Detected LAN IPv6: {}", addr.to_string());
+                    }
+                }
             }
         }
     }
     catch (const std::exception& e)
     {
-        logger_->error("Error detecting LAN IP: {}", e.what());
+        logger_->error("Error detecting LAN IPs: {}", e.what());
     }
 
-    acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
     logger_->debug("Instantiated WebSocketServer.");
 }
 
@@ -307,7 +328,7 @@ void WebSocketServer::Run()
     if (!acceptor_.is_open())
     {
         beast::error_code ec;
-        acceptor_.open(tcp::v4(), ec);
+        acceptor_.open(tcp::v6(), ec);
         if (ec)
         {
             logger_->error("Error opening acceptor: {}", ec.message());
@@ -351,8 +372,13 @@ void WebSocketServer::Stop()
 
 void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
 {
-    logger_->debug("Broadcast Message to Cliets: {}.", message);
-    for (auto& [id, session] : sessions_)
+    logger_->debug("Broadcast to clients: Message: \"{}\".", message);
+    std::unordered_map<std::string, std::weak_ptr<WebSocketSession>> sessions_copy;
+    {
+        std::lock_guard<std::mutex> lock(session_mutex_);
+        sessions_copy = sessions_;
+    }
+    for (auto& [id, session] : sessions_copy)
     {
         if (auto shared_session = session.lock())
         {
@@ -363,8 +389,13 @@ void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
 
 void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const std::string& message)
 {
-    std::lock_guard<std::mutex> lock(session_mutex_);
-    for (auto it = sessions_.begin(); it != sessions_.end();)
+    logger_->debug("Broadcast to clients: Signal: \"{}\" Message: \"{}\".", signal_name, message);
+    std::unordered_map<std::string, std::weak_ptr<WebSocketSession>> sessions_copy;
+    {
+        std::lock_guard<std::mutex> lock(session_mutex_);
+        sessions_copy = sessions_;
+    }
+    for (auto it = sessions_copy.begin(); it != sessions_copy.end();)
     {
         if (auto session = it->second.lock())
         {
@@ -373,10 +404,6 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
                 session->send_message(message);
             }
             ++it;
-        }
-        else
-        {
-            it = sessions_.erase(it);
         }
     }
 }
@@ -437,16 +464,16 @@ void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session
 
 void WebSocketServer::do_accept()
 {
-    logger_->info("Waiting for incoming connection...");
     acceptor_.async_accept(
         [this](beast::error_code ec, tcp::socket socket)
         {
+            logger_->info("Incoming WebSocket session...");
             if (!ec)
             {
                 auto remote_endpoint = socket.remote_endpoint();
                 std::string remote_ip = remote_endpoint.address().to_string();
                 unsigned short remote_port = remote_endpoint.port();
-                logger_->info("Incoming WebSocket session from {}:{}", remote_ip, remote_port);
+                logger_->info("From {}:{}", remote_ip, remote_port);
                 auto session = std::make_shared<WebSocketSession>(std::move(socket), *this);
                 register_session(session);
                 session->run();
@@ -457,4 +484,5 @@ void WebSocketServer::do_accept()
             }
             do_accept();
         });
+        logger_->info("Waiting for incoming connection...");
 }

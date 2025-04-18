@@ -7,7 +7,7 @@ import { WebSocketProvider } from './components/WebSocketContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WebSocketProvider url="ws://ltop.local:8080">
+    <WebSocketProvider>
       <App/>
     </WebSocketProvider>
   </React.StrictMode>

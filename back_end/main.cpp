@@ -14,33 +14,13 @@ std::shared_ptr<FFTComputer> fftComputer = std::make_shared<FFTComputer>("FFT Co
 std::shared_ptr<spdlog::logger> logger_;
 std::shared_ptr<DeploymentManager> deploymentManger = std::make_shared<DeploymentManager>();
 
-void Microphone_Callback(const std::vector<int32_t>& data, const std::string& deviceName)
-{
-    logger_->debug("Device {}: Callback Called", deviceName);
-    // Convert the data vector to a string
-    std::ostringstream oss;
-    for (size_t i = 0; i < data.size(); ++i)
-    {
-        oss << data[i];
-        if (i != data.size() - 1)
-        {
-            oss << ", "; // Add comma separator between values
-        }
-    }
-    std::string dataStr = oss.str(); // The entire data as a string
-
-    // Log the data as a trace message
-    logger_->trace("Device {}: Callback Data: {}", deviceName, dataStr);
-}
-
 int main()
 {
     logger_ = InitializeLogger("Main Logger", spdlog::level::info);
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");
     deploymentManger->copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/front_end/dist", "/var/www/html");
-    webSocketServer->Run();
     mic->StartReadingMicrophone();
-    std::cin.get(); // Wait for user input to terminate the program
-
+    webSocketServer->Run();
+    std::cin.get();
     return 0;
 }
