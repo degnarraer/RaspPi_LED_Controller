@@ -259,19 +259,17 @@ WebSocketServer::WebSocketServer(short port)
     logger_ = spdlog::stdout_color_mt("websocket_server");
     logger_->set_level(spdlog::level::info);
 
-    try {
-        boost::asio::ip::address ip_address = boost::asio::ip::address::from_string("127.0.0.1");
-        
-        std::string server_ip = ip_address.to_string(); // Example: 127.0.0.1 or the first available IP
-        
+    try {        
         unsigned short server_port = acceptor_.local_endpoint().port();
-        
-        logger_->info("WebSocket Server is running on {}:{}", server_ip, server_port);
+        logger_->info("WebSocket Server is running on {}", server_port);
     } catch (const std::exception& e) {
-        logger_->error("Error retrieving local IP address: {}", e.what());
+        logger_->error("Error retrieving port: {}", e.what());
     }
 
     acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
+    acceptor_.set_option(boost::asio::socket_base::keep_alive(true));
+    acceptor_.set_option(boost::asio::socket_base::receive_buffer_size(8192));
+    acceptor_.set_option(boost::asio::socket_base::send_buffer_size(8192));
     logger_->debug("Instantiated WebSocketServer.");
 }
 
@@ -284,6 +282,24 @@ WebSocketServer::~WebSocketServer()
 void WebSocketServer::Run()
 {
     logger_->info("Run.");
+
+    if (!acceptor_.is_open())
+    {
+        logger_->error("Acceptor is not open!");
+        return;
+    }
+
+    boost::system::error_code ec;
+    acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
+    if (ec)
+    {
+        logger_->error("Error starting to listen: {}", ec.message());
+        return;
+    }
+    logger_->info("Acceptor is listening...");
+
+    do_accept();
+
     if (!ioc_thread_.joinable())
     {
         ioc_thread_ = std::thread([this]()
@@ -292,18 +308,8 @@ void WebSocketServer::Run()
             ioc_.run();
         });
     }
-    if (!acceptor_.is_open())
-    {
-        beast::error_code ec;
-        acceptor_.open(tcp::v4(), ec);
-        if (ec)
-        {
-            logger_->error("Error opening acceptor: {}", ec.message());
-            return;
-        }
-    }
-    do_accept();
 }
+
 
 void WebSocketServer::Stop()
 {
@@ -411,23 +417,29 @@ void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session
 void WebSocketServer::do_accept()
 {
     logger_->info("Waiting for incoming connection...");
+    auto self = shared_from_this();
     acceptor_.async_accept(
-        [this](beast::error_code ec, tcp::socket socket)
+        [self](beast::error_code ec, tcp::socket socket)
         {
             if (!ec)
             {
                 auto remote_endpoint = socket.remote_endpoint();
                 std::string remote_ip = remote_endpoint.address().to_string();
                 unsigned short remote_port = remote_endpoint.port();
-                logger_->info("Incoming WebSocket session from {}:{}", remote_ip, remote_port);
-                auto session = std::make_shared<WebSocketSession>(std::move(socket), *this);
-                register_session(session);
+                self->logger_->info("Incoming WebSocket session from {}:{}", remote_ip, remote_port);
+                auto session = std::make_shared<WebSocketSession>(std::move(socket), *self);
+                self->register_session(session);
                 session->run();
+            }
+            else if (ec == asio::error::operation_aborted)
+            {
+                self->logger_->warn("Accept operation aborted.");
+                return;
             }
             else
             {
-                logger_->error("Connection accept error: {}.", ec.message());
+                self->logger_->error("Connection accept error: {}.", ec.message());
             }
-            do_accept();
+            self->do_accept();
         });
 }

@@ -94,6 +94,7 @@ public:
 };
 
 class WebSocketServer: public MessageTypeHelper
+                     , public std::enable_shared_from_this<WebSocketServer>
 {    
 public:
     WebSocketServer(short port);
