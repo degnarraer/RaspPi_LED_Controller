@@ -1,83 +1,68 @@
 import { Component, createRef } from 'react';
+import { WebSocketContextType } from './WebSocketContext';
 
-interface LiveBarChartProps
-{
+interface LiveBarChartProps {
     labels: string[];
     initialData: number[];
     signal: string;
-    socket: WebSocket | null;
+    socket: WebSocketContextType;
 }
 
-interface LiveBarChartState
-{
+interface LiveBarChartState {
     dataLabels: string[];
     dataValues: number[];
 }
 
-export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarChartState>
-{
+export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarChartState> {
     private canvasRef = createRef<HTMLCanvasElement>();
     private chart: any = null;
     private ChartJS: any = null;
 
-    constructor(props: LiveBarChartProps)
-    {
+    constructor(props: LiveBarChartProps) {
         super(props);
 
-        this.state = 
-        {
+        this.state = {
             dataLabels: props.labels ?? [],
             dataValues: props.initialData ?? [],
         };
     }
 
-    componentDidMount()
-    {
-        this.loadChartLibrary().then(() =>
-        {
+    componentDidMount() {
+        this.loadChartLibrary().then(() => {
             this.createChart();
         });
 
         this.setupSocket();
     }
 
-    componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState)
-    {
-        if ( prevState.dataValues !== this.state.dataValues || prevState.dataLabels !== this.state.dataLabels )
-        {
+    componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState) {
+        if (prevState.dataValues !== this.state.dataValues || prevState.dataLabels !== this.state.dataLabels) {
             this.updateChart();
         }
     }
 
-    componentWillUnmount()
-    {
+    componentWillUnmount() {
         this.teardownSocket();
-        if (this.chart)
-        {
+        if (this.chart) {
             this.chart.destroy();
         }
     }
 
-    async loadChartLibrary()
-    {
+    async loadChartLibrary() {
         const module = await import('chart.js');
         this.ChartJS = module.Chart;
         this.ChartJS.register(...module.registerables);
     }
 
-    createChart()
-    {
+    createChart() {
         const ctx = this.canvasRef.current?.getContext('2d');
         if (!ctx || !this.ChartJS) return;
 
-        this.chart = new this.ChartJS(ctx, 
-        {
+        this.chart = new this.ChartJS(ctx, {
             type: 'bar',
-            data: 
-            {
+            data: {
                 labels: this.state.dataLabels,
-                datasets: 
-                [
+                datasets: [
                     {
                         label: 'Live Data',
                         data: this.state.dataValues,
@@ -86,17 +71,14 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                     },
                 ],
             },
-            options: 
-            {
-                scales: 
-                {
+            options: {
+                scales: {
                     y: { beginAtZero: true, min: 0, max: 10 },
                     x: { grid: { display: false }, ticks: { display: true } },
                 },
                 layout: { padding: 0 },
                 elements: { bar: { borderWidth: 1 } },
-                animation: 
-                {
+                animation: {
                     duration: 10,
                     easing: 'linear',
                 },
@@ -105,8 +87,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         });
     }
 
-    updateChart()
-    {
+    updateChart() {
         if (!this.chart) return;
 
         this.chart.data.labels = this.state.dataLabels;
@@ -115,20 +96,16 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         this.chart.update();
     }
 
-    getBarColors(values: number[] = []): string[]
-    {
-        if (!Array.isArray(values) || values.length === 0)
-        {
+    getBarColors(values: number[] = []): string[] {
+        if (!Array.isArray(values) || values.length === 0) {
             return ['rgba(54, 162, 235, 0.6)'];
         }
 
         const max = Math.max(...values);
         const min = Math.min(...values);
 
-        return values.map((value) =>
-        {
-            if (value === max)
-            {
+        return values.map((value) => {
+            if (value === max) {
                 return 'rgba(255, 0, 0, 1)';
             }
 
@@ -140,44 +117,35 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         });
     }
 
-    setupSocket()
-    {
+    setupSocket() {
         const { socket } = this.props;
-        if (!socket) return;
-        socket.addEventListener('message', this.handleSocketMessage);
+        if (socket?.socket instanceof WebSocket) {
+            socket.socket.addEventListener('message', this.handleSocketMessage);
+        }
     }
 
-    teardownSocket()
-    {
+    teardownSocket() {
         const { socket } = this.props;
-        if (!socket) return;
-        socket.removeEventListener('message', this.handleSocketMessage);
+        if (socket?.socket instanceof WebSocket) {
+            socket.socket.removeEventListener('message', this.handleSocketMessage);
+        }
     }
 
-    handleSocketMessage = (event: MessageEvent) =>
-    {
-        try
-        {
+    handleSocketMessage = (event: MessageEvent) => {
+        try {
             const parsed = JSON.parse(event.data);
-            if ( parsed && parsed.signal === this.props.signal &&
-                 Array.isArray(parsed.value.values) &&
-                 Array.isArray(parsed.value.labels) )
-            {
-                this.setState(
-                {
+            if (parsed && parsed.signal === this.props.signal && Array.isArray(parsed.value.values) && Array.isArray(parsed.value.labels)) {
+                this.setState({
                     dataLabels: parsed.value.labels,
                     dataValues: parsed.value.values,
                 });
             }
-        }
-        catch (e)
-        {
+        } catch (e) {
             console.error('Invalid WebSocket message format:', e);
         }
     };
 
-    render()
-    {
+    render() {
         return <canvas ref={this.canvasRef} />;
     }
 }
