@@ -259,16 +259,36 @@ WebSocketServer::WebSocketServer(short port)
     logger_ = spdlog::stdout_color_mt("websocket_server");
     logger_->set_level(spdlog::level::info);
 
-    try {
-        boost::asio::ip::address ip_address = boost::asio::ip::address::from_string("127.0.0.1");
-        
-        std::string server_ip = ip_address.to_string(); // Example: 127.0.0.1 or the first available IP
-        
-        unsigned short server_port = acceptor_.local_endpoint().port();
-        
-        logger_->info("WebSocket Server is running on {}:{}", server_ip, server_port);
-    } catch (const std::exception& e) {
-        logger_->error("Error retrieving local IP address: {}", e.what());
+    try
+    {
+        auto endpoint = acceptor_.local_endpoint();
+        auto server_ip = endpoint.address().to_string();
+        auto server_port = endpoint.port();
+        logger_->info("WebSocket Server is running on {}:{}.", server_ip, server_port);
+    }
+    catch (const std::exception& e)
+    {
+        logger_->error("Error retrieving server binding: {}.", e.what());
+    }
+
+    try
+    {
+        boost::asio::ip::tcp::resolver resolver(ioc_);
+        boost::asio::ip::tcp::resolver::query query(boost::asio::ip::host_name(), "");
+        auto it = resolver.resolve(query);
+        for (; it != boost::asio::ip::tcp::resolver::iterator(); ++it)
+        {
+            auto addr = it->endpoint().address();
+            if (addr.is_v4() && !addr.is_loopback())
+            {
+                logger_->info("Detected LAN IP: {}", addr.to_string());
+                break;
+            }
+        }
+    }
+    catch (const std::exception& e)
+    {
+        logger_->error("Error detecting LAN IP: {}", e.what());
     }
 
     acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
@@ -284,14 +304,6 @@ WebSocketServer::~WebSocketServer()
 void WebSocketServer::Run()
 {
     logger_->info("Run.");
-    if (!ioc_thread_.joinable())
-    {
-        ioc_thread_ = std::thread([this]()
-        {
-            logger_->info("I/O Context thread started.");
-            ioc_.run();
-        });
-    }
     if (!acceptor_.is_open())
     {
         beast::error_code ec;
@@ -300,6 +312,21 @@ void WebSocketServer::Run()
         {
             logger_->error("Error opening acceptor: {}", ec.message());
             return;
+        }
+    }
+    if (!ioc_thread_.joinable())
+    {
+        try
+        {
+            ioc_thread_ = std::thread([this]()
+            {
+                logger_->info("I/O Context thread started.");
+                ioc_.run();
+            });
+        }
+        catch (const std::exception& e)
+        {
+            logger_->error("Failed to start I/O context thread: {}", e.what());
         }
     }
     do_accept();

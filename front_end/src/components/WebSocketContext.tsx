@@ -13,7 +13,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const reconnectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const logIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => 
@@ -28,7 +27,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         return;
       }
 
-      console.log('Attempting to connect to WebSocket...');
+      console.log('Attempting to connect to WebSocket: ', url);
 
       try 
       {
@@ -72,35 +71,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         console.error('WebSocket connection failed:', error);
       }
     };
-
-    const logReadyState = () => 
-    {
-      const ws = wsRef.current;
-      if (ws) 
-      {
-        switch (ws.readyState) 
-        {
-          case WebSocket.CONNECTING:
-            console.log('WebSocket is connecting...');
-            break;
-          case WebSocket.OPEN:
-            console.log('WebSocket is open.');
-            break;
-          case WebSocket.CLOSING:
-            console.log('WebSocket is closing...');
-            break;
-          case WebSocket.CLOSED:
-            console.log('WebSocket is closed.');
-            break;
-          default:
-            console.log('Unknown WebSocket state.');
-        }
-      }
-    };
-
     connect();
-    logIntervalRef.current = setInterval(logReadyState, 5000);
-
     return () => 
     {
       if (reconnectIntervalRef.current) 
@@ -108,13 +79,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         clearInterval(reconnectIntervalRef.current);
         reconnectIntervalRef.current = null;
       }
-
-      if (logIntervalRef.current) 
-      {
-        clearInterval(logIntervalRef.current);
-        logIntervalRef.current = null;
-      }
-
       if (wsRef.current) 
       {
         wsRef.current.close();
