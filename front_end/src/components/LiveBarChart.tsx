@@ -121,6 +121,10 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         const { socket } = this.props;
         if (socket?.socket instanceof WebSocket) {
             socket.socket.addEventListener('message', this.handleSocketMessage);
+            socket.sendMessage({
+                type: 'subscribe',
+                signal: this.props.signal,
+            });
         }
     }
 
@@ -128,6 +132,10 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         const { socket } = this.props;
         if (socket?.socket instanceof WebSocket) {
             socket.socket.removeEventListener('message', this.handleSocketMessage);
+            socket.sendMessage({
+                type: 'unsubscribe',
+                signal: this.props.signal,
+            });
         }
     }
 

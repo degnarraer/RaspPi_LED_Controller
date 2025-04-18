@@ -119,7 +119,7 @@ void WebSocketSession::on_read(std::size_t)
     {
         json incoming = json::parse(message);
 
-        if (incoming.contains("type") && incoming.contains("message"))
+        if (incoming.contains("type"))
         {
             logger_->trace("Message type: {}", incoming["type"].get<std::string>());
 
@@ -127,11 +127,25 @@ void WebSocketSession::on_read(std::size_t)
             {
                 case MessageType::Subscribe:
                     logger_->info("Session: {} Subscribe Message", GetSessionID());
-                    subscribe_to_signal(incoming["signal"]);
+                    if(incoming.contains("signal"))
+                    {
+                        subscribe_to_signal(incoming["signal"]);
+                    }
+                    else
+                    {
+                        logger_->warn("Session: {} Subscribe Message without signal", GetSessionID());
+                    }
                     break;
                 case MessageType::Unsubscribe:
                     logger_->info("Session: {} Unsubscribe Message", GetSessionID());
-                    unsubscribe_from_signal(incoming["signal"]);
+                    if(incoming.contains("signal"))
+                    {
+                        unsubscribe_from_signal(incoming["signal"]);
+                    }
+                    else
+                    {
+                        logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
+                    }
                     break;
                 case MessageType::Text:
                     logger_->info("Session: {} Text Message", GetSessionID());
@@ -218,12 +232,14 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
 void WebSocketSession::subscribe_to_signal(const std::string& signal_name)
 {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
+    logger_->debug("Session: {} Subscribed to signal: {}.", session_id_, signal_name);
     subscribed_signals_.insert(signal_name);
 }
 
 void WebSocketSession::unsubscribe_from_signal(const std::string& signal_name)
 {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
+    logger_->debug("Session: {} Unsubscribed to signal: {}.", session_id_, signal_name);
     subscribed_signals_.erase(signal_name);
 }
 
