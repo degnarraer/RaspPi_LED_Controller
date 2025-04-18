@@ -1,9 +1,7 @@
-import { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, createContext, ReactNode } from 'react';
 
-// Define the WebSocketContextType as WebSocket or null
 type WebSocketContextType = WebSocket | null;
 
-// Create and export the WebSocketContext
 export const WebSocketContext = createContext<WebSocketContextType>(null);
 
 interface WebSocketProviderProps {
@@ -11,46 +9,117 @@ interface WebSocketProviderProps {
   children: ReactNode;
 }
 
-export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, children }) => {
+export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, children }) => 
+{
   const [socket, setSocket] = useState<WebSocket | null>(null);
+  const reconnectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectInterval: ReturnType<typeof setInterval> | null = null;
+  useEffect(() => 
+  {
+    const connect = () => 
+    {
+      const ws = wsRef.current;
 
-    const connect = () => {
-      if (ws) {
+      if (ws && ws.readyState === WebSocket.OPEN) 
+      {
+        console.log('WebSocket is already connected');
         return;
       }
 
-      ws = new WebSocket(url);
-      setSocket(ws);
+      console.log('Attempting to connect to WebSocket...');
 
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        if (reconnectInterval) {
-          clearInterval(reconnectInterval);
+      try 
+      {
+        const newWs = new WebSocket(url);
+        wsRef.current = newWs;
+        setSocket(newWs);
+
+        newWs.onopen = () => 
+        {
+          console.log('WebSocket connected');
+          if (reconnectIntervalRef.current) 
+          {
+            clearInterval(reconnectIntervalRef.current);
+            reconnectIntervalRef.current = null;
+          }
+        };
+
+        newWs.onclose = () => 
+        {
+          console.log('WebSocket disconnected. Attempting reconnect in 2 seconds...');
+          if (!reconnectIntervalRef.current) 
+          {
+            reconnectIntervalRef.current = setInterval(connect, 2000);
+          }
+        };
+
+        newWs.onerror = (error) => 
+        {
+          console.error('WebSocket error:', error);
+          newWs.close();
+        };
+
+        newWs.onmessage = (event) => 
+        {
+          const message = event.data;
+          console.log('Received message:', message);
+        };
+      } 
+      catch (error) 
+      {
+        console.error('WebSocket connection failed:', error);
+      }
+    };
+
+    const logReadyState = () => 
+    {
+      const ws = wsRef.current;
+      if (ws) 
+      {
+        switch (ws.readyState) 
+        {
+          case WebSocket.CONNECTING:
+            console.log('WebSocket is connecting...');
+            break;
+          case WebSocket.OPEN:
+            console.log('WebSocket is open.');
+            break;
+          case WebSocket.CLOSING:
+            console.log('WebSocket is closing...');
+            break;
+          case WebSocket.CLOSED:
+            console.log('WebSocket is closed.');
+            break;
+          default:
+            console.log('Unknown WebSocket state.');
         }
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket disconnected. Attempting reconnect in 2 seconds...');
-        if (!reconnectInterval) {
-          reconnectInterval = setInterval(connect, 2000); // Retry every 2 seconds
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        ws?.close();
-      };
+      }
     };
 
     connect();
+    logIntervalRef.current = setInterval(logReadyState, 5000);
 
-    return () => {
-      if (reconnectInterval) clearInterval(reconnectInterval);
-      if (ws) ws.close();
+    return () => 
+    {
+      if (reconnectIntervalRef.current) 
+      {
+        clearInterval(reconnectIntervalRef.current);
+        reconnectIntervalRef.current = null;
+      }
+
+      if (logIntervalRef.current) 
+      {
+        clearInterval(logIntervalRef.current);
+        logIntervalRef.current = null;
+      }
+
+      if (wsRef.current) 
+      {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, [url]);
 

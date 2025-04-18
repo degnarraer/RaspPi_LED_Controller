@@ -69,6 +69,7 @@ public:
     void do_write();
     void on_write(beast::error_code ec, std::size_t bytes_transferred);
     void retry_connection(int remaining_attempts);
+    void reset_and_retry();
 
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
