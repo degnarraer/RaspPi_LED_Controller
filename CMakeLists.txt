@@ -118,6 +118,7 @@ project(RaspPi_LED_Controller)
     file(GLOB_RECURSE SOURCES 
         "back_end/*.cpp"
         "back_end/*.h"
+        "back_end/*.tpp"
         "submodules/spdlog/include/spdlog.h"
     )
 

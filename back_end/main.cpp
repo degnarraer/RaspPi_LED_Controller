@@ -10,8 +10,8 @@
 
 int main()
 {
-    std::shared_ptr<I2SMicrophone> mic = std::make_shared<I2SMicrophone>("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000);
     std::shared_ptr<WebSocketServer> webSocketServer = std::make_shared<WebSocketServer>(8080);
+    std::shared_ptr<I2SMicrophone> mic = std::make_shared<I2SMicrophone>("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1000, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000, webSocketServer);
     std::shared_ptr<FFTComputer> fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
     std::shared_ptr<spdlog::logger> logger_;
     std::shared_ptr<DeploymentManager> deploymentManger = std::make_shared<DeploymentManager>();

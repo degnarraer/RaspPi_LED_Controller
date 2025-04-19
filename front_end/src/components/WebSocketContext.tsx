@@ -58,11 +58,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
           console.error('WebSocket error:', error);
           newWs.close();
         };
-
+        /*
         newWs.onmessage = (event) => {
           const message = event.data;
           console.debug('Received message:', message);
         };
+        */
       } catch (error) {
         console.error('WebSocket connection failed:', error);
       }
