@@ -13,6 +13,7 @@ interface StreamingScatterPlotState {
 
 export default class StreamingScatterPlot extends Component<StreamingScatterPlotProps, StreamingScatterPlotState> {
     private canvasRef = createRef<HTMLCanvasElement>();
+    private resizeObserver: ResizeObserver | null = null;
     private chart: any = null;
     private ChartJS: any = null;
 
@@ -29,10 +30,12 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
             this.createChart();
         });
         this.setupSocket();
+        this.setupResizeObserver();
     }
 
     componentWillUnmount() {
         this.teardownSocket();
+        this.teardownResizeObserver();
         if (this.chart) {
             this.chart.destroy();
         }
@@ -143,11 +146,32 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         }
     };
 
+    setupResizeObserver() {
+        const canvas = this.canvasRef.current;
+        if (!canvas || typeof ResizeObserver === 'undefined') return;
+
+        this.resizeObserver = new ResizeObserver(() => {
+            if (this.chart) {
+                this.chart.resize();
+            }
+        });
+
+        this.resizeObserver.observe(canvas);
+    }
+
+    teardownResizeObserver() {
+        if (this.resizeObserver && this.canvasRef.current) {
+            this.resizeObserver.unobserve(this.canvasRef.current);
+            this.resizeObserver.disconnect();
+        }
+    }
+
     render() {
         return (
-            <div style={{ width: '100%', height: '300px' }}>
-                <canvas ref={this.canvasRef} style={{ width: '100%', height: '100%' }} />
-            </div>
+            <canvas
+                ref={this.canvasRef}
+                style={{ width: '100%', height: '100%' }}
+            />
         );
     }
 }

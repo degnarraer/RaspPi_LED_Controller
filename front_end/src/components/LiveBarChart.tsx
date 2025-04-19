@@ -13,8 +13,10 @@ interface LiveBarChartState {
 
 export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarChartState> {
     private canvasRef = createRef<HTMLCanvasElement>();
+    private containerRef = createRef<HTMLDivElement>();
     private chart: any = null;
     private ChartJS: any = null;
+    private resizeObserver: ResizeObserver | null = null;
 
     constructor(props: LiveBarChartProps) {
         super(props);
@@ -30,6 +32,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         });
 
         this.setupSocket();
+        this.setupResizeObserver();
     }
 
     componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState) {
@@ -43,6 +46,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     componentWillUnmount() {
         this.teardownSocket();
+        this.teardownResizeObserver();
         if (this.chart) {
             this.chart.destroy();
         }
@@ -55,8 +59,11 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     createChart() {
-        const ctx = this.canvasRef.current?.getContext('2d');
-        if (!ctx || !this.ChartJS) return;
+        const canvas = this.canvasRef.current;
+        if (!canvas || !this.ChartJS) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
         this.chart = new this.ChartJS(ctx, {
             type: 'bar',
@@ -72,6 +79,8 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 ],
             },
             options: {
+                responsive: false, // we manually resize via ResizeObserver
+                maintainAspectRatio: false,
                 scales: {
                     y: { beginAtZero: true, min: 0, max: 10 },
                     x: { stacked: true, grid: { display: false }, ticks: { display: true } },
@@ -85,6 +94,8 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 plugins: {},
             },
         });
+
+        this.resizeCanvas();
     }
 
     updateChart() {
@@ -154,7 +165,46 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         }
     };
 
+    setupResizeObserver() {
+        const container = this.containerRef.current;
+        if (!container) return;
+
+        this.resizeObserver = new ResizeObserver(() => {
+            this.resizeCanvas();
+        });
+
+        this.resizeObserver.observe(container);
+    }
+
+    teardownResizeObserver() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
+    }
+
+    resizeCanvas() {
+        const canvas = this.canvasRef.current;
+        const container = this.containerRef.current;
+        if (!canvas || !container) return;
+
+        const rect = container.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+
+        if (this.chart) {
+            this.chart.resize();
+        }
+    }
+
     render() {
-        return <canvas ref={this.canvasRef} />;
+        return (
+            <div ref={this.containerRef} style={{ width: '100%', height: '100%' }}>
+                <canvas
+                    ref={this.canvasRef}
+                    style={{ width: '100%', height: '100%', display: 'block' }}
+                />
+            </div>
+        );
     }
 }
