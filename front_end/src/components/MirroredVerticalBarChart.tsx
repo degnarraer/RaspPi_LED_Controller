@@ -74,19 +74,15 @@ export default class MirroredVerticalBarChart extends Component<
                 labels: this.state.dataLabels,
                 datasets: [
                     {
-                        label: 'Left',
                         data: this.state.leftValues.map((v) => -v),
                         backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                        barThickness: 12,
-                        categoryPercentage: 0.9,
+                        categoryPercentage: 1.0,
                         barPercentage: 1.0,
                     },
                     {
-                        label: 'Right',
                         data: this.state.rightValues,
                         backgroundColor: 'rgba(255, 99, 132, 0.6)',
-                        barThickness: 12,
-                        categoryPercentage: 0.9,
+                        categoryPercentage: 1.0,
                         barPercentage: 1.0,
                     },
                 ],
@@ -114,7 +110,7 @@ export default class MirroredVerticalBarChart extends Component<
                     easing: 'linear',
                 },
                 plugins: {
-                    legend: { position: 'top' },
+                    legend: { display: false, },
                 },
             },
         });

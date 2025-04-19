@@ -1,28 +1,31 @@
 import { Component, createRef } from 'react';
 import { WebSocketContextType } from './WebSocketContext';
 
-interface LiveBarChartProps {
-    signal: string;
+interface MirroredBarChartProps {
+    leftSignal: string;
+    rightSignal: string;
     socket: WebSocketContextType;
 }
 
-interface LiveBarChartState {
+interface MirroredBarChartState {
     dataLabels: string[];
-    dataValues: number[];
+    leftValues: number[];
+    rightValues: number[];
 }
 
-export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarChartState> {
+export default class MirroredBarChart extends Component<MirroredBarChartProps, MirroredBarChartState> {
     private canvasRef = createRef<HTMLCanvasElement>();
     private containerRef = createRef<HTMLDivElement>();
     private chart: any = null;
     private ChartJS: any = null;
     private resizeObserver: ResizeObserver | null = null;
 
-    constructor(props: LiveBarChartProps) {
+    constructor(props: MirroredBarChartProps) {
         super(props);
         this.state = {
             dataLabels: [],
-            dataValues: [],
+            leftValues: [],
+            rightValues: [],
         };
     }
 
@@ -35,9 +38,10 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         this.setupResizeObserver();
     }
 
-    componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState) {
+    componentDidUpdate(_prevProps: MirroredBarChartProps, prevState: MirroredBarChartState) {
         if (
-            prevState.dataValues !== this.state.dataValues ||
+            prevState.leftValues !== this.state.leftValues ||
+            prevState.rightValues !== this.state.rightValues ||
             prevState.dataLabels !== this.state.dataLabels
         ) {
             this.updateChart();
@@ -71,30 +75,45 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 labels: [],
                 datasets: [
                     {
-                        label: 'Live Data',
+                        label: 'Left',
                         data: [],
-                        backgroundColor: [],
-                        borderWidth: 0,
-                        barPercentage: 1.0,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
                         categoryPercentage: 1.0,
+                        barPercentage: 1.0,
+                    },
+                    {
+                        label: 'Right',
+                        data: [],
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        categoryPercentage: 1.0,
+                        barPercentage: 1.0,
                     },
                 ],
             },
             options: {
-                responsive: false, // we manually resize via ResizeObserver
+                indexAxis: 'y',
+                responsive: false,
                 maintainAspectRatio: false,
                 scales: {
-                    y: { beginAtZero: true, min: 0, max: 10 },
-                    x: { stacked: true, grid: { display: false }, ticks: { display: true } },
+                    x: {
+                        min: -10,
+                        max: 10,
+                        grid: { display: true },
+                        ticks: {
+                            callback: (value: number | string) => Math.abs(Number(value)).toString(),
+                        },
+                    },
+                    y: {
+                        stacked: false,
+                        grid: { display: false },
+                    },
                 },
-                layout: { padding: 0 },
-                elements: { bar: { borderWidth: 1 } },
                 animation: {
                     duration: 10,
                     easing: 'linear',
                 },
                 plugins: {
-                    legend: { display: false, },
+                    legend: { display: true },
                 },
             },
         });
@@ -105,64 +124,49 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     updateChart() {
         if (!this.chart) return;
 
-        this.chart.data.labels = this.state.dataLabels;
-        this.chart.data.datasets[0].data = this.state.dataValues;
-        this.chart.data.datasets[0].backgroundColor = this.getBarColors(this.state.dataValues);
+        const { dataLabels, leftValues, rightValues } = this.state;
+
+        this.chart.data.labels = dataLabels;
+        this.chart.data.datasets[0].data = leftValues.map(v => -Math.abs(v)); // Mirror left bars
+        this.chart.data.datasets[1].data = rightValues.map(v => Math.abs(v));
         this.chart.update();
     }
 
-    getBarColors(values: number[] = []): string[] {
-        if (!Array.isArray(values) || values.length === 0) {
-            return ['rgba(54, 162, 235, 0.6)'];
-        }
-
-        const max = Math.max(...values);
-        const min = Math.min(...values);
-
-        return values.map((value) => {
-            if (value === max) return 'rgba(255, 0, 0, 1)';
-            const ratio = max === min ? 0 : (value - min) / (max - min);
-            const r = Math.round(255 * ratio);
-            const g = Math.round(255 * ratio);
-            const b = Math.round(200 * (1 - ratio));
-            return `rgba(${r}, ${g}, ${b}, 0.8)`;
-        });
-    }
-
     setupSocket() {
-        const { socket } = this.props;
+        const { socket, leftSignal, rightSignal } = this.props;
         if (socket?.socket instanceof WebSocket) {
             socket.socket.addEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({
-                type: 'subscribe',
-                signal: this.props.signal,
-            });
+            socket.sendMessage({ type: 'subscribe', signal: leftSignal });
+            socket.sendMessage({ type: 'subscribe', signal: rightSignal });
         }
     }
 
     teardownSocket() {
-        const { socket } = this.props;
+        const { socket, leftSignal, rightSignal } = this.props;
         if (socket?.socket instanceof WebSocket) {
             socket.socket.removeEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({
-                type: 'unsubscribe',
-                signal: this.props.signal,
-            });
+            socket.sendMessage({ type: 'unsubscribe', signal: leftSignal });
+            socket.sendMessage({ type: 'unsubscribe', signal: rightSignal });
         }
     }
 
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
+            const { signal } = parsed;
+
             if (
-                parsed?.signal === this.props.signal &&
-                Array.isArray(parsed.value?.values) &&
-                Array.isArray(parsed.value?.labels)
+                Array.isArray(parsed.value?.labels) &&
+                Array.isArray(parsed.value?.values)
             ) {
-                this.setState({
-                    dataLabels: parsed.value.labels,
-                    dataValues: parsed.value.values,
-                });
+                const labels = parsed.value.labels;
+                const values = parsed.value.values;
+
+                if (signal === this.props.leftSignal) {
+                    this.setState({ dataLabels: labels, leftValues: values });
+                } else if (signal === this.props.rightSignal) {
+                    this.setState({ dataLabels: labels, rightValues: values });
+                }
             }
         } catch (e) {
             console.error('Invalid WebSocket message format:', e);

@@ -2,6 +2,7 @@ import { useState, useContext } from 'react';
 import { Button, Drawer, Menu } from 'antd';
 import { WebSocketContext } from './components/WebSocketContext';
 import LiveBarChart from './components/LiveBarChart';
+import MirroredBarChart from './components/MirroredBarChart';
 import MirroredVerticalBarChart from './components/MirroredVerticalBarChart';
 import StreamingScatterPlot from './components/StreamingScatterPlot';
 import ScrollingHeatmap from './components/ScrollingHeatMap';
@@ -34,7 +35,15 @@ function App() {
     );
   }
 
-  function StereoSpectrumScreen() {
+  function HorizontalStereoSpectrumScreen() {
+    return (
+      <div style={{ width: '100%', height: '100%' }}>
+        <MirroredBarChart rightSignal="FFT Bands Right Channel"  leftSignal="FFT Bands Left Channel" socket={socket} />
+      </div>
+    );
+  }
+
+  function VerticalStereoSpectrumScreen() {
     return (
       <div style={{ width: '100%', height: '100%' }}>
         <MirroredVerticalBarChart leftSignal="FFT Bands Left Channel" rightSignal="FFT Bands Right Channel" socket={socket} />
@@ -78,17 +87,19 @@ function App() {
           <Menu.Item key="1" onClick={() => { setScreen('home'); closeDrawer(); }}>Home</Menu.Item>
           <Menu.Item key="2" onClick={() => { setScreen('right channel spectrum'); closeDrawer(); }}>Right Channel Spectrum</Menu.Item>
           <Menu.Item key="3" onClick={() => { setScreen('left channel spectrum'); closeDrawer(); }}>Left Channel Spectrum</Menu.Item>
-          <Menu.Item key="4" onClick={() => { setScreen('stereo spectrum'); closeDrawer(); }}>Stereo Spectrum</Menu.Item>
-          <Menu.Item key="5" onClick={() => { setScreen('left channel wave screen'); closeDrawer(); }}>Left Channel Wave</Menu.Item>
-          <Menu.Item key="6" onClick={() => { setScreen('right channel wave screen'); closeDrawer(); }}>Right Channel Wave</Menu.Item>
-          <Menu.Item key="7" onClick={() => { setScreen('scrolling heat map screen'); closeDrawer(); }}>Heat Map</Menu.Item>
+          <Menu.Item key="4" onClick={() => { setScreen('horrizontal stereo spectrum'); closeDrawer(); }}>Stereo Spectrum</Menu.Item>
+          <Menu.Item key="5" onClick={() => { setScreen('vertical stereo spectrum'); closeDrawer(); }}>Vertical Stereo Spectrum</Menu.Item>
+          <Menu.Item key="6" onClick={() => { setScreen('left channel wave screen'); closeDrawer(); }}>Left Channel Wave</Menu.Item>
+          <Menu.Item key="7" onClick={() => { setScreen('right channel wave screen'); closeDrawer(); }}>Right Channel Wave</Menu.Item>
+          <Menu.Item key="8" onClick={() => { setScreen('scrolling heat map screen'); closeDrawer(); }}>Heat Map</Menu.Item>
         </Menu>
       </Drawer>
 
       {screen === 'home' && <HomeScreen />}
       {screen === 'right channel spectrum' && <RightChannelSpectrumScreen />}
       {screen === 'left channel spectrum' && <LeftChannelSpectrumScreen />}
-      {screen === 'stereo spectrum' && <StereoSpectrumScreen />}
+      {screen === 'horrizontal stereo spectrum' && <HorizontalStereoSpectrumScreen />}
+      {screen === 'vertical stereo spectrum' && <VerticalStereoSpectrumScreen />}
       {screen === 'left channel wave screen' && <LeftChannelWaveScreen />}
       {screen === 'right channel wave screen' && <RightChannelWaveScreen />}
       {screen === 'scrolling heat map screen' && <ScrollingHeatMapScreen />}
