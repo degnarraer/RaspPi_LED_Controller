@@ -2,8 +2,6 @@ import { Component, createRef } from 'react';
 import { WebSocketContextType } from './WebSocketContext';
 
 interface LiveBarChartProps {
-    labels: string[];
-    initialData: number[];
     signal: string;
     socket: WebSocketContextType;
 }
@@ -20,10 +18,9 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     constructor(props: LiveBarChartProps) {
         super(props);
-
         this.state = {
-            dataLabels: props.labels ?? [],
-            dataValues: props.initialData ?? [],
+            dataLabels: [],
+            dataValues: [],
         };
     }
 
@@ -36,7 +33,10 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState) {
-        if (prevState.dataValues !== this.state.dataValues || prevState.dataLabels !== this.state.dataLabels) {
+        if (
+            prevState.dataValues !== this.state.dataValues ||
+            prevState.dataLabels !== this.state.dataLabels
+        ) {
             this.updateChart();
         }
     }
@@ -61,12 +61,12 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         this.chart = new this.ChartJS(ctx, {
             type: 'bar',
             data: {
-                labels: this.state.dataLabels,
+                labels: [],
                 datasets: [
                     {
                         label: 'Live Data',
-                        data: this.state.dataValues,
-                        backgroundColor: this.getBarColors(this.state.dataValues),
+                        data: [],
+                        backgroundColor: [],
                         borderWidth: 1,
                     },
                 ],
@@ -74,7 +74,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
             options: {
                 scales: {
                     y: { beginAtZero: true, min: 0, max: 10 },
-                    x: { grid: { display: false }, ticks: { display: true } },
+                    x: { stacked: true, grid: { display: false }, ticks: { display: true } },
                 },
                 layout: { padding: 0 },
                 elements: { bar: { borderWidth: 1 } },
@@ -105,10 +105,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         const min = Math.min(...values);
 
         return values.map((value) => {
-            if (value === max) {
-                return 'rgba(255, 0, 0, 1)';
-            }
-
+            if (value === max) return 'rgba(255, 0, 0, 1)';
             const ratio = max === min ? 0 : (value - min) / (max - min);
             const r = Math.round(255 * ratio);
             const g = Math.round(255 * ratio);
@@ -142,7 +139,11 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (parsed && parsed.signal === this.props.signal && Array.isArray(parsed.value.values) && Array.isArray(parsed.value.labels)) {
+            if (
+                parsed?.signal === this.props.signal &&
+                Array.isArray(parsed.value?.values) &&
+                Array.isArray(parsed.value?.labels)
+            ) {
                 this.setState({
                     dataLabels: parsed.value.labels,
                     dataValues: parsed.value.values,

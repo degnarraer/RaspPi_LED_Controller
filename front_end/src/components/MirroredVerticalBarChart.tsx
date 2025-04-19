@@ -2,11 +2,8 @@ import { Component, createRef } from 'react';
 import { WebSocketContextType } from './WebSocketContext';
 
 interface MirroredVerticalBarChartProps {
-    labels: string[];
-    initialLeft: number[];
-    initialRight: number[];
-    signalLeft: string;
-    signalRight: string;
+    leftSignal: string;
+    rightSignal: string;
     socket: WebSocketContextType;
 }
 
@@ -16,7 +13,10 @@ interface MirroredVerticalBarChartState {
     rightValues: number[];
 }
 
-export default class MirroredVerticalBarChart extends Component<MirroredVerticalBarChartProps, MirroredVerticalBarChartState> {
+export default class MirroredVerticalBarChart extends Component<
+    MirroredVerticalBarChartProps,
+    MirroredVerticalBarChartState
+> {
     private canvasRef = createRef<HTMLCanvasElement>();
     private chart: any = null;
     private ChartJS: any = null;
@@ -25,9 +25,9 @@ export default class MirroredVerticalBarChart extends Component<MirroredVertical
         super(props);
 
         this.state = {
-            dataLabels: props.labels ?? [],
-            leftValues: props.initialLeft ?? [],
-            rightValues: props.initialRight ?? [],
+            dataLabels: [],
+            leftValues: [],
+            rightValues: [],
         };
     }
 
@@ -39,23 +39,12 @@ export default class MirroredVerticalBarChart extends Component<MirroredVertical
         this.setupSocket();
     }
 
-    private arraysEqual(arr1: any[], arr2: any[]): boolean {
-        if (arr1.length !== arr2.length) return false;
-        for (let i = 0; i < arr1.length; i++) {
-            if (arr1[i] !== arr2[i]) return false;
-        }
-        return true;
-    }
-
     componentDidUpdate(_prevProps: MirroredVerticalBarChartProps, prevState: MirroredVerticalBarChartState) {
-        const labelsChanged = prevState.dataLabels !== this.state.dataLabels &&
-        !this.arraysEqual(prevState.dataLabels, this.state.dataLabels);
-        const leftChanged = prevState.leftValues !== this.state.leftValues &&
-            !this.arraysEqual(prevState.leftValues, this.state.leftValues);
-        const rightChanged = prevState.rightValues !== this.state.rightValues &&
-            !this.arraysEqual(prevState.rightValues, this.state.rightValues);
-
-        if (labelsChanged || leftChanged || rightChanged) {
+        if (
+            prevState.leftValues !== this.state.leftValues ||
+            prevState.rightValues !== this.state.rightValues ||
+            prevState.dataLabels !== this.state.dataLabels
+        ) {
             this.updateChart();
         }
     }
@@ -84,13 +73,19 @@ export default class MirroredVerticalBarChart extends Component<MirroredVertical
                 datasets: [
                     {
                         label: 'Left',
-                        data: this.state.leftValues.map(v => -Math.abs(v)),
-                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        data: this.state.leftValues.map((v) => -v),
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        barThickness: 12,
+                        categoryPercentage: 0.9,
+                        barPercentage: 1.0,
                     },
                     {
                         label: 'Right',
-                        data: this.state.rightValues.map(v => Math.abs(v)),
-                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        data: this.state.rightValues,
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        barThickness: 12,
+                        categoryPercentage: 0.9,
+                        barPercentage: 1.0,
                     },
                 ],
             },
@@ -99,32 +94,24 @@ export default class MirroredVerticalBarChart extends Component<MirroredVertical
                 responsive: true,
                 scales: {
                     x: {
-                        beginAtZero: true,
                         min: -10,
                         max: 10,
-                        grid: { display: true },
+                        beginAtZero: true,
                         ticks: {
-                            callback: (value: number) => Math.abs(value).toString(),
+                            callback: (val: number) => Math.abs(val).toString(),
                         },
                     },
                     y: {
                         stacked: true,
                         reverse: true,
-                        grid: { display: false },
-                    },
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function (context: any) {
-                                return `${context.dataset.label}: ${Math.abs(context.raw)}`;
-                            },
-                        },
                     },
                 },
                 animation: {
                     duration: 10,
                     easing: 'linear',
+                },
+                plugins: {
+                    legend: { position: 'top' },
                 },
             },
         });
@@ -134,55 +121,49 @@ export default class MirroredVerticalBarChart extends Component<MirroredVertical
         if (!this.chart) return;
 
         this.chart.data.labels = this.state.dataLabels;
-        this.chart.data.datasets[0].data = this.state.leftValues.map(v => -Math.abs(v));
-        this.chart.data.datasets[1].data = this.state.rightValues.map(v => Math.abs(v));
+        this.chart.data.datasets[0].data = this.state.leftValues.map((v) => -v);
+        this.chart.data.datasets[1].data = this.state.rightValues;
         this.chart.update();
     }
 
     setupSocket() {
-        const { socket, signalLeft, signalRight } = this.props;
-
+        const { socket, leftSignal, rightSignal } = this.props;
         if (socket?.socket instanceof WebSocket) {
             socket.socket.addEventListener('message', this.handleSocketMessage);
-
-            socket.sendMessage({ type: 'subscribe', signal: signalLeft });
-            socket.sendMessage({ type: 'subscribe', signal: signalRight });
+            socket.sendMessage({ type: 'subscribe', signal: leftSignal });
+            socket.sendMessage({ type: 'subscribe', signal: rightSignal });
         }
     }
 
     teardownSocket() {
-        const { socket, signalLeft, signalRight } = this.props;
-
+        const { socket, leftSignal, rightSignal } = this.props;
         if (socket?.socket instanceof WebSocket) {
             socket.socket.removeEventListener('message', this.handleSocketMessage);
-
-            socket.sendMessage({ type: 'unsubscribe', signal: signalLeft });
-            socket.sendMessage({ type: 'unsubscribe', signal: signalRight });
+            socket.sendMessage({ type: 'unsubscribe', signal: leftSignal });
+            socket.sendMessage({ type: 'unsubscribe', signal: rightSignal });
         }
     }
 
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (!parsed || !parsed.signal || !parsed.value) return;
-
             if (
-                parsed.signal === this.props.signalLeft &&
-                Array.isArray(parsed.value.values)
+                parsed &&
+                parsed.signal &&
+                Array.isArray(parsed.value?.values) &&
+                Array.isArray(parsed.value?.labels)
             ) {
-                this.setState({ leftValues: parsed.value.values });
-            }
-
-            if (
-                parsed.signal === this.props.signalRight &&
-                Array.isArray(parsed.value.values)
-            ) {
-                this.setState({ rightValues: parsed.value.values });
-            }
-
-    
-            if (Array.isArray(parsed.value.labels)) {
-                this.setState({ dataLabels: parsed.value.labels });
+                if (parsed.signal === this.props.leftSignal) {
+                    this.setState({
+                        dataLabels: parsed.value.labels,
+                        leftValues: parsed.value.values,
+                    });
+                } else if (parsed.signal === this.props.rightSignal) {
+                    this.setState({
+                        dataLabels: parsed.value.labels,
+                        rightValues: parsed.value.values,
+                    });
+                }
             }
         } catch (e) {
             console.error('Invalid WebSocket message format:', e);
