@@ -1,0 +1,162 @@
+import { Component, createRef } from 'react';
+import { WebSocketContextType } from './WebSocketContext';
+
+interface LEDRowProps {
+    ledCount: number;
+    signal: string;
+    socket: WebSocketContextType;
+    randomMode?: boolean;
+}
+
+interface LEDRowState {
+    ledColors: string[];
+    containerWidth: number;
+}
+
+export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
+    private containerRef = createRef<HTMLDivElement>();
+    private resizeObserver: ResizeObserver | null = null;
+    private intervalId: NodeJS.Timeout | null = null;
+
+    constructor(props: LEDRowProps) {
+        super(props);
+        this.state = {
+            ledColors: new Array(props.ledCount).fill('lightgray'),
+            containerWidth: 0,
+        };
+    }
+
+    componentDidMount() {
+        if (!this.props.randomMode) {
+            this.setupSocket();
+        } else {
+            this.startRandomUpdates();
+        }
+        this.setupResizeObserver();
+    }
+
+    componentWillUnmount() {
+        if (!this.props.randomMode) {
+            this.teardownSocket();
+        } else {
+            this.stopRandomUpdates();
+        }
+        this.teardownResizeObserver();
+    }
+
+    componentDidUpdate(prevProps: LEDRowProps) {
+        if (prevProps.randomMode !== this.props.randomMode) {
+            if (this.props.randomMode) {
+                this.teardownSocket();
+                this.startRandomUpdates();
+            } else {
+                this.stopRandomUpdates();
+                this.setupSocket();
+            }
+        }
+    }
+
+    setupSocket() {
+        const { socket, signal } = this.props;
+        if (socket?.socket instanceof WebSocket) {
+            socket.socket.addEventListener('message', this.handleSocketMessage);
+            socket.sendMessage({ type: 'subscribe', signal });
+        }
+    }
+
+    teardownSocket() {
+        const { socket, signal } = this.props;
+        if (socket?.socket instanceof WebSocket) {
+            socket.socket.removeEventListener('message', this.handleSocketMessage);
+            socket.sendMessage({ type: 'unsubscribe', signal });
+        }
+    }
+
+    handleSocketMessage = (event: MessageEvent) => {
+        try {
+            const parsed = JSON.parse(event.data);
+            if (
+                parsed &&
+                parsed.signal === this.props.signal &&
+                Array.isArray(parsed.value) &&
+                parsed.value.length === this.props.ledCount
+            ) {
+                const colors = parsed.value.map((rgb: number[]) =>
+                    `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
+                );
+                this.setState({ ledColors: colors });
+            }
+        } catch (e) {
+            console.error('LEDRow: Invalid WebSocket message format:', e);
+        }
+    };
+
+    setupResizeObserver() {
+        const container = this.containerRef.current;
+        if (!container || typeof ResizeObserver === 'undefined') return;
+
+        this.resizeObserver = new ResizeObserver(() => {
+            if (this.containerRef.current) {
+                this.setState({
+                    containerWidth: this.containerRef.current.clientWidth,
+                });
+            }
+        });
+
+        this.resizeObserver.observe(container);
+    }
+
+    teardownResizeObserver() {
+        if (this.resizeObserver && this.containerRef.current) {
+            this.resizeObserver.unobserve(this.containerRef.current);
+            this.resizeObserver.disconnect();
+        }
+    }
+
+    startRandomUpdates() {
+        this.intervalId = setInterval(() => {
+            const colors = Array.from({ length: this.props.ledCount }, () =>
+                `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`
+            );
+            this.setState({ ledColors: colors });
+        }, 500);
+    }
+
+    stopRandomUpdates() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+    }
+
+    render() {
+        const { ledColors } = this.state;
+        const size = ledColors.length;
+
+        return (
+            <div ref={this.containerRef} style={{ width: '100%', height: '100%' }}>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${size}, 1fr)`,
+                        gap: '2px',
+                        width: '100%',
+                        height: '100%',
+                    }}
+                >
+                    {ledColors.map((color, i) => (
+                        <div
+                            key={i}
+                            style={{
+                                backgroundColor: color,
+                                aspectRatio: '1 / 1',
+                                width: '100%',
+                                borderRadius: '4px',
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
+        );
+    }
+}
