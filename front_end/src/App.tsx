@@ -5,7 +5,9 @@ import LiveBarChart from './components/LiveBarChart';
 import MirroredVerticalBarChart from './components/MirroredVerticalBarChart';
 import StreamingScatterPlot from './components/StreamingScatterPlot';
 import ScrollingHeatmap from './components/ScrollingHeatMap';
+import { RenderTickProvider } from './components/RenderingTick';
 
+  
 function App() {
   const socket = useContext(WebSocketContext);
   const [visible, setVisible] = useState(false);
@@ -72,30 +74,32 @@ function App() {
 
   function ScrollingHeatMapScreen() {
     return (
-      <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-          <div style={{ width: '50%', height: '100%' }}>
-            <ScrollingHeatmap
-              signal="FFT Bands Left Channel"
-              dataWidth={32}
-              dataHeight={200}
-              min={0}
-              max={10}
-              flipX={true}
-              socket={socket}
-            />
-          </div>
-          <div style={{ width: '50%', height: '100%' }}>
-            <ScrollingHeatmap
-              signal="FFT Bands Right Channel"
-              dataWidth={32}
-              dataHeight={200}
-              min={0}
-              max={10}
-              flipX={false}
-              socket={socket}
-            />
-          </div>
-      </div>
+      <RenderTickProvider>
+        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+            <div style={{ width: '50%', height: '100%' }}>
+              <ScrollingHeatmap
+                signal="FFT Bands Left Channel"
+                dataWidth={32}
+                dataHeight={240}
+                min={0}
+                max={10}
+                flipX={true}
+                socket={socket}
+              />
+            </div>
+            <div style={{ width: '50%', height: '100%' }}>
+              <ScrollingHeatmap
+                signal="FFT Bands Right Channel"
+                dataWidth={32}
+                dataHeight={240}
+                min={0}
+                max={10}
+                flipX={false}
+                socket={socket}
+              />
+            </div>
+        </div>
+      </RenderTickProvider>
     );
   }
 

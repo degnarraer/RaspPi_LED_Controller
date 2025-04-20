@@ -1,5 +1,6 @@
 import { Component, createRef } from 'react';
 import { WebSocketContextType } from './WebSocketContext';
+import { RenderTickContext } from './RenderingTick';
 
 interface ScrollingHeatmapProps {
     signal: string;
@@ -20,9 +21,13 @@ interface ScrollingHeatmapState {
     buffer: number[][];
     renderWidth: number;
     renderHeight: number;
+    dataQueue: number[][];
 }
 
 export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, ScrollingHeatmapState> {
+    static contextType = RenderTickContext;
+    declare context: React.ContextType<typeof RenderTickContext>;
+
     private canvasRef = createRef<HTMLCanvasElement>();
     private containerRef = createRef<HTMLDivElement>();
     private resizeObserver: ResizeObserver | null = null;
@@ -30,6 +35,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     private maxRows: number;
     private animationFrame: number | null = null;
     private lastFrameTime: number = 0;
+    private unregister: (() => void) | null = null;
 
     constructor(props: ScrollingHeatmapProps) {
         super(props);
@@ -40,19 +46,29 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             buffer: Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0)),
             renderWidth: 300,
             renderHeight: 150,
+            dataQueue: [],
         };
+        this.startRenderLoop = this.startRenderLoop.bind(this);
     }
 
     componentDidMount() {
         this.setupSocket();
         this.setupResizeObserver();
-        this.startRenderLoop();
+        if (this.context) {
+            this.unregister = this.context(this.startRenderLoop);
+        } else {
+            this.startRenderLoop();
+        }
     }
 
     componentWillUnmount() {
         this.teardownSocket();
         this.teardownResizeObserver();
-        this.stopRenderLoop();
+        if (this.unregister) {
+            this.unregister();
+        } else {
+            this.stopRenderLoop();
+        }
     }
 
     componentDidUpdate(prevProps: ScrollingHeatmapProps) {
@@ -61,6 +77,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             this.setupSocket();
             this.setState({
                 buffer: Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0)),
+                dataQueue: [], // Reset the queue
             });
         }
     }
@@ -111,30 +128,48 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
                 parsed.signal === this.props.signal &&
                 Array.isArray(parsed.value?.values)
             ) {
-                this.pushRow(parsed.value.values);
+                this.queueRow(parsed.value.values); // Queue the new data
             }
         } catch (e) {
             console.error('ScrollingHeatmap: Invalid WebSocket message format:', e);
         }
     };
 
-    pushRow(newRow: number[]) {
+    queueRow(newRow: number[]) {
         const clampedRow = newRow.slice(0, this.maxCols);
         const paddedRow = clampedRow.length < this.maxCols
             ? [...clampedRow, ...Array(this.maxCols - clampedRow.length).fill(0)]
             : clampedRow;
 
         this.setState(prevState => {
-            const updatedBuffer = [...prevState.buffer, paddedRow];
+            const updatedQueue = [...prevState.dataQueue, paddedRow]; // Add to the queue
+            return { dataQueue: updatedQueue };
+        });
+    }
+
+    flushDataToBuffer() {
+        this.setState(prevState => {
+            const updatedBuffer = [...prevState.buffer];
+            const updatedQueue = [...prevState.dataQueue];
+    
+            if (updatedQueue.length === 1) {
+                updatedBuffer.push(updatedQueue[0]);
+            } else if (updatedQueue.length > 1) {
+                updatedBuffer.push(updatedQueue.shift()!);
+            }
+    
             if (updatedBuffer.length > this.maxRows) {
                 updatedBuffer.shift();
             }
-            return { buffer: updatedBuffer };
+    
+            return { buffer: updatedBuffer, dataQueue: updatedQueue };
         });
     }
 
     startRenderLoop() {
-        this.lastFrameTime = performance.now();
+        if (this.lastFrameTime === 0) {
+            this.lastFrameTime = performance.now();
+        }
         const fps = this.props.frameRate ?? 30;
         const frameInterval = 1000 / fps;
 
@@ -142,6 +177,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             const delta = time - this.lastFrameTime;
             if (delta >= frameInterval) {
                 this.lastFrameTime = time;
+                this.flushDataToBuffer();
                 this.drawHeatmap();
             }
             this.animationFrame = requestAnimationFrame(loop);
