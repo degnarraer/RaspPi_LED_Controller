@@ -4,6 +4,15 @@ import { WebSocketContextType } from './WebSocketContext';
 interface LiveBarChartProps {
     signal: string;
     socket: WebSocketContextType;
+    barColor?: string;
+    xLabelPosition?: 'top' | 'bottom';
+    yLabelPosition?: 'left' | 'right';
+    flipX?: boolean;
+    flipY?: boolean;
+    xLabelMinRotation?: number;
+    xLabelMaxRotation?: number;
+    yLabelMinRotation?: number;
+    yLabelMaxRotation?: number;
 }
 
 interface LiveBarChartState {
@@ -30,7 +39,6 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         this.loadChartLibrary().then(() => {
             this.createChart();
         });
-
         this.setupSocket();
         this.setupResizeObserver();
     }
@@ -81,11 +89,31 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 ],
             },
             options: {
-                responsive: false, // we manually resize via ResizeObserver
+                responsive: false,
                 maintainAspectRatio: false,
                 scales: {
-                    y: { beginAtZero: true, min: 0, max: 10 },
-                    x: { stacked: true, grid: { display: false }, ticks: { display: true } },
+                    y: {
+                        beginAtZero: true,
+                        min: 0,
+                        max: 10,
+                        position: this.props.yLabelPosition || 'left',
+                        reverse: this.props.flipY || false,
+                        ticks: {
+                            minRotation: this.props.yLabelMinRotation ?? 0,
+                            maxRotation: this.props.yLabelMaxRotation ?? 50,
+                        },
+                    },
+                    x: {
+                        stacked: true,
+                        grid: { display: false },
+                        position: this.props.xLabelPosition || 'bottom',
+                        reverse: this.props.flipX || false,
+                        ticks: {
+                            display: true,
+                            minRotation: this.props.xLabelMinRotation ?? 0,
+                            maxRotation: this.props.xLabelMaxRotation ?? 50,
+                        },
+                    },
                 },
                 layout: { padding: 0 },
                 elements: { bar: { borderWidth: 1 } },
@@ -94,7 +122,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                     easing: 'linear',
                 },
                 plugins: {
-                    legend: { display: false, },
+                    legend: { display: false },
                 },
             },
         });
@@ -112,6 +140,10 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     getBarColors(values: number[] = []): string[] {
+        if (this.props.barColor) {
+            return Array(values.length).fill(this.props.barColor);
+        }
+
         if (!Array.isArray(values) || values.length === 0) {
             return ['rgba(54, 162, 235, 0.6)'];
         }

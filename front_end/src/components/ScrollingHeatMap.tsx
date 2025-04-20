@@ -6,11 +6,14 @@ interface ScrollingHeatmapProps {
     socket: WebSocketContextType;
     min: number;
     max: number;
-    minColor?: string; // HEX or rgb()
-    midColor?: string; // HEX or rgb()
-    maxColor?: string; // HEX or rgb()
+    minColor?: string;
+    midColor?: string;
+    maxColor?: string;
     dataWidth?: number;
     dataHeight?: number;
+    flipX?: boolean;
+    flipY?: boolean;
+    frameRate?: number;
 }
 
 interface ScrollingHeatmapState {
@@ -25,6 +28,8 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     private resizeObserver: ResizeObserver | null = null;
     private maxCols: number;
     private maxRows: number;
+    private animationFrame: number | null = null;
+    private lastFrameTime: number = 0;
 
     constructor(props: ScrollingHeatmapProps) {
         super(props);
@@ -41,11 +46,13 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     componentDidMount() {
         this.setupSocket();
         this.setupResizeObserver();
+        this.startRenderLoop();
     }
 
     componentWillUnmount() {
         this.teardownSocket();
         this.teardownResizeObserver();
+        this.stopRenderLoop();
     }
 
     componentDidUpdate(prevProps: ScrollingHeatmapProps) {
@@ -63,10 +70,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             this.resizeObserver = new ResizeObserver(entries => {
                 for (const entry of entries) {
                     const { width, height } = entry.contentRect;
-                    this.setState(
-                        { renderWidth: Math.floor(width), renderHeight: Math.floor(height) },
-                        () => window.requestAnimationFrame(this.drawHeatmap)
-                    );
+                    this.setState({ renderWidth: Math.floor(width), renderHeight: Math.floor(height) });
                 }
             });
             this.resizeObserver.observe(this.containerRef.current);
@@ -125,12 +129,32 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             if (updatedBuffer.length > this.maxRows) {
                 updatedBuffer.shift();
             }
-            while (updatedBuffer.length < this.maxRows) {
-                updatedBuffer.unshift(Array(this.maxCols).fill(0));
-            }
-
             return { buffer: updatedBuffer };
-        }, () => window.requestAnimationFrame(this.drawHeatmap));
+        });
+    }
+
+    startRenderLoop() {
+        this.lastFrameTime = performance.now();
+        const fps = this.props.frameRate ?? 30;
+        const frameInterval = 1000 / fps;
+
+        const loop = (time: number) => {
+            const delta = time - this.lastFrameTime;
+            if (delta >= frameInterval) {
+                this.lastFrameTime = time;
+                this.drawHeatmap();
+            }
+            this.animationFrame = requestAnimationFrame(loop);
+        };
+
+        this.animationFrame = requestAnimationFrame(loop);
+    }
+
+    stopRenderLoop() {
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+            this.animationFrame = null;
+        }
     }
 
     drawHeatmap = () => {
@@ -141,7 +165,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         if (!ctx) return;
 
         const { buffer, renderWidth, renderHeight } = this.state;
-        const { minColor, midColor, maxColor, min, max } = this.props;
+        const { minColor, midColor, maxColor, min, max, flipX, flipY } = this.props;
 
         const imageData = ctx.createImageData(renderWidth, renderHeight);
 
@@ -150,12 +174,14 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         const maxRGB = this.hexToRgb(maxColor || '#ffff00');
 
         for (let y = 0; y < renderHeight; y++) {
-            const srcY = Math.floor((y / renderHeight) * this.maxRows);
-            const row = buffer[srcY] || [];
+            const srcRowIndex = Math.floor((y / renderHeight) * this.maxRows);
+            const rowIndex = flipY ? this.maxRows - 1 - srcRowIndex : srcRowIndex;
+            const row = buffer[rowIndex] || [];
 
             for (let x = 0; x < renderWidth; x++) {
-                const srcX = Math.floor((x / renderWidth) * this.maxCols);
-                const val = row[srcX] ?? 0;
+                const srcColIndex = Math.floor((x / renderWidth) * this.maxCols);
+                const colIndex = flipX ? this.maxCols - 1 - srcColIndex : srcColIndex;
+                const val = row[colIndex] ?? 0;
                 const color = this.defaultColorScale(val, min, max, minRGB, midRGB, maxRGB);
                 const idx = (y * renderWidth + x) * 4;
                 imageData.data[idx + 0] = color.r;
