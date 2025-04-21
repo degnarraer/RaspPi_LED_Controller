@@ -21,7 +21,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     constructor(props: LEDRowProps) {
         super(props);
         this.state = {
-            ledColors: new Array(props.ledCount).fill('lightgray'),
+            ledColors: new Array(props.ledCount).fill('black'),
             containerWidth: 0,
         };
     }

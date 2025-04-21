@@ -91,193 +91,193 @@ function App() {
     return (
       <div style={gridStyle}>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={true} />
+          <LedRow ledCount={32} signal="led.signal" socket={socket} randomMode={false} />
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
