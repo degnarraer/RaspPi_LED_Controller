@@ -57,8 +57,21 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (parsed.signal === this.props.signal && typeof parsed.value === 'number') {
-                this.setState({ value: parsed.value });
+            if (parsed.signal === this.props.signal) {
+                let value = parsed.value;
+
+                // Handle numeric and string values
+                if (typeof value === 'string') {
+                    const numericValue = parseFloat(value.replace(/[^\d.-]/g, ''));
+                    if (!isNaN(numericValue)) {
+                        value = numericValue;
+                    }
+                }
+
+                // Update state with parsed value
+                if (typeof value === 'number') {
+                    this.setState({ value });
+                }
             }
         } catch (e) {
             console.error('Invalid WebSocket message format:', e);
@@ -88,6 +101,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                         top: 0,
                         bottom: 0,
                         backgroundColor: zone.color,
+                        zIndex: 1,  // Relative base value for zones
                     }}
                 />
             );
@@ -106,10 +120,15 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                     style={{
                         position: 'absolute',
                         left: `${left}%`,
-                        bottom: 0,
-                        height: '100%',
-                        width: '1px',
-                        backgroundColor: 'black',
+                        top: 0,
+                        height: '40%',
+                        width: '3px',
+                        backgroundColor: 'white',
+                        border: '1px solid black',
+                        borderBottomLeftRadius: '2px',
+                        borderBottomRightRadius: '2px',
+                        transform: 'translateX(-50%)',
+                        zIndex: 3,
                     }}
                 />
             );
@@ -127,13 +146,14 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                 style={{
                     position: 'absolute',
                     left: `${left}%`,
-                    top: '-8px',
-                    width: 0,
-                    height: 0,
-                    borderLeft: '6px solid transparent',
-                    borderRight: '6px solid transparent',
-                    borderBottom: '8px solid black',
+                    top: 0,
+                    bottom: 0,
+                    width: '2px',
+                    backgroundColor: '#FF5F00',
+                    borderLeft: '1px solid black',
+                    borderRight: '1px solid black',
                     transform: 'translateX(-50%)',
+                    zIndex: 2,
                 }}
             />
         );
@@ -141,8 +161,18 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
 
     render() {
         return (
-            <div ref={this.containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: '12px', bottom: '12px', left: 0, right: 0, backgroundColor: '#eee', borderRadius: '4px' }} />
+            <div
+                ref={this.containerRef}
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    position: 'relative',
+                    zIndex: 0,  // Parent stacking context
+                    border: '2px solid black', // Black border around the gauge
+                    boxSizing: 'border-box',  // Ensure border is included in width/height
+                }}
+            >
+                <div style={{ position: 'absolute', top: '12px', bottom: '12px', left: 0, right: 0, backgroundColor: '#eee' }} />
                 {this.renderZones()}
                 {this.renderTicks()}
                 {this.renderIndicator()}

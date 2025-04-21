@@ -132,7 +132,10 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     render() {
         const { ledColors } = this.state;
         const size = ledColors.length;
-
+    
+        // Set the border width as a percentage of the container's width or height (adjust as needed)
+        const borderWidth = 2; // Static border width in pixels
+    
         return (
             <div ref={this.containerRef} style={{ width: '100%', height: '100%' }}>
                 <div
@@ -149,14 +152,16 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                             key={i}
                             style={{
                                 backgroundColor: color,
-                                aspectRatio: '1 / 1',
-                                width: '100%',
-                                borderRadius: '4px',
+                                border: `${borderWidth}px solid black`, // Fixed border width in pixels
+                                boxSizing: 'border-box', // Ensure border is included in the cell size
+                                width: '100%', // Full width of the grid cell
+                                height: '100%', // Full height of the grid cell
+                                borderRadius: '4px', // Optional: rounded corners
                             }}
                         />
                     ))}
                 </div>
             </div>
         );
-    }
+    }     
 }

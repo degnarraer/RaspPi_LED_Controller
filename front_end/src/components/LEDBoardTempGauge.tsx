@@ -20,7 +20,7 @@ const LEDBoardTempGauge: FC<GaugeProps> = ({ signalName, socket }) => {
           { from: 60, to: 90, color: 'yellow' },
           { from: 90, to: 120, color: 'red' },
         ]}
-        tickMarks={[0, 30, 60, 90, 120]}
+        tickMarks={[30, 60, 90,]}
       />
     </div>
   );

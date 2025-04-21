@@ -8,7 +8,8 @@ import ScrollingHeatmap from './components/ScrollingHeatMap';
 import { RenderTickProvider } from './components/RenderingTick';
 import LEDBoardTempGauge from './components/LEDBoardTempGauge';
 import LedRow from './components/LedRow';
-import SignalValueTextBox from './components/SignalValueTextbox';
+//import SignalValueTextBox from './components/SignalValueTextbox';
+import HorizontalGauge from './components/HorizontalGauge';
 
 const SCREENS = {
   HOME: 'home',
@@ -70,16 +71,16 @@ function App() {
 
   function HomeScreen() {
     const gridStyle = {
+      width: '100%',
+      height:'100%',
       display: 'grid',
       gridTemplateColumns: 'auto auto',
       gridTemplateRows: 'auto auto',
-      gap: '5px',
-      padding: '5px',
+      gap: '2px',
     };
   
     const itemStyle = {
       backgroundColor: 'lightgray',
-      padding: '5px',
     };
   
     /*const textStyle = {
@@ -282,10 +283,22 @@ function App() {
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
         </div>
         <div style={itemStyle}>
-          <SignalValueTextBox signal="CPU Temp" socket={socket} placeholder="Loading..."/>
+          CPU Usage
         </div>
         <div style={itemStyle}>
-          <SignalValueTextBox signal="CPU Usage" socket={socket} placeholder="Loading..."/>
+          <HorizontalGauge min={0} max={100} signal={"CPU Usage"} socket={socket} zones={[{ from: 0, to: 100, color: 'green' },]}tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90,]}/>
+        </div>
+        <div style={itemStyle}>
+          Memory Usage
+        </div>
+        <div style={itemStyle}>
+          <HorizontalGauge min={0} max={100} signal={"CPU Memory Usage"} socket={socket} zones={[{ from: 0, to: 100, color: 'green' },]}tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90,]}/>
+        </div>
+        <div style={itemStyle}>
+          CPU Temp
+        </div>
+        <div style={itemStyle}>
+          <HorizontalGauge min={30} max={90} signal={"CPU Temp"} socket={socket} zones={[{ from: 0, to: 70, color: 'green' }, { from: 70, to: 80, color: 'yellow' },{ from: 80, to: 90, color: 'red' },]} tickMarks={[40, 50, 60, 70, 80,]}/>
         </div>
       </div>
     );
