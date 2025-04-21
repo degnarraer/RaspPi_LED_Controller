@@ -122,11 +122,11 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                         left: `${left}%`,
                         top: 0,
                         height: '40%',
-                        width: '3px',
+                        width: '0.2em',
                         backgroundColor: 'white',
                         border: '1px solid black',
-                        borderBottomLeftRadius: '2px',
-                        borderBottomRightRadius: '2px',
+                        borderBottomLeftRadius: '0.2em',
+                        borderBottomRightRadius: '0.2em',
                         transform: 'translateX(-50%)',
                         zIndex: 3,
                     }}
@@ -140,7 +140,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
         const { min, max } = this.props;
         const clampedValue = this.clamp(value);
         const left = ((clampedValue - min) / (max - min)) * 100;
-
+    
         return (
             <div
                 style={{
@@ -148,10 +148,10 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                     left: `${left}%`,
                     top: 0,
                     bottom: 0,
-                    width: '2px',
-                    backgroundColor: '#FF5F00',
-                    borderLeft: '1px solid black',
-                    borderRight: '1px solid black',
+                    width: '1%',
+                    background: 'linear-gradient(to bottom,rgb(154, 62, 0),rgb(255, 94, 0),rgb(154, 62, 0))',
+                    borderLeft: '0.1em solid black',
+                    borderRight: '0.1em solid black',
                     transform: 'translateX(-50%)',
                     zIndex: 2,
                 }}
@@ -167,9 +167,9 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                     width: '100%',
                     height: '100%',
                     position: 'relative',
-                    zIndex: 0,  // Parent stacking context
-                    border: '2px solid black', // Black border around the gauge
-                    boxSizing: 'border-box',  // Ensure border is included in width/height
+                    zIndex: 0,
+                    border: '0.2em solid black',
+                    boxSizing: 'border-box',
                 }}
             >
                 <div style={{ position: 'absolute', top: '12px', bottom: '12px', left: 0, right: 0, backgroundColor: '#eee' }} />
