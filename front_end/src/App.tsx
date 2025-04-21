@@ -8,6 +8,7 @@ import ScrollingHeatmap from './components/ScrollingHeatMap';
 import { RenderTickProvider } from './components/RenderingTick';
 import LEDBoardTempGauge from './components/LEDBoardTempGauge';
 import LedRow from './components/LedRow';
+import SignalValueTextBox from './components/SignalValueTextbox';
 
 const SCREENS = {
   HOME: 'home',
@@ -279,6 +280,12 @@ function App() {
         </div>
         <div style={itemStyle}>
           <LEDBoardTempGauge signalName="Temp1" socket={socket} />
+        </div>
+        <div style={itemStyle}>
+          <SignalValueTextBox signal="CPU Temp" socket={socket} placeholder="Loading..."/>
+        </div>
+        <div style={itemStyle}>
+          <SignalValueTextBox signal="CPU Usage" socket={socket} placeholder="Loading..."/>
         </div>
       </div>
     );

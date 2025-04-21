@@ -126,6 +126,13 @@ class FFTComputer
         const float sqrt2 = std::sqrt(2.0);
         std::shared_ptr<spdlog::logger> logger;
 
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_);
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalLeftChannel_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel");
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalRightChannel_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel");
+        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands);
+
         void registerCallbacks()
         {
             auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel)
@@ -135,19 +142,16 @@ class FFTComputer
                 self->addData(value, channel);
             };
 
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_)->RegisterCallback(
-                [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel")->RegisterCallback(
-                [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel")->RegisterCallback(
-                [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this);
+            inputSignal_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
+            inputSignalLeftChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
+            inputSignalRightChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
         }
 
         void unregisterCallbacks()
         {
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_)->UnregisterCallbackByArg(this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel")->UnregisterCallbackByArg(this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel")->UnregisterCallbackByArg(this);
+            inputSignal_->UnregisterCallbackByArg(this);
+            inputSignalLeftChannel_->UnregisterCallbackByArg(this);
+            inputSignalRightChannel_->UnregisterCallbackByArg(this);
         }
 
         void processQueue()
@@ -220,15 +224,15 @@ class FFTComputer
             {
                 case ChannelType::Mono:
                     logger->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
+                    monoOutputSignal_->SetValue(saeBands);
                 break;
                 case ChannelType::Left:
                     logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
+                    leftChannelOutputSignal_->SetValue(saeBands);
                 break;
                 case ChannelType::Right:
                     logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
+                    rightChannelOutputSignal_->SetValue(saeBands);
                 break;
                 default:
                     logger->error("Device {}: Unsupported channel type:", name_);

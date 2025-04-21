@@ -1,6 +1,6 @@
 #include "signal.h"
 
-std::string encode_signal_name_and_value(const std::string& signal, const json& value)
+std::string encode_signal_name_and_json(const std::string& signal, const json& value)
 {
     json j;
     j["signal"] = signal;
@@ -18,7 +18,7 @@ std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>
     };
 
     json valueJson = encode_labels_values_from_2_vectors(labels, values);
-    return encode_signal_name_and_value(signal, valueJson);
+    return encode_signal_name_and_json(signal, valueJson);
 }
 
 SignalManager& SignalManager::GetInstance()
