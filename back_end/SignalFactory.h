@@ -21,7 +21,7 @@ public:
         SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, encode_FFT_Bands);
         SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, encode_FFT_Bands);
         SignalManager::GetInstance().CreateSignal<std::string>("CPU Usage", webSocketServer, encode_signal_name_and_value<std::string>);
-        SignalManager::GetInstance().CreateSignal<std::string>("Memory Usage", webSocketServer, encode_signal_name_and_value<std::string>);
+        SignalManager::GetInstance().CreateSignal<std::string>("CPU Memory Usage", webSocketServer, encode_signal_name_and_value<std::string>);
         SignalManager::GetInstance().CreateSignal<std::string>("CPU Temp", webSocketServer, encode_signal_name_and_value<std::string>);
     }
 };

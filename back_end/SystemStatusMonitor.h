@@ -15,7 +15,7 @@ public:
                        : webSocketServer_(webSocketServer)
                        , logger_(InitializeLogger("SystemStatusMonitor", spdlog::level::debug))
                        , cpuUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Usage")))
-                       , memoryUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Memory Usage")))
+                       , memoryUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Memory Usage")))
                        , cpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Temp")))
                        , running_(false)
     {

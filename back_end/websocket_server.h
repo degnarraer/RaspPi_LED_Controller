@@ -106,6 +106,7 @@ public:
     void register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client);
     void deregister_backend_client(const std::string& client_name);
     void close_session(const std::string& session_id);
+    void close_all_sessions();
 
 private:
     boost::asio::io_context ioc_;

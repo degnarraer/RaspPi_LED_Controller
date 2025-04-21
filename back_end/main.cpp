@@ -28,5 +28,6 @@ int main()
     mic->StartReadingMicrophone();
     systemStatusMonitor->startMonitoring();   
     std::cin.get();
+    webSocketServer->close_all_sessions();
     return 0;
 }

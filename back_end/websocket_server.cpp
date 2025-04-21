@@ -292,6 +292,7 @@ WebSocketServer::WebSocketServer(short port)
 WebSocketServer::~WebSocketServer()
 {
     logger_->debug("Destroying WebSocketServer.");
+    close_all_sessions();
     Stop();
 }
 
@@ -420,6 +421,22 @@ void WebSocketServer::close_session(const std::string& session_id)
     {
         logger_->warn("Attempted to close unknown session: {}.", session_id);
     }
+}
+
+void WebSocketServer::close_all_sessions()
+{
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    logger_->info("Closing all sessions.");
+    for (auto& [id, session] : sessions_)
+    {
+        if (auto shared_session = session.lock())
+        {
+            shared_session->send_message("Server shutting down...");
+            shared_session->close();
+        }
+    }
+    sessions_.clear();
+    logger_->info("All sessions closed.");
 }
 
 void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
