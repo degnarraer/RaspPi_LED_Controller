@@ -75,17 +75,17 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if(parsed && parsed.signal === this.props.signal){
-                if (Array.isArray(parsed.value) &&
-                    parsed.value.length === this.props.ledCount
-                ) {
-                    const colors = parsed.value.map((rgb: { r: number; g: number; b: number }) =>
-                        `rgb(${rgb.r},${rgb.g},${rgb.b})`
-                    );
+            if (parsed && parsed.signal === this.props.signal) {
+                if (Array.isArray(parsed.value) && parsed.value.length === this.props.ledCount) {
+                    const colors = parsed.value.map((hex: string) => {
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        return `rgb(${r},${g},${b})`;
+                    });
                     this.setState({ ledColors: colors });
-                }
-                else {
-                    console.warn('LEDRow: Invalid message format or signal mismatch:', parsed);
+                } else {
+                    console.warn('LEDRow: Invalid message format:', parsed);
                 }
             }
         } catch (e) {
@@ -143,7 +143,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                     style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${size}, 1fr)`,
-                        gap: '0.2em',
+                        gap: '0.1em',
                         width: '100%',
                         height: '100%',
                     }}

@@ -46,21 +46,14 @@ void FFTAnimation::AnimateFrame()
 
     grid_.Clear();
 
-    for (int x = 0; x < std::min<int>(leftBands_.size(), halfWidth); ++x)
+    for (int x = 0; x < leftBands_.size(); ++x)
     {
-        int barHeight = static_cast<int>(leftBands_[x] * height);
+        float normalized = std::clamp(leftBands_[x] / 10.0f, 0.0f, 1.0f);
+        int barHeight = static_cast<int>(normalized * height);
+    
         for (int y = 0; y < std::min(barHeight, height); ++y)
         {
             grid_.SetPixel(x, height - 1 - y, {255, 0, 0});
-        }
-    }
-
-    for (int x = 0; x < std::min<int>(rightBands_.size(), halfWidth); ++x)
-    {
-        int barHeight = static_cast<int>(rightBands_[x] * height);
-        for (int y = 0; y < std::min(barHeight, height); ++y)
-        {
-            grid_.SetPixel(halfWidth + x, height - 1 - y, {0, 0, 255});
         }
     }
 

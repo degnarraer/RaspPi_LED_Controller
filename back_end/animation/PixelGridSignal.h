@@ -7,6 +7,7 @@
 #include "../signal.h"
 #include "../websocket_server.h"
 
+
 struct RGB
 {
     uint8_t r;
@@ -24,20 +25,35 @@ struct RGB
     }
 };
 
+inline std::string to_hex_string(const RGB& color)
+{
+    std::ostringstream oss;
+    oss << std::setfill('0')
+        << std::setw(2)
+        << std::hex
+        << static_cast<int>(color.r)
+        << std::setw(2)
+        << static_cast<int>(color.g)
+        << std::setw(2)
+        << static_cast<int>(color.b);
+    return oss.str();
+}
+
 inline void to_json(nlohmann::json& j, const RGB& color)
 {
-    j = nlohmann::json{
-        {"r", color.r},
-        {"g", color.g},
-        {"b", color.b}
-    };
+    j = to_hex_string(color);
 }
 
 inline void from_json(const nlohmann::json& j, RGB& color)
 {
-    j.at("r").get_to(color.r);
-    j.at("g").get_to(color.g);
-    j.at("b").get_to(color.b);
+    std::string hex_str = j.get<std::string>();
+    if (hex_str.size() == 6) {
+        color.r = std::stoi(hex_str.substr(0, 2), nullptr, 16);
+        color.g = std::stoi(hex_str.substr(2, 2), nullptr, 16);
+        color.b = std::stoi(hex_str.substr(4, 2), nullptr, 16);
+    } else {
+        throw std::invalid_argument("Invalid hex string for RGB color");
+    }
 }
 
 inline std::ostream& operator<<(std::ostream& os, const RGB& color)
@@ -49,11 +65,7 @@ inline std::ostream& operator<<(std::ostream& os, const RGB& color)
 
 inline std::string to_string(const RGB& color)
 {
-    std::ostringstream oss;
-    oss << "RGB(" << static_cast<int>(color.r) << ", "
-                  << static_cast<int>(color.g) << ", "
-                  << static_cast<int>(color.b) << ")";
-    return oss.str();
+    return to_hex_string(color);
 }
 
 class PixelGridSignal

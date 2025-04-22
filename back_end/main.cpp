@@ -10,6 +10,7 @@
 #include "SignalFactory.h"
 #include "./animation/PixelGridSignal.h"
 #include "./animation/FFTAnimation.h"
+#include "./animation/RainbowAnimation.h"
 //#include "ws281x_led_controller.h"
 
 int main()
@@ -31,7 +32,7 @@ int main()
     systemStatusMonitor->startMonitoring();
     
     PixelGridSignal grid("Pixel Grid", 32, 32, webSocketServer);
-    FFTAnimation animation(grid);
+    RainbowAnimation animation(grid);
     animation.Start();
 
     std::cin.get();
