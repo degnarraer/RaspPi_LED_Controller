@@ -76,7 +76,7 @@ function App() {
       display: 'grid',
       gridTemplateColumns: 'auto auto',
       gridTemplateRows: 'auto auto',
-      gap: '0.2em',
+      gap: '1px',
     };
   
     const itemStyle = {
