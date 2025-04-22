@@ -20,63 +20,81 @@ interface WebSocketProviderProps {
 
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, children }) => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
-  const reconnectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAttemptRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const messageQueue = useRef<WebSocketMessage[]>([]);
+
+  const connect = () => {
+    const existing = wsRef.current;
+    if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+      console.log('WebSocket already connected or connecting');
+      return;
+    }
+
+    console.log('Attempting to connect to WebSocket...');
+
+    try {
+      const newWs = new WebSocket(url);
+      wsRef.current = newWs;
+      setSocket(newWs);
+
+      newWs.onopen = () => {
+        console.log('WebSocket connected');
+        retryAttemptRef.current = 0;
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+
+        while (messageQueue.current.length > 0) {
+          const msg = messageQueue.current.shift();
+          if (msg) {
+            newWs.send(JSON.stringify(msg));
+          }
+        }
+      };
+
+      newWs.onclose = () => {
+        console.log('WebSocket disconnected.');
+        scheduleReconnect();
+      };
+
+      newWs.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        newWs.close();
+      };
+
+      /*newWs.onmessage = (event) => {
+        const message = event.data;
+        console.debug('Received message:', message);
+      };*/
+
+    } catch (error) {
+      console.error('WebSocket connection failed:', error);
+      scheduleReconnect();
+    }
+  };
+
+  const scheduleReconnect = () => {
+    if (retryTimeoutRef.current) return;
+
+    retryAttemptRef.current += 1;
+    const delay = Math.min(1000 * 2 ** retryAttemptRef.current, 30000);
+    console.log(`Reconnecting in ${delay / 1000}s...`);
+    retryTimeoutRef.current = setTimeout(() => {
+      retryTimeoutRef.current = null;
+      connect();
+    }, delay);
+  };
 
   useEffect(() => {
-    const connect = () => {
-      const ws = wsRef.current;
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('WebSocket is already connected');
-        return;
-      }
-
-      console.log('Attempting to connect to WebSocket...');
-
-      try {
-        const newWs = new WebSocket(url);
-        wsRef.current = newWs;
-        setSocket(newWs);
-
-        newWs.onopen = () => {
-          console.log('WebSocket connected');
-          if (reconnectIntervalRef.current) {
-            clearInterval(reconnectIntervalRef.current);
-            reconnectIntervalRef.current = null;
-          }
-        };
-
-        newWs.onclose = () => {
-          console.log('WebSocket disconnected. Attempting reconnect in 2 seconds...');
-          if (!reconnectIntervalRef.current) {
-            reconnectIntervalRef.current = setInterval(connect, 2000);
-          }
-        };
-
-        newWs.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          newWs.close();
-        };
-        
-        newWs.onmessage = (event) => {
-          const message = event.data;
-          console.debug('Received message:', message);
-        };
-        
-      } catch (error) {
-        console.error('WebSocket connection failed:', error);
-      }
-    };
-
     connect();
 
     return () => {
-      if (reconnectIntervalRef.current) {
-        clearInterval(reconnectIntervalRef.current);
-        reconnectIntervalRef.current = null;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
       }
-
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -85,10 +103,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   }, [url]);
 
   const sendMessage = (message: WebSocketMessage) => {
-    if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message));
+    const currentSocket = wsRef.current;
+    if (currentSocket?.readyState === WebSocket.OPEN) {
+      currentSocket.send(JSON.stringify(message));
     } else {
-      console.error('WebSocket is not open, unable to send message.');
+      console.warn('WebSocket not open. Queuing message for retry.');
+      messageQueue.current.push(message);
     }
   };
 

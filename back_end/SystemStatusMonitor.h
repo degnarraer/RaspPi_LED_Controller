@@ -5,19 +5,27 @@
 #include <thread>
 #include <sstream>
 #include <cstdio>
+#include <sys/statvfs.h>
 #include "logger.h"
 #include "signal.h"
 
 class SystemStatusMonitor
 {
 public:
-    SystemStatusMonitor( std::shared_ptr<WebSocketServer> webSocketServer)
-                       : webSocketServer_(webSocketServer)
-                       , logger_(InitializeLogger("SystemStatusMonitor", spdlog::level::debug))
-                       , cpuUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Usage")))
-                       , memoryUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Memory Usage")))
-                       , cpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Temp")))
-                       , running_(false)
+    SystemStatusMonitor(std::shared_ptr<WebSocketServer> webSocketServer)
+        : webSocketServer_(webSocketServer)
+        , logger_(InitializeLogger("SystemStatusMonitor", spdlog::level::info))
+        , cpuUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Usage")))
+        , memoryUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Memory Usage")))
+        , cpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Temp")))
+        , gpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("GPU Temp")))
+        , throttleStatusSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Throttle Status")))
+        , netRxSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Network RX")))
+        , netTxSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Network TX")))
+        , diskUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Disk Usage")))
+        , loadAvgSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Load Average")))
+        , uptimeSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Uptime")))
+        , running_(false)
     {
         logger_->info("SystemStatusMonitor initialized.");
     }
@@ -62,6 +70,13 @@ private:
     std::shared_ptr<Signal<std::string>> cpuUsageSignal_;
     std::shared_ptr<Signal<std::string>> memoryUsageSignal_;
     std::shared_ptr<Signal<std::string>> cpuTempSignal_;
+    std::shared_ptr<Signal<std::string>> gpuTempSignal_;
+    std::shared_ptr<Signal<std::string>> throttleStatusSignal_;
+    std::shared_ptr<Signal<std::string>> netRxSignal_;
+    std::shared_ptr<Signal<std::string>> netTxSignal_;
+    std::shared_ptr<Signal<std::string>> diskUsageSignal_;
+    std::shared_ptr<Signal<std::string>> loadAvgSignal_;
+    std::shared_ptr<Signal<std::string>> uptimeSignal_;
     std::shared_ptr<spdlog::logger> logger_;
     bool running_;
     std::thread monitoringThread_;
@@ -159,46 +174,205 @@ private:
         return tempCelsius;
     }
 
+    float getGpuTemperature()
+    {
+        std::ifstream file("/sys/class/thermal/thermal_zone1/temp");
+        if (!file)
+        {
+            logger_->error("Failed to open GPU temperature file");
+            return 0.0f;
+        }
+
+        int tempMilliCelsius = 0;
+        file >> tempMilliCelsius;
+        file.close();
+
+        float tempCelsius = tempMilliCelsius / 1000.0f;
+        logger_->debug("GPU temp: {} °C", tempCelsius);
+        return tempCelsius;
+    }
+
+    std::string getThrottleStatus()
+    {
+        std::ifstream file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+        if (!file)
+        {
+            logger_->error("Failed to open scaling governor file");
+            return "Unknown";
+        }
+
+        std::string status;
+        std::getline(file, status);
+        file.close();
+        logger_->debug("Throttle status: {}", status);
+        return status;
+    }
+
+    void getNetworkStats(float &rx, float &tx)
+    {
+        std::ifstream file("/proc/net/dev");
+        if (!file)
+        {
+            logger_->error("Failed to open /proc/net/dev");
+            rx = tx = 0.0f;
+            return;
+        }
+
+        std::string line;
+        rx = tx = 0.0f;
+
+        while (std::getline(file, line))
+        {
+            if (line.find("eth0:") != std::string::npos) // Assuming eth0 is the network interface
+            {
+                std::istringstream ss(line);
+                std::string iface;
+                ss >> iface >> rx >> tx;
+                break;
+            }
+        }
+
+        file.close();
+        logger_->debug("Network RX: {} bytes, TX: {} bytes", rx, tx);
+    }
+
+    float getDiskUsage()
+    {
+        struct statvfs buf;  // Now the type is defined
+        if (statvfs("/", &buf) != 0)
+        {
+            logger_->error("Failed to get disk usage");
+            return 0.0f;
+        }
+
+        float usage = (float)(buf.f_blocks - buf.f_bfree) / buf.f_blocks * 100.0f;
+        logger_->debug("Disk usage: {}%", usage);
+        return usage;
+    }
+
+    std::string getLoadAverage()
+    {
+        std::ifstream file("/proc/loadavg");
+        if (!file)
+        {
+            logger_->error("Failed to open /proc/loadavg");
+            return "Unknown";
+        }
+
+        std::string loadAvg;
+        file >> loadAvg;
+        file.close();
+        logger_->debug("Load average: {}", loadAvg);
+        return loadAvg;
+    }
+
+    std::string getUptime()
+    {
+        std::ifstream file("/proc/uptime");
+        if (!file)
+        {
+            logger_->error("Failed to open /proc/uptime");
+            return "Unknown";
+        }
+
+        std::string uptime;
+        file >> uptime;
+        file.close();
+        logger_->debug("Uptime: {}", uptime);
+        return uptime;
+    }
+
     void updateSystemStats()
     {
-        logger_->debug("Updating signal values...");
-        try
+        logger_->debug("Updating system status...");
+
+        // Update signals and log results
+        float valueF;
+        std::string valueS;
+
+        // Update CPU temperature
+        valueF = getCpuTemperature();
+        if (cpuTempSignal_)
         {
-            if (cpuTempSignal_)
-            {
-                float temp = getCpuTemperature();
-                cpuTempSignal_->SetValue(fmt::format("{:.2f} °C", temp));
-            }
-        }
-        catch (const std::exception& e)
-        {
-            logger_->error("Exception updating CPU temp: {}", e.what());
+            valueS = fmt::format("{:.2f} °C", valueF);
+            cpuTempSignal_->SetValue(valueS);
+            logger_->debug("CPU Temp: {}", valueS);
         }
 
-        try
+        // Update CPU usage
+        valueF = getCpuUsage();
+        if (cpuUsageSignal_)
         {
-            if (cpuUsageSignal_)
-            {
-                float cpu = getCpuUsage();
-                cpuUsageSignal_->SetValue(fmt::format("{:.2f} %", cpu));
-            }
-        }
-        catch (const std::exception& e)
-        {
-            logger_->error("Exception updating CPU usage: {}", e.what());
+            valueS = fmt::format("{:.2f} %", valueF);
+            cpuUsageSignal_->SetValue(valueS);
+            logger_->debug("CPU Usage: {}", valueS);
         }
 
-        try
+        // Update memory usage
+        valueF = getMemoryUsage();
+        if (memoryUsageSignal_)
         {
-            if (memoryUsageSignal_)
-            {
-                float mem = getMemoryUsage();
-                memoryUsageSignal_->SetValue(fmt::format("{:.2f} %", mem));
-            }
+            valueS = fmt::format("{:.2f} %", valueF);
+            memoryUsageSignal_->SetValue(valueS);
+            logger_->debug("Memory Usage: {}", valueS);
         }
-        catch (const std::exception& e)
+
+        // Update GPU temperature
+        valueF = getGpuTemperature();
+        if (gpuTempSignal_)
         {
-            logger_->error("Exception updating memory usage: {}", e.what());
+            valueS = fmt::format("{:.2f} °C", valueF);
+            gpuTempSignal_->SetValue(valueS);
+            logger_->debug("GPU Temp: {}", valueS);
+        }
+
+        // Update throttle status
+        valueS = getThrottleStatus();
+        if (throttleStatusSignal_)
+        {
+            throttleStatusSignal_->SetValue(valueS);
+            logger_->debug("Throttle Status: {}", valueS);
+        }
+
+        // Update network stats
+        float rx, tx;
+        getNetworkStats(rx, tx);
+        if (netRxSignal_)
+        {
+            valueS = fmt::format("{:.2f} KB", rx);
+            netRxSignal_->SetValue(valueS);
+            logger_->debug("Net RX: {}", valueS);
+        }
+        if (netTxSignal_)
+        {
+            valueS = fmt::format("{:.2f} KB", tx);
+            netTxSignal_->SetValue(valueS);
+            logger_->debug("Net TX: {}", valueS);
+        }
+
+        // Update disk usage
+        valueF = getDiskUsage();
+        if (diskUsageSignal_)
+        {
+            valueS = fmt::format("{:.2f} %", valueF);
+            diskUsageSignal_->SetValue(valueS);
+            logger_->debug("Disk Usage: {}", valueS);
+        }
+
+        // Update load average
+        valueS = getLoadAverage();
+        if (loadAvgSignal_)
+        {
+            loadAvgSignal_->SetValue(valueS);
+            logger_->debug("Load Average: {}", valueS);
+        }
+
+        // Update uptime
+        valueS = getUptime();
+        if (uptimeSignal_)
+        {
+            uptimeSignal_->SetValue(valueS);
+            logger_->debug("Uptime: {}", valueS);
         }
     }
 

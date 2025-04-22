@@ -62,7 +62,6 @@ void WebSocketSession::send_message(const std::string& message)
         [self = shared_from_this(), message]()
         {
             bool start_write = false;
-
             {
                 std::lock_guard<std::mutex> lock(self->write_mutex_);
 
@@ -207,10 +206,9 @@ void WebSocketSession::do_write()
         message = std::move(outgoing_messages_.front());
         outgoing_messages_.pop_front();
     }
-
-    ws_.text(ws_.got_text());
-    ws_.async_write(asio::buffer(message),
-        beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this()));
+    ws_.text(is_valid_utf8(message));
+    ws_.async_write( asio::buffer(message)
+                   , beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this()) );
 }
 
 void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transferred)
@@ -326,7 +324,6 @@ void WebSocketServer::Run()
         });
     }
 }
-
 
 void WebSocketServer::Stop()
 {

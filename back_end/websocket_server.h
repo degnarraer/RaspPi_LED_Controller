@@ -70,6 +70,35 @@ public:
     void on_write(beast::error_code ec, std::size_t bytes_transferred);
     void retry_connection(int remaining_attempts);
     void reset_and_retry();
+    bool is_valid_utf8(const std::string& str)
+    {
+        int bytes = 0;
+        unsigned char chr;
+        for (size_t i = 0; i < str.size(); i++)
+        {
+            chr = (unsigned char)str[i];
+            if (bytes == 0)
+            {
+                if ((chr & 0x80) == 0x00)
+                    continue;
+                else if ((chr & 0xE0) == 0xC0)
+                    bytes = 1;
+                else if ((chr & 0xF0) == 0xE0)
+                    bytes = 2;
+                else if ((chr & 0xF8) == 0xF0)
+                    bytes = 3;
+                else
+                    return false;
+            }
+            else
+            {
+                if ((chr & 0xC0) != 0x80)
+                    return false;
+                bytes--;
+            }
+        }
+        return bytes == 0;
+    }
 
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;

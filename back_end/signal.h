@@ -52,6 +52,7 @@ class ISignalValue : public ISignalName
         };
         virtual void SetValue(const T& value, void* arg = nullptr) = 0;
         virtual T GetValue() const = 0;
+        virtual std::shared_ptr<T> GetData() const = 0;
         virtual void RegisterCallback(Callback cb, void* arg = nullptr) = 0;
         virtual void UnregisterCallbackByArg(void* arg) = 0;
 };
@@ -71,6 +72,20 @@ class Signal : public ISignalValue<T>
         void Setup();
         void SetValue(const T& value, void* arg = nullptr) override;
         T GetValue() const override;
+        std::shared_ptr<T> GetData() const override
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return data_;
+        }
+        void Notify()
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            NotifyClients(nullptr);
+            if (isUsingWebSocket_)
+            {
+                NotifyWebSocket();
+            }
+        }
         void RegisterCallback(Callback cb, void* arg = nullptr) override;
         void UnregisterCallbackByArg(void* arg) override;
         const std::string& GetName() const override;

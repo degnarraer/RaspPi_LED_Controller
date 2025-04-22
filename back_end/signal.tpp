@@ -47,7 +47,7 @@ inline std::string to_string(const std::vector<T>& vec)
     for (size_t i = 0; i < vec.size(); ++i)
     {
         if (i > 0) oss << ", ";
-        oss << vec[i];
+        oss << to_string(vec[i]); // recursion
     }
     oss << "]";
     return oss.str();

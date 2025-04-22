@@ -75,16 +75,18 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (
-                parsed &&
-                parsed.signal === this.props.signal &&
-                Array.isArray(parsed.value) &&
-                parsed.value.length === this.props.ledCount
-            ) {
-                const colors = parsed.value.map((rgb: number[]) =>
-                    `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
-                );
-                this.setState({ ledColors: colors });
+            if(parsed && parsed.signal === this.props.signal){
+                if (Array.isArray(parsed.value) &&
+                    parsed.value.length === this.props.ledCount
+                ) {
+                    const colors = parsed.value.map((rgb: { r: number; g: number; b: number }) =>
+                        `rgb(${rgb.r},${rgb.g},${rgb.b})`
+                    );
+                    this.setState({ ledColors: colors });
+                }
+                else {
+                    console.warn('LEDRow: Invalid message format or signal mismatch:', parsed);
+                }
             }
         } catch (e) {
             console.error('LEDRow: Invalid WebSocket message format:', e);
@@ -133,8 +135,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
         const { ledColors } = this.state;
         const size = ledColors.length;
     
-        // Set the border width as a percentage of the container's width or height (adjust as needed)
-        const borderWidth = 2; // Static border width in pixels
+        const borderWidth = 2;
     
         return (
             <div ref={this.containerRef} style={{ width: '100%', height: '100%' }}>
@@ -142,7 +143,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                     style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${size}, 1fr)`,
-                        gap: '2px',
+                        gap: '0.2em',
                         width: '100%',
                         height: '100%',
                     }}

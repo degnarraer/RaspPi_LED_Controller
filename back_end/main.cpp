@@ -8,6 +8,8 @@
 #include "logger.h"
 #include "SystemStatusMonitor.h"
 #include "SignalFactory.h"
+#include "./animation/PixelGridSignal.h"
+#include "./animation/FFTAnimation.h"
 //#include "ws281x_led_controller.h"
 
 int main()
@@ -26,8 +28,15 @@ int main()
     deploymentManger->copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/front_end/dist", "/var/www/html");
     webSocketServer->Run();
     mic->StartReadingMicrophone();
-    systemStatusMonitor->startMonitoring();   
+    systemStatusMonitor->startMonitoring();
+    
+    PixelGridSignal grid("Pixel Grid", 32, 32, webSocketServer);
+    FFTAnimation animation(grid);
+    animation.Start();
+
     std::cin.get();
+    
+    animation.Stop();
     webSocketServer->close_all_sessions();
     return 0;
 }
