@@ -83,7 +83,7 @@ private:
     std::unordered_set<std::string> subscribed_signals_;
     mutable std::mutex subscription_mutex_;
 
-    static constexpr size_t MAX_QUEUE_SIZE = 100;
+    static constexpr size_t MAX_QUEUE_SIZE = 500;
     static constexpr int BASE_BACKOFF_MS = 50;
     int backoff_attempts_ = 0;
     std::atomic<bool> backoff_enabled_{false};

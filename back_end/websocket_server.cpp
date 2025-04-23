@@ -1,5 +1,4 @@
 #include "websocket_server.h"
-const size_t MAX_QUEUE_SIZE = 500;
 
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server), backoff_timer_(ws_.get_executor())
