@@ -1,5 +1,5 @@
 import { Component, createRef } from 'react';
-import { WebSocketContextType } from './WebSocketContext';
+import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
 interface GaugeZone {
     from: number;
@@ -31,50 +31,29 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
     }
 
     componentDidMount() {
-        this.setupSocket();
+        this.props.socket.subscribe(this.props.signal, this.handleSignalUpdate);
+        this.props.socket.sendMessage({ type: 'subscribe', signal: this.props.signal });
     }
 
     componentWillUnmount() {
-        this.teardownSocket();
+        this.props.socket.unsubscribe(this.props.signal, this.handleSignalUpdate);
+        this.props.socket.sendMessage({ type: 'unsubscribe', signal: this.props.signal });
     }
 
-    setupSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.addEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'subscribe', signal: this.props.signal });
-        }
-    }
+    handleSignalUpdate = (message: WebSocketMessage) => {
+        if (message.signal !== this.props.signal) return;
 
-    teardownSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.removeEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'unsubscribe', signal: this.props.signal });
-        }
-    }
+        let value = message.value;
 
-    handleSocketMessage = (event: MessageEvent) => {
-        try {
-            const parsed = JSON.parse(event.data);
-            if (parsed.signal === this.props.signal) {
-                let value = parsed.value;
-
-                // Handle numeric and string values
-                if (typeof value === 'string') {
-                    const numericValue = parseFloat(value.replace(/[^\d.-]/g, ''));
-                    if (!isNaN(numericValue)) {
-                        value = numericValue;
-                    }
-                }
-
-                // Update state with parsed value
-                if (typeof value === 'number') {
-                    this.setState({ value });
-                }
+        if (typeof value === 'string') {
+            const numericValue = parseFloat(value.replace(/[^\d.-]/g, ''));
+            if (!isNaN(numericValue)) {
+                value = numericValue;
             }
-        } catch (e) {
-            console.error('Invalid WebSocket message format:', e);
+        }
+
+        if (typeof value === 'number') {
+            this.setState({ value });
         }
     };
 
@@ -101,7 +80,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                         top: 0,
                         bottom: 0,
                         backgroundColor: zone.color,
-                        zIndex: 1,  // Relative base value for zones
+                        zIndex: 1,
                     }}
                 />
             );
@@ -140,7 +119,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
         const { min, max } = this.props;
         const clampedValue = this.clamp(value);
         const left = ((clampedValue - min) / (max - min)) * 100;
-    
+
         return (
             <div
                 style={{
@@ -149,7 +128,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                     top: 0,
                     bottom: 0,
                     width: '1%',
-                    background: 'linear-gradient(to bottom,rgb(154, 62, 0),rgb(255, 94, 0),rgb(154, 62, 0))',
+                    background: 'linear-gradient(to bottom, rgb(154, 62, 0), rgb(255, 94, 0), rgb(154, 62, 0))',
                     borderLeft: '0.1em solid black',
                     borderRight: '0.1em solid black',
                     transform: 'translateX(-50%)',
@@ -168,7 +147,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
                     height: '100%',
                     position: 'relative',
                     zIndex: 0,
-                    border: '0.2em solid black',
+                    border: '1px solid black',
                     boxSizing: 'border-box',
                 }}
             >

@@ -1,10 +1,9 @@
-import { Component, createRef } from 'react';
+import React, { Component, createRef } from 'react';
 import { WebSocketContextType } from './WebSocketContext';
 import { RenderTickContext } from './RenderingTick';
 
 interface ScrollingHeatmapProps {
     signal: string;
-    socket: WebSocketContextType;
     min: number;
     max: number;
     minColor?: string;
@@ -15,10 +14,11 @@ interface ScrollingHeatmapProps {
     flipX?: boolean;
     flipY?: boolean;
     frameRate?: number;
+    socket: WebSocketContextType;
 }
 
 interface ScrollingHeatmapState {
-    buffer: number[][];
+    buffer: number[][]; 
     renderWidth: number;
     renderHeight: number;
     dataQueue: number[][];
@@ -33,9 +33,6 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     private resizeObserver: ResizeObserver | null = null;
     private maxCols: number;
     private maxRows: number;
-    private animationFrame: number | null = null;
-    private lastFrameTime: number = 0;
-    private unregister: (() => void) | null = null;
 
     constructor(props: ScrollingHeatmapProps) {
         super(props);
@@ -48,27 +45,19 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             renderHeight: 150,
             dataQueue: [],
         };
-        this.startRenderLoop = this.startRenderLoop.bind(this);
     }
 
     componentDidMount() {
-        this.setupSocket();
         this.setupResizeObserver();
+
+        // Execute render callback directly
         if (this.context) {
-            this.unregister = this.context(this.startRenderLoop);
-        } else {
-            this.startRenderLoop();
+            this.context(this.startRenderLoop); // Pass the render loop to the callback
         }
     }
 
     componentWillUnmount() {
-        this.teardownSocket();
         this.teardownResizeObserver();
-        if (this.unregister) {
-            this.unregister();
-        } else {
-            this.stopRenderLoop();
-        }
     }
 
     componentDidUpdate(prevProps: ScrollingHeatmapProps) {
@@ -77,7 +66,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             this.setupSocket();
             this.setState({
                 buffer: Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0)),
-                dataQueue: [], // Reset the queue
+                dataQueue: [],
             });
         }
     }
@@ -123,12 +112,12 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (
-                parsed &&
-                parsed.signal === this.props.signal &&
-                Array.isArray(parsed.value?.values)
-            ) {
-                this.queueRow(parsed.value.values); // Queue the new data
+            if (parsed && parsed.signal === this.props.signal) {
+                if (Array.isArray(parsed.value?.values)) {
+                    this.queueRow(parsed.value.values); // Queue the new data
+                } else {
+                    console.error('Invalid data format:', parsed.value);
+                }
             }
         } catch (e) {
             console.error('ScrollingHeatmap: Invalid WebSocket message format:', e);
@@ -166,32 +155,10 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         });
     }
 
-    startRenderLoop() {
-        if (this.lastFrameTime === 0) {
-            this.lastFrameTime = performance.now();
-        }
-        const fps = this.props.frameRate ?? 30;
-        const frameInterval = 1000 / fps;
-
-        const loop = (time: number) => {
-            const delta = time - this.lastFrameTime;
-            if (delta >= frameInterval) {
-                this.lastFrameTime = time;
-                this.flushDataToBuffer();
-                this.drawHeatmap();
-            }
-            this.animationFrame = requestAnimationFrame(loop);
-        };
-
-        this.animationFrame = requestAnimationFrame(loop);
-    }
-
-    stopRenderLoop() {
-        if (this.animationFrame) {
-            cancelAnimationFrame(this.animationFrame);
-            this.animationFrame = null;
-        }
-    }
+    startRenderLoop = () => {
+        this.flushDataToBuffer();
+        this.drawHeatmap();
+    };
 
     drawHeatmap = () => {
         const canvas = this.canvasRef.current;

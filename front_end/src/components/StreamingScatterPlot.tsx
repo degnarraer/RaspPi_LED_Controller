@@ -126,20 +126,19 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (
-                parsed &&
-                parsed.signal === this.props.signal &&
-                Array.isArray(parsed.value)
-            ) {
-                this.setState((prevState) => {
-                    const newFast = parsed.value.slice(-1000);
-                    const newSlow = [...prevState.slowPoints, ...parsed.value];
-
-                    return {
-                        fastPoints: newFast,
-                        slowPoints: newSlow.slice(-480000),
-                    };
-                }, this.updateChart);
+            if ( parsed && parsed.signal === this.props.signal){
+                if(Array.isArray(parsed.value)){
+                    this.setState((prevState) => {
+                        const newFast = parsed.value.slice(-1000);
+                        const newSlow = [...prevState.slowPoints, ...parsed.value];
+                        return {
+                            fastPoints: newFast,
+                            slowPoints: newSlow.slice(-480000),
+                        };
+                    }, this.updateChart);
+                }else{
+                    console.error('StreamingScatterPlot: Invalid data format:', parsed.value);
+                }
             }
         } catch (e) {
             console.error('StreamingScatterPlot: Invalid WebSocket message format:', e);

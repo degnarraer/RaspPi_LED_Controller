@@ -47,7 +47,7 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
     handleSocketMessage = (event: MessageEvent) => {
         try {
             const parsed = JSON.parse(event.data);
-            if (parsed?.signal === this.props.signal) {
+            if (parsed && parsed?.signal === this.props.signal) {
                 this.setState({ value: String(parsed.value) });
             }
         } catch (e) {

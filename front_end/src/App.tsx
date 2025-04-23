@@ -13,6 +13,7 @@ import HorizontalGauge from './components/HorizontalGauge';
 
 const SCREENS = {
   HOME: 'home',
+  TOWER_SCREEN: 'tower screen',
   HORIZONTAL_STEREO_SPECTRUM: 'horrizontal stereo spectrum',
   VERTICAL_STEREO_SPECTRUM: 'vertical stereo spectrum',
   LEFT_CHANNEL_WAVE: 'left channel wave screen',
@@ -43,17 +44,20 @@ function App() {
 
   const menuItems = [
     { key: '1', screen: SCREENS.HOME, label: 'Home' },
-    { key: '2', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum' },
-    { key: '3', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum' },
-    { key: '4', screen: SCREENS.LEFT_CHANNEL_WAVE, label: 'Left Channel Wave' },
-    { key: '5', screen: SCREENS.RIGHT_CHANNEL_WAVE, label: 'Right Channel Wave' },
-    { key: '6', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map' },
+    { key: '2', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen' },
+    { key: '3', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum' },
+    { key: '4', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum' },
+    { key: '5', screen: SCREENS.LEFT_CHANNEL_WAVE, label: 'Left Channel Wave' },
+    { key: '6', screen: SCREENS.RIGHT_CHANNEL_WAVE, label: 'Right Channel Wave' },
+    { key: '7', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map' },
   ];
 
   const renderScreen = () => {
     switch (screen) {
       case SCREENS.HOME:
         return <HomeScreen />;
+      case SCREENS.TOWER_SCREEN:
+        return <TowerScreen />;
       case SCREENS.HORIZONTAL_STEREO_SPECTRUM:
         return <HorizontalStereoSpectrumScreen />;
       case SCREENS.VERTICAL_STEREO_SPECTRUM:
@@ -69,7 +73,12 @@ function App() {
     }
   };
 
+
   function HomeScreen() {
+    return(<div style={{ width: '100%', height: '100%' }}/>)
+  }
+
+  function TowerScreen() {
     const gridStyle = {
       width: '100%',
       height:'100%',
@@ -90,13 +99,13 @@ function App() {
     
     return (
       <div style={gridStyle}>
-        {Array.from({ length: 32 }, (_, i) => (
+        {Array.from({ length: 64 }, (_, i) => (
           <>
             <div key={`led-${i}`} style={itemStyle}>
               <LedRow ledCount={32} signal={`Pixel Grid Row ${i}`} socket={socket} randomMode={false} />
             </div>
             <div key={`gauge-${i}`} style={itemStyle}>
-              <LEDBoardTempGauge signalName={"Temp${i}"} socket={socket} />
+              <LEDBoardTempGauge signalName={"Temp Signal {i}"} socket={socket} />
             </div>
           </>
         ))}

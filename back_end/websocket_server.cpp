@@ -2,7 +2,7 @@
 const size_t MAX_QUEUE_SIZE = 500;
 
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
-    : ws_(std::move(socket)), server_(server)
+    : ws_(std::move(socket)), server_(server), backoff_timer_(ws_.get_executor())
 {
     logger_ = InitializeLogger("Web Socket Session", spdlog::level::info);
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
@@ -34,9 +34,7 @@ void WebSocketSession::close()
         logger_->info("Session {} already closed.", GetSessionID());
         return;
     }
-
     logger_->debug("Session: {} Async Close.", GetSessionID());
-
     ws_.async_close(websocket::close_code::normal,
         [self = shared_from_this()](beast::error_code ec)
         {
@@ -58,33 +56,125 @@ std::string WebSocketSession::GetSessionID() const
 
 void WebSocketSession::send_message(const std::string& message)
 {
-    asio::post(ws_.get_executor(),
-        [self = shared_from_this(), message]()
+    bool should_write = false;
+    {
+        std::lock_guard<std::mutex> lock(write_mutex_);
+        if (outgoing_messages_.size() >= MAX_QUEUE_SIZE)
         {
-            bool start_write = false;
+            if (!backoff_enabled_)
             {
-                std::lock_guard<std::mutex> lock(self->write_mutex_);
-
-                if (self->outgoing_messages_.size() >= MAX_QUEUE_SIZE)
-                {
-                    self->outgoing_messages_.pop_front();
-                    self->logger_->warn("Session {}: Dropped Message.", self->GetSessionID());
-                }
-
-                self->outgoing_messages_.push_back(message);
-
-                if (!self->writing_)
-                {
-                    self->writing_ = true;
-                    start_write = true;
-                }
+                backoff_enabled_ = true;
+                backoff_attempts_++;
+                logger_->warn("Backoff enabled for session {}, queue size {}", session_id_, outgoing_messages_.size());
+                schedule_backoff();
             }
+            return;
+        }
 
-            if (start_write)
+        outgoing_messages_.push_back(message);
+        should_write = !writing_ && !backoff_enabled_;
+        if (should_write)
+        {
+            writing_ = true;
+        }
+    }
+
+    if (should_write)
+    {
+        do_write();
+    }
+}
+
+void WebSocketSession::schedule_backoff()
+{
+    int delay = BASE_BACKOFF_MS * (1 << std::min(backoff_attempts_, 6));
+    backoff_timer_.expires_after(std::chrono::milliseconds(delay));
+    backoff_timer_.async_wait([self = shared_from_this()](const beast::error_code& ec)
+    {
+        if (!ec)
+        {
+            self->resume_sending();
+        }
+    });
+}
+
+void WebSocketSession::resume_sending()
+{
+    bool should_write = false;
+    {
+        std::lock_guard<std::mutex> lock(write_mutex_);
+        backoff_enabled_ = false;
+        if (!outgoing_messages_.empty())
+        {
+            writing_ = true;
+            should_write = true;
+        }
+    }
+
+    if (should_write)
+    {
+        do_write();
+    }
+}
+
+bool WebSocketSession::is_valid_utf8(const std::string& str)
+{
+    // Simple check for valid UTF-8 encoding
+    // More advanced checks may be needed based on your use case
+
+    size_t i = 0;
+    size_t len = str.length();
+    while (i < len)
+    {
+        unsigned char c = str[i];
+        
+        // ASCII (1 byte)
+        if (c < 0x80)
+        {
+            ++i;
+        }
+        // 2-byte UTF-8
+        else if ((c & 0xE0) == 0xC0)
+        {
+            if (i + 1 < len && (str[i + 1] & 0xC0) == 0x80)
             {
-                self->do_write();
+                i += 2;
             }
-        });
+            else
+            {
+                return false;
+            }
+        }
+        // 3-byte UTF-8
+        else if ((c & 0xF0) == 0xE0)
+        {
+            if (i + 2 < len && (str[i + 1] & 0xC0) == 0x80 && (str[i + 2] & 0xC0) == 0x80)
+            {
+                i += 3;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        // 4-byte UTF-8
+        else if ((c & 0xF8) == 0xF0)
+        {
+            if (i + 3 < len && (str[i + 1] & 0xC0) == 0x80 && (str[i + 2] & 0xC0) == 0x80 && (str[i + 3] & 0xC0) == 0x80)
+            {
+                i += 4;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void WebSocketSession::do_read()
@@ -108,12 +198,9 @@ void WebSocketSession::do_read()
 void WebSocketSession::on_read(std::size_t)
 {
     logger_->debug("Session: {} On Read.", GetSessionID());
-
     auto message = beast::buffers_to_string(buffer_.data());
     logger_->info("Received: {}", message);
-
     buffer_.consume(buffer_.size());
-
     try
     {
         json incoming = json::parse(message);
@@ -129,10 +216,18 @@ void WebSocketSession::on_read(std::size_t)
                     if(incoming.contains("signal"))
                     {
                         subscribe_to_signal(incoming["signal"]);
+                        json response;
+                        response["type"] = type_to_string_.at(MessageType::Echo);
+                        response["message"] = "Successfully subscribed to " + incoming["signal"].get<std::string>();
+                        send_message(response.dump());
                     }
                     else
                     {
                         logger_->warn("Session: {} Subscribe Message without signal", GetSessionID());
+                        json response;
+                        response["type"] = type_to_string_.at(MessageType::Echo);
+                        response["message"] = "Subscribe message missing signal";
+                        send_message(response.dump());
                     }
                     break;
                 case MessageType::Unsubscribe:
@@ -140,10 +235,18 @@ void WebSocketSession::on_read(std::size_t)
                     if(incoming.contains("signal"))
                     {
                         unsubscribe_from_signal(incoming["signal"]);
+                        json response;
+                        response["type"] = type_to_string_.at(MessageType::Echo);
+                        response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
+                        send_message(response.dump());
                     }
                     else
                     {
                         logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
+                        json response;
+                        response["type"] = type_to_string_.at(MessageType::Echo);
+                        response["message"] = "Unsubscribe message missing signal";
+                        send_message(response.dump());
                     }
                     break;
                 case MessageType::Text:
@@ -155,13 +258,12 @@ void WebSocketSession::on_read(std::size_t)
                 case MessageType::Unknown:
                 default:
                     logger_->warn("Session: {} Unknown Message", GetSessionID());
+                    json response;
+                    response["type"] = type_to_string_.at(MessageType::Echo);
+                    response["message"] = "Unknown message type";
+                    send_message(response.dump());
                     break;
             }
-
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = incoming["message"];
-            send_message(response.dump());
         }
         else
         {
@@ -174,7 +276,6 @@ void WebSocketSession::on_read(std::size_t)
     catch (const std::exception& e)
     {
         logger_->warn("Session {}: Failed to parse JSON: {}", GetSessionID(), e.what());
-
         json error;
         error["type"] = "error";
         error["message"] = "Invalid JSON";
@@ -182,20 +283,23 @@ void WebSocketSession::on_read(std::size_t)
     }
 }
 
+
 void WebSocketSession::do_write()
 {
-    logger_->debug("Session: {} Do Write.", GetSessionID());
-
-    if (!ws_.is_open())
-    {
-        logger_->warn("WebSocket not open.");
-        server_.close_session(GetSessionID());
-        return;
-    }
-
     std::string message;
     {
         std::lock_guard<std::mutex> lock(write_mutex_);
+        
+        // If WebSocket is not open, stop the writing process and close the session.
+        if (!ws_.is_open())
+        {
+            logger_->warn("WebSocket not open.");
+            server_.close_session(GetSessionID());
+            writing_ = false; // Reset writing flag if WebSocket isn't open.
+            return;
+        }
+
+        // If no more messages to send, reset writing flag and return.
         if (outgoing_messages_.empty())
         {
             writing_ = false;
@@ -203,18 +307,24 @@ void WebSocketSession::do_write()
             return;
         }
 
+        // Pop the next message from the queue.
         message = std::move(outgoing_messages_.front());
         outgoing_messages_.pop_front();
     }
+
+    // Set WebSocket to text mode based on UTF-8 validity.
     ws_.text(is_valid_utf8(message));
-    ws_.async_write( asio::buffer(message)
-                   , beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this()) );
+
+    // Start asynchronous write operation and handle response via `on_write`.
+    ws_.async_write(
+        asio::buffer(message),
+        beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this())
+    );
 }
 
 void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transferred)
 {
     boost::ignore_unused(bytes_transferred);
-
     if (ec)
     {
         logger_->warn("Write error: {}", ec.message());
@@ -222,7 +332,6 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
         server_.close_session(GetSessionID());
         return;
     }
-
     logger_->debug("Message sent successfully. Continuing to write if more messages exist.");
     do_write();
 }
@@ -344,7 +453,8 @@ void WebSocketServer::Stop()
 
 void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
 {
-    logger_->debug("Broadcast Message to Cliets: {}.", message);
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    logger_->debug("Broadcast Message to Clients: {}.", message);
     for (auto& [id, session] : sessions_)
     {
         if (auto shared_session = session.lock())
@@ -374,29 +484,20 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
     }
 }
 
-void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
+void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
 {
-    logger_->debug("Registering backend client: {}.", client->GetName());
-    if (!client)
-    {
-        logger_->warn("Attempted to register a null backend client.");
-        return;
-    }
-    backend_clients_[client->GetName()] = client;
-    logger_->info("Registered backend client: {}.", client->GetName());
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    logger_->info("Registering Session {}.", session->GetSessionID());
+    sessions_[session->GetSessionID()] = session;
+    logger_->info("Session {}: Registered.", session->GetSessionID());
 }
 
-void WebSocketServer::deregister_backend_client(const std::string& client_name)
+void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
 {
-    logger_->debug("Deregistering backend client: {}.", client_name);
-    if (backend_clients_.erase(client_name))
-    {
-        logger_->info("Deregistered backend client: {}.", client_name);
-    }
-    else
-    {
-        logger_->warn("Attempted to deregister unknown backend client: {}.", client_name);
-    }
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    logger_->info("Registering Backend Client {}.", client->GetName());
+    backend_clients_[client->GetName()] = client;
+    logger_->info("Backend Client {}: Registered.", client->GetName());
 }
 
 void WebSocketServer::close_session(const std::string& session_id)
@@ -434,14 +535,6 @@ void WebSocketServer::close_all_sessions()
     }
     sessions_.clear();
     logger_->info("All sessions closed.");
-}
-
-void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
-{
-    std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->info("Registering Session {}.", session->GetSessionID());
-    sessions_[session->GetSessionID()] = session;
-    logger_->info("Session {}: Registered.", session->GetSessionID());
 }
 
 void WebSocketServer::do_accept()

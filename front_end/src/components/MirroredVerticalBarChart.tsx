@@ -1,5 +1,5 @@
 import { Component, createRef } from 'react';
-import { WebSocketContextType } from './WebSocketContext';
+import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
 interface MirroredVerticalBarChartProps {
     leftSignal: string;
@@ -127,45 +127,34 @@ export default class MirroredVerticalBarChart extends Component<
 
     setupSocket() {
         const { socket, leftSignal, rightSignal } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.addEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'subscribe', signal: leftSignal });
-            socket.sendMessage({ type: 'subscribe', signal: rightSignal });
-        }
+        if (!socket) return;
+    
+        socket.subscribe(leftSignal, this.handleSignalValue);
+        socket.subscribe(rightSignal, this.handleSignalValue);
     }
-
+    
     teardownSocket() {
         const { socket, leftSignal, rightSignal } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.removeEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'unsubscribe', signal: leftSignal });
-            socket.sendMessage({ type: 'unsubscribe', signal: rightSignal });
-        }
+        if (!socket) return;
+    
+        socket.unsubscribe(leftSignal, this.handleSignalValue);
+        socket.unsubscribe(rightSignal, this.handleSignalValue);
     }
 
-    handleSocketMessage = (event: MessageEvent) => {
-        try {
-            const parsed = JSON.parse(event.data);
-            if (
-                parsed &&
-                parsed.signal &&
-                Array.isArray(parsed.value?.values) &&
-                Array.isArray(parsed.value?.labels)
-            ) {
-                if (parsed.signal === this.props.leftSignal) {
-                    this.setState({
-                        dataLabels: parsed.value.labels,
-                        leftValues: parsed.value.values,
-                    });
-                } else if (parsed.signal === this.props.rightSignal) {
-                    this.setState({
-                        dataLabels: parsed.value.labels,
-                        rightValues: parsed.value.values,
-                    });
-                }
-            }
-        } catch (e) {
-            console.error('Invalid WebSocket message format:', e);
+    private handleSignalValue = (message: WebSocketMessage) => {
+        const { leftSignal, rightSignal } = this.props;
+    
+        // Check if the signal matches left or right
+        if (message.signal === leftSignal) {
+            this.setState({
+                dataLabels: message.value.labels,
+                leftValues: message.value.values,
+            });
+        } else if (message.signal === rightSignal) {
+            this.setState({
+                dataLabels: message.value.labels,
+                rightValues: message.value.values,
+            });
         }
     };
 
@@ -186,6 +175,7 @@ export default class MirroredVerticalBarChart extends Component<
         if (this.resizeObserver && this.canvasRef.current) {
             this.resizeObserver.unobserve(this.canvasRef.current);
             this.resizeObserver.disconnect();
+            this.resizeObserver = null; // Ensure cleanup
         }
     }
 

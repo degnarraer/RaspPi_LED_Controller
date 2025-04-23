@@ -1,5 +1,5 @@
 import { Component, createRef } from 'react';
-import { WebSocketContextType } from './WebSocketContext';
+import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
 interface LiveBarChartProps {
     signal: string;
@@ -162,42 +162,32 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     setupSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.addEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({
-                type: 'subscribe',
-                signal: this.props.signal,
-            });
-        }
+        const { socket, signal } = this.props;
+        if (!socket) return;
+    
+        socket.subscribe(signal, this.handleSignalValue);
+        socket.sendMessage({ type: 'subscribe', signal });
     }
 
     teardownSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.removeEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({
-                type: 'unsubscribe',
-                signal: this.props.signal,
-            });
-        }
+        const { socket, signal } = this.props;
+        if (!socket) return;
+    
+        socket.unsubscribe(signal, this.handleSignalValue);
+        socket.sendMessage({ type: 'unsubscribe', signal });
     }
 
-    handleSocketMessage = (event: MessageEvent) => {
-        try {
-            const parsed = JSON.parse(event.data);
-            if (
-                parsed?.signal === this.props.signal &&
-                Array.isArray(parsed.value?.values) &&
-                Array.isArray(parsed.value?.labels)
-            ) {
+    private handleSignalValue = (message: WebSocketMessage) => {
+        if (message.signal === this.props.signal) {
+            const value = message.value;
+            if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({
-                    dataLabels: parsed.value.labels,
-                    dataValues: parsed.value.values,
+                    dataLabels: value.labels,
+                    dataValues: value.values,
                 });
+            } else {
+                console.error('Invalid signal value format:', value);
             }
-        } catch (e) {
-            console.error('Invalid WebSocket message format:', e);
         }
     };
 

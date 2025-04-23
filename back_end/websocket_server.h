@@ -1,14 +1,22 @@
+// websocket_server.h
+
 #pragma once
+
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <atomic>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include "logger.h"
 #include <nlohmann/json.hpp>
+
 using json = nlohmann::json;
 
 namespace beast = boost::beast;
@@ -31,25 +39,15 @@ public:
         Unknown
     };
 
-    static MessageType FromString(const std::string& str)
-    {
-        auto it = string_to_type_.find(str);
-        return it != string_to_type_.end() ? it->second : MessageType::Unknown;
-    }
-
-    static std::string ToString(MessageType type)
-    {
-        auto it = type_to_string_.find(type);
-        return it != type_to_string_.end() ? it->second : "unknown";
-    }
+    static MessageType FromString(const std::string& str);
+    static std::string ToString(MessageType type);
 
 protected:
     static const std::unordered_map<std::string, MessageType> string_to_type_;
     static const std::unordered_map<MessageType, std::string> type_to_string_;
 };
 
-class WebSocketSession : public MessageTypeHelper
-                       , public std::enable_shared_from_this<WebSocketSession>
+class WebSocketSession : public MessageTypeHelper, public std::enable_shared_from_this<WebSocketSession>
 {
 public:
     explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
@@ -58,47 +56,19 @@ public:
     void send_message(const std::string& message);
     std::string GetSessionID() const;
 
-    // Web Socket Signal Subscription
     void subscribe_to_signal(const std::string& signal_name);
     void unsubscribe_from_signal(const std::string& signal_name);
     bool is_subscribed_to(const std::string& signal_name) const;
 
-    private:
+private:
     void do_read();
     void on_read(std::size_t bytes_transferred);
     void do_write();
     void on_write(beast::error_code ec, std::size_t bytes_transferred);
-    void retry_connection(int remaining_attempts);
-    void reset_and_retry();
-    bool is_valid_utf8(const std::string& str)
-    {
-        int bytes = 0;
-        unsigned char chr;
-        for (size_t i = 0; i < str.size(); i++)
-        {
-            chr = (unsigned char)str[i];
-            if (bytes == 0)
-            {
-                if ((chr & 0x80) == 0x00)
-                    continue;
-                else if ((chr & 0xE0) == 0xC0)
-                    bytes = 1;
-                else if ((chr & 0xF0) == 0xE0)
-                    bytes = 2;
-                else if ((chr & 0xF8) == 0xF0)
-                    bytes = 3;
-                else
-                    return false;
-            }
-            else
-            {
-                if ((chr & 0xC0) != 0x80)
-                    return false;
-                bytes--;
-            }
-        }
-        return bytes == 0;
-    }
+    void maybe_backoff();
+    void schedule_backoff();
+    void resume_sending();
+    bool is_valid_utf8(const std::string& str);
 
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
@@ -109,9 +79,15 @@ public:
     std::deque<std::string> outgoing_messages_;
     bool writing_ = false;
     std::mutex write_mutex_;
-    
+
     std::unordered_set<std::string> subscribed_signals_;
     mutable std::mutex subscription_mutex_;
+
+    static constexpr size_t MAX_QUEUE_SIZE = 100;
+    static constexpr int BASE_BACKOFF_MS = 50;
+    int backoff_attempts_ = 0;
+    std::atomic<bool> backoff_enabled_{false};
+    asio::steady_timer backoff_timer_;
 };
 
 class IWebSocketServer_BackendClient
@@ -122,9 +98,8 @@ public:
     virtual void on_message_received_from_web_socket(const std::string& message) = 0;
 };
 
-class WebSocketServer: public MessageTypeHelper
-                     , public std::enable_shared_from_this<WebSocketServer>
-{    
+class WebSocketServer : public MessageTypeHelper, public std::enable_shared_from_this<WebSocketServer>
+{
 public:
     WebSocketServer(short port);
     ~WebSocketServer();
@@ -149,5 +124,4 @@ private:
 
     void register_session(std::shared_ptr<WebSocketSession> session);
     void do_accept();
-
 };

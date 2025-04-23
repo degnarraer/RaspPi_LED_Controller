@@ -3,11 +3,13 @@ import React, { createContext, ReactNode, useState, useEffect, useRef, useContex
 export type WebSocketContextType = {
   socket: WebSocket | null;
   sendMessage: (message: WebSocketMessage) => void;
+  subscribe: (signal: string, callback: (message: WebSocketMessage) => void) => void;
+  unsubscribe: (signal: string, callback: (message: WebSocketMessage) => void) => void;
 };
 
 export const WebSocketContext = createContext<WebSocketContextType>(null as any);
 
-interface WebSocketMessage {
+export interface WebSocketMessage {
   type: string;
   signal: string;
   value?: any;
@@ -24,6 +26,21 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   const retryAttemptRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
   const messageQueue = useRef<WebSocketMessage[]>([]);
+
+  // Store subscribers for each signal
+  const subscribers = useRef<Map<string, Set<(message: WebSocketMessage) => void>>>(new Map());
+
+  const scheduleReconnect = () => {
+    if (retryTimeoutRef.current) return;
+
+    retryAttemptRef.current += 1;
+    const delay = Math.min(1000 * 2 ** retryAttemptRef.current, 30000);
+    console.log(`Reconnecting in ${delay / 1000}s...`);
+    retryTimeoutRef.current = setTimeout(() => {
+      retryTimeoutRef.current = null;
+      connect();
+    }, delay);
+  };
 
   const connect = () => {
     const existing = wsRef.current;
@@ -47,6 +64,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
           retryTimeoutRef.current = null;
         }
 
+        // Send any queued messages
         while (messageQueue.current.length > 0) {
           const msg = messageQueue.current.shift();
           if (msg) {
@@ -65,27 +83,83 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         newWs.close();
       };
 
-      /*newWs.onmessage = (event) => {
-        const message = event.data;
-        console.debug('Received message:', message);
-      };*/
+      newWs.onmessage = handleMessage; // Ensure handleMessage is defined
 
     } catch (error) {
-      console.error('WebSocket connection failed:', error);
+      console.error('Error establishing WebSocket:', error);
       scheduleReconnect();
     }
   };
 
-  const scheduleReconnect = () => {
-    if (retryTimeoutRef.current) return;
+  const handleMessage = (event: MessageEvent) => {
+    try {
+      let message: WebSocketMessage;
 
-    retryAttemptRef.current += 1;
-    const delay = Math.min(1000 * 2 ** retryAttemptRef.current, 30000);
-    console.log(`Reconnecting in ${delay / 1000}s...`);
-    retryTimeoutRef.current = setTimeout(() => {
-      retryTimeoutRef.current = null;
-      connect();
-    }, delay);
+      // Check if data is ArrayBuffer (binary data)
+      if (event.data instanceof ArrayBuffer) {
+        console.debug('Received binary data:', event.data);
+
+        try {
+          const decoder = new TextDecoder('utf-8', { fatal: true });
+          const decodedData = decoder.decode(event.data);
+          message = JSON.parse(decodedData) as WebSocketMessage;
+        } catch (error) {
+          console.error('Error decoding ArrayBuffer as UTF-8:', error);
+          return; // Skip processing this message
+        }
+
+      // Check if data is Blob (file-like data)
+      } else if (event.data instanceof Blob) {
+        console.debug('Received Blob data:', event.data);
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const decodedText = reader.result as string;
+            try {
+              message = JSON.parse(decodedText) as WebSocketMessage;
+              console.debug('Decoded Blob data:', message);
+
+              if (message && message.signal && subscribers.current.has(message.signal)) {
+                const signalSubscribers = subscribers.current.get(message.signal);
+                signalSubscribers?.forEach((callback) => callback(message));
+              }
+            } catch (err) {
+              console.error('Error parsing Blob data as JSON:', err);
+            }
+          } catch (err) {
+            console.error('Error reading Blob as text:', err);
+          }
+        };
+        reader.onerror = (err) => {
+          console.error('Error reading Blob data:', err);
+        };
+        reader.readAsText(event.data);
+        return; // Early return to handle Blob asynchronously
+
+      // Check if data is a text message (JSON string)
+      } else if (typeof event.data === 'string') {
+        try {
+          message = JSON.parse(event.data) as WebSocketMessage;
+          console.debug('Received text message:', message);
+        } catch (error) {
+          console.error('Error parsing text message as JSON:', error);
+          return; // Skip this message if it can't be parsed
+        }
+
+      } else {
+        console.error('Unknown data type received:', event.data);
+        return; // Handle unknown data types gracefully
+      }
+
+      if (message && message.signal && subscribers.current.has(message.signal)) {
+        const signalSubscribers = subscribers.current.get(message.signal);
+        signalSubscribers?.forEach((callback) => callback(message));
+      }
+
+    } catch (error) {
+      console.error('Error handling WebSocket message:', error);
+    }
   };
 
   useEffect(() => {
@@ -112,8 +186,34 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
     }
   };
 
+  const subscribe = (signal: string, callback: (message: WebSocketMessage) => void) => {
+    if (!subscribers.current.has(signal)) {
+      subscribers.current.set(signal, new Set());
+    }
+
+    const signalSubscribers = subscribers.current.get(signal);
+    signalSubscribers?.add(callback);
+    console.log(`Subscribing to signal: ${signal}`);
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendMessage({ type: 'subscribe', signal });
+    }
+  };
+
+  const unsubscribe = (signal: string, callback: (message: WebSocketMessage) => void) => {
+    const signalSubscribers = subscribers.current.get(signal);
+    signalSubscribers?.delete(callback);
+    console.log(`Unsubscribing from signal: ${signal}`);
+    if (signalSubscribers?.size === 0) {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        sendMessage({ type: 'unsubscribe', signal });
+      }
+      subscribers.current.delete(signal);
+    }
+  };
+
   return (
-    <WebSocketContext.Provider value={{ socket, sendMessage }}>
+    <WebSocketContext.Provider value={{ socket, sendMessage, subscribe, unsubscribe }}>
       {children}
     </WebSocketContext.Provider>
   );
