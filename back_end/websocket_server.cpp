@@ -1,4 +1,6 @@
 #include "websocket_server.h"
+#define MAX_BATCH_COUNT 10
+#define MAX_RETRY_ATTEMPTS 5
 
 WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server), backoff_timer_(ws_.get_executor())
@@ -100,9 +102,29 @@ void WebSocketSession::schedule_backoff()
 void WebSocketSession::resume_sending()
 {
     bool should_write = false;
+
     {
         std::lock_guard<std::mutex> lock(write_mutex_);
+        std::lock_guard<std::mutex> retry_lock(retry_mutex_);
+
         backoff_enabled_ = false;
+
+        // Move retryable messages back to outgoing if under retry limit
+        for (auto it = retry_messages_.begin(); it != retry_messages_.end();)
+        {
+            if (it->retry_count < MAX_RETRY_ATTEMPTS)
+            {
+                ++it->retry_count;
+                outgoing_messages_.push_front(it->message);
+                it = retry_messages_.erase(it);
+            }
+            else
+            {
+                logger_->warn("Dropping message after {} retries: {}", MAX_RETRY_ATTEMPTS, it->message);
+                it = retry_messages_.erase(it);  // Drop it
+            }
+        }
+
         if (!outgoing_messages_.empty())
         {
             writing_ = true;
@@ -179,14 +201,13 @@ bool WebSocketSession::is_valid_utf8(const std::string& str)
 void WebSocketSession::do_read()
 {
     logger_->debug("Session: {} Do Read.", GetSessionID());
-
+    std::lock_guard<std::mutex> lock(read_mutex_);
     ws_.async_read(buffer_,
         [self = shared_from_this()](beast::error_code ec, std::size_t bytes_transferred)
         {
             if (ec)
             {
-                self->logger_->warn("Session {}: Read error: {}", self->GetSessionID(), ec.message());
-                self->server_.close_session(self->GetSessionID());
+                self->handle_read_error(ec);
                 return;
             }
             self->on_read(bytes_transferred);
@@ -194,9 +215,51 @@ void WebSocketSession::do_read()
         });
 }
 
+void WebSocketSession::handle_read_error(beast::error_code ec)
+{
+    if (ec)
+    {
+        logger_->warn("Read error: {}", ec.message());
+
+        // Handle permanent errors
+        if (ec == beast::errc::not_connected || ec == beast::errc::connection_aborted)
+        {
+            logger_->warn("Connection lost or aborted. Closing session...");
+            server_.close_session(GetSessionID());
+            return;
+        }
+
+        // Handle temporary network-related errors
+        else if (ec == beast::errc::network_unreachable || ec == beast::errc::host_unreachable)
+        {
+            logger_->warn("Network issue detected, retrying after backoff...");
+            schedule_backoff();
+            return;
+        }
+
+        // Handle other transient errors (e.g., connection refused)
+        else if (ec == beast::errc::connection_refused)
+        {
+            logger_->warn("Connection refused. Retrying...");
+            schedule_backoff();
+            return;
+        }
+
+        // For any other unhandled errors, log and schedule backoff
+        else
+        {
+            logger_->warn("Unexpected WebSocket read error: {}. Retrying...", ec.message());
+            schedule_backoff();
+            return;
+        }
+    }
+}
+
 void WebSocketSession::on_read(std::size_t)
 {
     logger_->debug("Session: {} On Read.", GetSessionID());
+    
+    std::lock_guard<std::mutex> lock(read_mutex_);
     auto message = beast::buffers_to_string(buffer_.data());
     logger_->info("Received: {}", message);
     buffer_.consume(buffer_.size());
@@ -214,38 +277,57 @@ void WebSocketSession::on_read(std::size_t)
                     logger_->info("Session: {} Subscribe Message", GetSessionID());
                     if(incoming.contains("signal"))
                     {
-                        subscribe_to_signal(incoming["signal"]);
-                        json response;
-                        response["type"] = type_to_string_.at(MessageType::Echo);
-                        response["message"] = "Successfully subscribed to " + incoming["signal"].get<std::string>();
-                        send_message(response.dump());
+                        if(subscribe_to_signal(incoming["signal"]))
+                        {
+                            //json response;
+                            //response["type"] = type_to_string_.at(MessageType::Echo);
+                            //response["message"] = "Successfully subscribed to " + incoming["signal"].get<std::string>();
+                            //send_message(response.dump());
+                        }
+                        else
+                        {
+                            //json response;
+                            //response["type"] = type_to_string_.at(MessageType::Echo);
+                            //response["message"] = "Already subscribed to " + incoming["signal"].get<std::string>();
+                            //send_message(response.dump());
+                        }
                     }
                     else
                     {
                         logger_->warn("Session: {} Subscribe Message without signal", GetSessionID());
-                        json response;
-                        response["type"] = type_to_string_.at(MessageType::Echo);
-                        response["message"] = "Subscribe message missing signal";
-                        send_message(response.dump());
+                        //json response;
+                        //response["type"] = type_to_string_.at(MessageType::Echo);
+                        //response["message"] = "Subscribe message missing signal";
+                        //send_message(response.dump());
                     }
                     break;
                 case MessageType::Unsubscribe:
                     logger_->info("Session: {} Unsubscribe Message", GetSessionID());
                     if(incoming.contains("signal"))
                     {
-                        unsubscribe_from_signal(incoming["signal"]);
-                        json response;
-                        response["type"] = type_to_string_.at(MessageType::Echo);
-                        response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
-                        send_message(response.dump());
+                        
+                        if(unsubscribe_from_signal(incoming["signal"]))
+                        {
+                            //json response;
+                            //response["type"] = type_to_string_.at(MessageType::Echo);
+                            //response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
+                            //send_message(response.dump());
+                        }
+                        else
+                        {
+                            //json response;
+                            //response["type"] = type_to_string_.at(MessageType::Echo);
+                            //response["message"] = "Was not subscribed to " + incoming["signal"].get<std::string>();
+                            //send_message(response.dump());
+                        }
                     }
                     else
                     {
                         logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
-                        json response;
-                        response["type"] = type_to_string_.at(MessageType::Echo);
-                        response["message"] = "Unsubscribe message missing signal";
-                        send_message(response.dump());
+                        //json response;
+                        //response["type"] = type_to_string_.at(MessageType::Echo);
+                        //response["message"] = "Unsubscribe message missing signal";
+                        //send_message(response.dump());
                     }
                     break;
                 case MessageType::Text:
@@ -257,48 +339,44 @@ void WebSocketSession::on_read(std::size_t)
                 case MessageType::Unknown:
                 default:
                     logger_->warn("Session: {} Unknown Message", GetSessionID());
-                    json response;
-                    response["type"] = type_to_string_.at(MessageType::Echo);
-                    response["message"] = "Unknown message type";
-                    send_message(response.dump());
+                    //json response;
+                    //response["type"] = type_to_string_.at(MessageType::Echo);
+                    //response["message"] = "Unknown message type";
+                    //send_message(response.dump());
                     break;
             }
         }
         else
         {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Unsupported Message Format";
-            send_message(response.dump());
+            //json response;
+            //response["type"] = type_to_string_.at(MessageType::Echo);
+            //response["message"] = "Unsupported Message Format";
+            //send_message(response.dump());
         }
     }
     catch (const std::exception& e)
     {
         logger_->warn("Session {}: Failed to parse JSON: {}", GetSessionID(), e.what());
-        json error;
-        error["type"] = "error";
-        error["message"] = "Invalid JSON";
-        send_message(error.dump());
+        //json error;
+        //error["type"] = "error";
+        //error["message"] = "Invalid JSON";
+        //send_message(error.dump());
     }
 }
 
-
 void WebSocketSession::do_write()
 {
-    std::string message;
+    json batch_message = json::array();  // Create a JSON array to store the messages.
     {
         std::lock_guard<std::mutex> lock(write_mutex_);
-        
-        // If WebSocket is not open, stop the writing process and close the session.
         if (!ws_.is_open())
         {
             logger_->warn("WebSocket not open.");
             server_.close_session(GetSessionID());
-            writing_ = false; // Reset writing flag if WebSocket isn't open.
+            writing_ = false;
             return;
         }
 
-        // If no more messages to send, reset writing flag and return.
         if (outgoing_messages_.empty())
         {
             writing_ = false;
@@ -306,17 +384,45 @@ void WebSocketSession::do_write()
             return;
         }
 
-        // Pop the next message from the queue.
-        message = std::move(outgoing_messages_.front());
-        outgoing_messages_.pop_front();
+        size_t batch_count = std::min(static_cast<size_t>(MAX_BATCH_COUNT), outgoing_messages_.size());
+        for (size_t i = 0; i < batch_count; ++i)
+        {
+            std::string message = std::move(outgoing_messages_.front());
+            outgoing_messages_.pop_front();
+
+            if (is_valid_utf8(message))
+            {
+                // Parse the message into a JSON object and add it to the array
+                try
+                {
+                    json msg_json = json::parse(message);
+                    batch_message.push_back(msg_json);
+                }
+                catch (const std::exception& e)
+                {
+                    logger_->warn("Session {}: Skipped invalid JSON message: {}", session_id_, message);
+                }
+            }
+            else
+            {
+                logger_->warn("Session {}: Skipped invalid UTF-8 message: {}", session_id_, message);
+            }
+        }
     }
 
-    // Set WebSocket to text mode based on UTF-8 validity.
-    ws_.text(is_valid_utf8(message));
+    if (batch_message.empty())
+    {
+        writing_ = false;
+        logger_->debug("No valid messages to write.");
+        return;
+    }
 
-    // Start asynchronous write operation and handle response via `on_write`.
+    // Convert the JSON array into a string and send it as one message
+    std::string combined_message = batch_message.dump();
+    retry_messages_.push_back(RetryMessage(combined_message));
+    ws_.text(true);
     ws_.async_write(
-        asio::buffer(message),
+        asio::buffer(combined_message),
         beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this())
     );
 }
@@ -326,27 +432,88 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
     boost::ignore_unused(bytes_transferred);
     if (ec)
     {
-        logger_->warn("Write error: {}", ec.message());
-        writing_ = false;
-        server_.close_session(GetSessionID());
+        handle_write_error(ec);
         return;
     }
     logger_->debug("Message sent successfully. Continuing to write if more messages exist.");
+    remove_sent_message_from_retry_queue();
     do_write();
 }
 
-void WebSocketSession::subscribe_to_signal(const std::string& signal_name)
+void WebSocketSession::handle_write_error(beast::error_code ec)
 {
-    std::lock_guard<std::mutex> lock(subscription_mutex_);
-    logger_->debug("Session: {} Subscribed to signal: {}.", session_id_, signal_name);
-    subscribed_signals_.insert(signal_name);
+    if (ec)
+    {
+        logger_->warn("Write error: {}", ec.message());
+
+        // Handle permanent errors
+        if (ec == beast::errc::not_connected || ec == beast::errc::connection_aborted)
+        {
+            logger_->warn("Connection lost or aborted. Closing session...");
+            server_.close_session(GetSessionID());
+            return;
+        }
+
+        // Handle temporary network-related errors
+        else if (ec == beast::errc::network_unreachable || ec == beast::errc::host_unreachable)
+        {
+            logger_->warn("Network issue detected, retrying after backoff...");
+            schedule_backoff();
+            return;
+        }
+
+        // Handle other transient errors (you can extend this with more conditions if necessary)
+        else if (ec == beast::errc::connection_refused)
+        {
+            logger_->warn("Connection refused. Retrying...");
+            schedule_backoff();
+            return;
+        }
+
+        // For any other unhandled errors, log and schedule backoff
+        else
+        {
+            logger_->warn("Unexpected WebSocket error: {}. Retrying...", ec.message());
+            schedule_backoff();
+            return;
+        }
+    }
 }
 
-void WebSocketSession::unsubscribe_from_signal(const std::string& signal_name)
+void WebSocketSession::remove_sent_message_from_retry_queue()
+{
+    std::lock_guard<std::mutex> retry_lock(retry_mutex_);
+
+    if (!retry_messages_.empty())
+    {
+        retry_messages_.pop_front();
+        logger_->debug("Successfully sent message and removed from retry queue.");
+    }
+}
+
+bool WebSocketSession::subscribe_to_signal(const std::string& signal_name)
 {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
-    logger_->debug("Session: {} Unsubscribed to signal: {}.", session_id_, signal_name);
-    subscribed_signals_.erase(signal_name);
+
+    if (subscribed_signals_.find(signal_name) != subscribed_signals_.end()) {
+        logger_->debug("Session: {} Already subscribed to signal: {}.", session_id_, signal_name);
+        return false;
+    }
+    logger_->debug("Session: {} Subscribed to signal: {}.", session_id_, signal_name);
+    subscribed_signals_.insert(signal_name);
+    return true;
+}
+
+bool WebSocketSession::unsubscribe_from_signal(const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    if (subscribed_signals_.find(signal_name) != subscribed_signals_.end()) {        
+        logger_->debug("Session: {} Unsubscribed from signal: {}.", session_id_, signal_name);
+        subscribed_signals_.erase(signal_name);
+        return true;
+    }
+    logger_->debug("Session: {} wasn't subscribed to signal: {}.", session_id_, signal_name);
+    return false;
 }
 
 bool WebSocketSession::is_subscribed_to(const std::string& signal_name) const

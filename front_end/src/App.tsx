@@ -102,7 +102,7 @@ function App() {
         {Array.from({ length: 64 }, (_, i) => (
           <>
             <div key={`led-${i}`} style={itemStyle}>
-              <LedRow ledCount={32} signal={`Pixel Grid Row ${i}`} socket={socket} randomMode={false} />
+              <LedRow ledCount={32} signal="Pixel Grid" rowIndex={i} socket={socket} randomMode={false} />
             </div>
             <div key={`gauge-${i}`} style={itemStyle}>
               <LEDBoardTempGauge signalName={"Temp Signal {i}"} socket={socket} />

@@ -1,85 +1,51 @@
 #include "PixelGridSignal.h"
 
-PixelGridSignal::PixelGridSignal( const std::string& baseSignalName
-                                , size_t width
-                                , size_t height
-                                , std::shared_ptr<WebSocketServer> webSocketServer )
-                                : baseName_(baseSignalName)
-                                , width_(width)
-                                , height_(height)
-                                , webSocketServer_(webSocketServer)
+PixelGridSignal::PixelGridSignal(const std::string& signalName,
+                                 size_t width,
+                                 size_t height,
+                                 std::shared_ptr<WebSocketServer> webSocketServer)
+    : signalName_(signalName),
+      width_(width),
+      height_(height),
+      webSocketServer_(std::move(webSocketServer)),
+      pixels_(height, std::vector<RGB>(width, RGB{0, 0, 0})),
+      signal_(SignalManager::GetInstance().CreateSignal<std::vector<std::vector<RGB>>>(signalName_, webSocketServer_, static_cast<std::string(*)(const std::string&, const std::vector<std::vector<RGB>>&)>(&encode_signal_name_and_value)))
 {
-    rowSignals_.reserve(height_);
-    for (size_t row = 0; row < height_; ++row)
-    {
-        auto signal = SignalManager::GetInstance().CreateSignal<std::vector<RGB>>(
-            baseSignalName + " Row " + std::to_string(row),
-            webSocketServer_,
-            static_cast<std::string(*)(const std::string&, const std::vector<RGB>&)>(encode_signal_name_and_value));
-        signal->SetValue(std::vector<RGB>(width_, {0, 0, 0}));
-        rowSignals_.push_back(signal);
-    }
+    logger_ = InitializeLogger("PixelGridSignal", spdlog::level::info);
+    logger_->info("PixelGridSignal created with dimensions: {}x{}", width_, height_);
 }
 
 void PixelGridSignal::SetPixel(size_t x, size_t y, RGB color)
 {
-    if (x >= width_ || y >= height_) return;
-
-    auto& row = rowSignals_[y];
-    auto rowData = row->GetData();
-    if ((*rowData)[x] != color)
+    if (x < width_ && y < height_)
     {
-        (*rowData)[x] = color;
+        pixels_[y][x] = color;
     }
 }
 
 RGB PixelGridSignal::GetPixel(size_t x, size_t y) const
 {
-    if (x >= width_ || y >= height_) return {0, 0, 0};
-
-    auto rowData = rowSignals_[y]->GetData();
-    return (*rowData)[x];
+    if (x < width_ && y < height_)
+    {
+        return pixels_[y][x];
+    }
+    return {0, 0, 0};
 }
 
 void PixelGridSignal::Clear(RGB color)
 {
-    for (size_t y = 0; y < height_; ++y)
+    for (auto& row : pixels_)
     {
-        auto& row = rowSignals_[y];
-        auto rowData = row->GetData();
-        bool changed = false;
-        for (auto& pixel : *rowData)
-        {
-            if (pixel != color)
-            {
-                pixel = color;
-                changed = true;
-            }
-        }
+        std::fill(row.begin(), row.end(), color);
     }
 }
 
 void PixelGridSignal::Notify()
 {
-    for (size_t row = 0; row < height_; ++row)
-    {
-        rowSignals_[row]->Notify();
-    }
+    signal_->SetValue(pixels_);
 }
 
-void PixelGridSignal::Notify(size_t row)
+std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> PixelGridSignal::GetSignal() const
 {
-    if (row < height_)
-    {
-        rowSignals_[row]->Notify();
-    }
-}
-
-std::shared_ptr<Signal<std::vector<RGB>>> PixelGridSignal::GetRowSignal(size_t row) const
-{
-    if (row < height_)
-    {
-        return rowSignals_[row];
-    }
-    return nullptr;
+    return signal_;
 }

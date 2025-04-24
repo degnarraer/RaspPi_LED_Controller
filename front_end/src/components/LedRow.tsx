@@ -6,6 +6,7 @@ interface LEDRowProps {
     signal: string;
     socket: WebSocketContextType;
     randomMode?: boolean;
+    rowIndex: number;
 }
 
 interface LEDRowState {
@@ -50,11 +51,12 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
 
     private handleSignalValue = (message: WebSocketMessage) => {
         const value = message.value;
-        if (!Array.isArray(value) || value.length !== this.props.ledCount) {
+        if (!Array.isArray(value) || value.length <= this.props.rowIndex || !Array.isArray(value[this.props.rowIndex])) {
             console.warn('LEDRow: Unexpected signal value format:', value);
             return;
         }
-        const colors = value.map(this.hexToRgb);
+        const rowColors = value[this.props.rowIndex];
+        const colors = rowColors.map(this.hexToRgb);
         this.setState({ ledColors: colors });
     };
 

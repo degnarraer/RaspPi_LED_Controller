@@ -93,28 +93,31 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 
   const handleMessage = (event: MessageEvent) => {
     try {
-      let message: WebSocketMessage;
       if (event.data instanceof ArrayBuffer) {
         console.debug('Received binary data:', event.data);
-        return;
-      } else if (event.data instanceof Blob) {
+      }
+  
+      if (event.data instanceof Blob) {
         console.debug('Received Blob data:', event.data);
-        return;
-      } else if (typeof event.data === 'string') {
+      }
+  
+      if (typeof event.data === 'string') {
         try {
-          message = JSON.parse(event.data) as WebSocketMessage;
-          console.debug('Received text message:', message);
-        } catch (error) {
-          console.error('Error parsing text message as JSON:', error);
-          return;
+          const batchMessages = JSON.parse(event.data) as WebSocketMessage[];
+          if (Array.isArray(batchMessages)) {
+            batchMessages.forEach((message) => {  
+              if (message.signal && subscribers.current.has(message.signal)) {
+                subscribers.current.get(message.signal)?.forEach((cb) => cb(message));
+              }
+            });
+          } else {
+            console.error('Received non-array batch message:', event.data);
+          }
+        } catch (err) {
+          console.error('Error parsing batched messages:', event.data, err);
         }
       } else {
         console.error('Unknown data type received:', event.data);
-        return;
-      }
-      if (message && message.signal && subscribers.current.has(message.signal)) {
-        const signalSubscribers = subscribers.current.get(message.signal);
-        signalSubscribers?.forEach((callback) => callback(message));
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error);
