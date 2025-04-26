@@ -318,7 +318,7 @@ private:
         }
 
         // Update GPU temperature
-        valueF = getGpuTemperature();
+        //valueF = getGpuTemperature();
         if (gpuTempSignal_)
         {
             valueS = fmt::format("{:.2f} °C", valueF);

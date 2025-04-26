@@ -75,6 +75,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 
       newWs.onclose = () => {
         console.log('WebSocket disconnected.');
+        wsRef.current = null;
         scheduleReconnect();
       };
 
@@ -87,6 +88,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 
     } catch (error) {
       console.error('Error establishing WebSocket:', error);
+      wsRef.current = null;
       scheduleReconnect();
     }
   };
