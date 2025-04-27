@@ -26,7 +26,7 @@ int main()
 
     logger_ = InitializeLogger("Main Logger", spdlog::level::info);
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");
-    deploymentManger->copyFolderContentsWithSudo("/home/degnarraer/RaspPi_LED_Controller/front_end/dist", "/var/www/html");
+    deploymentManger->copyFolderContentsWithSudo("./www", "/var/www/html");
     webSocketServer->Run();
     mic->StartReadingMicrophone();
     systemStatusMonitor->startMonitoring();

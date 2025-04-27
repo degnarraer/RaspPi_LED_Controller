@@ -1,4 +1,6 @@
 {
+    "cmake.cmakePath": "/usr/bin/cmake", // Adjust the path if CMake is installed elsewhere
+    "cmake.generator": "Unix Makefiles",
     "files.associations": {
         "cctype": "cpp",
         "clocale": "cpp",
