@@ -160,63 +160,17 @@ void WebSocketSession::resume_sending()
 
 bool WebSocketSession::is_valid_utf8(const std::string& str)
 {
-    // Simple check for valid UTF-8 encoding
-    // More advanced checks may be needed based on your use case
-
-    size_t i = 0;
-    size_t len = str.length();
-    while (i < len)
+    try
     {
-        unsigned char c = str[i];
-        
-        // ASCII (1 byte)
-        if (c < 0x80)
-        {
-            ++i;
-        }
-        // 2-byte UTF-8
-        else if ((c & 0xE0) == 0xC0)
-        {
-            if (i + 1 < len && (str[i + 1] & 0xC0) == 0x80)
-            {
-                i += 2;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        // 3-byte UTF-8
-        else if ((c & 0xF0) == 0xE0)
-        {
-            if (i + 2 < len && (str[i + 1] & 0xC0) == 0x80 && (str[i + 2] & 0xC0) == 0x80)
-            {
-                i += 3;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        // 4-byte UTF-8
-        else if ((c & 0xF8) == 0xF0)
-        {
-            if (i + 3 < len && (str[i + 1] & 0xC0) == 0x80 && (str[i + 2] & 0xC0) == 0x80 && (str[i + 3] & 0xC0) == 0x80)
-            {
-                i += 4;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
+        boost::locale::conv::from_utf<char>(str, "UTF-8");
+        return true;
     }
-    return true;
+    catch (const std::exception&)
+    {
+        return false;
+    }
 }
+
 
 void WebSocketSession::do_read()
 {
@@ -386,47 +340,44 @@ void WebSocketSession::on_read(std::size_t)
 
 void WebSocketSession::do_write()
 {
-    json batch_message = json::array();  // Create a JSON array to store the messages.
+    std::lock_guard<std::mutex> lock(write_mutex_);
+    json batch_message = json::array();  // Create a JSON array to store the messages.  
+    if (!ws_.is_open())
     {
-        std::lock_guard<std::mutex> lock(write_mutex_);
-        if (!ws_.is_open())
-        {
-            logger_->warn("WebSocket not open.");
-            server_.close_session(GetSessionID());
-            writing_ = false;
-            return;
-        }
+        logger_->warn("WebSocket not open.");
+        server_.close_session(GetSessionID());
+        writing_ = false;
+        return;
+    }
 
-        if (outgoing_messages_.empty())
-        {
-            writing_ = false;
-            logger_->debug("Message queue empty. Writing flag reset.");
-            return;
-        }
+    if (outgoing_messages_.empty())
+    {
+        writing_ = false;
+        logger_->debug("Message queue empty. Writing flag reset.");
+        return;
+    }
 
-        size_t batch_count = std::min(static_cast<size_t>(MAX_BATCH_COUNT), outgoing_messages_.size());
-        for (size_t i = 0; i < batch_count; ++i)
+    size_t batch_count = std::min(static_cast<size_t>(MAX_BATCH_COUNT), outgoing_messages_.size());
+    for (size_t i = 0; i < batch_count; ++i)
+    {
+        const std::string& message = outgoing_messages_.front();
+        
+        if (is_valid_utf8(message))
         {
-            std::string message = std::move(outgoing_messages_.front());
-            outgoing_messages_.pop_front();
-
-            if (is_valid_utf8(message))
+            try
             {
-                // Parse the message into a JSON object and add it to the array
-                try
-                {
-                    json msg_json = json::parse(message);
-                    batch_message.push_back(msg_json);
-                }
-                catch (const std::exception& e)
-                {
-                    logger_->warn("Session {}: Skipped invalid JSON message: {}", session_id_, message);
-                }
+                json msg_json = json::parse(message);
+                batch_message.push_back(std::move(msg_json));
+                outgoing_messages_.pop_front();  // Only pop on success
             }
-            else
+            catch (const std::exception& e)
             {
-                logger_->warn("Session {}: Skipped invalid UTF-8 message: {}", session_id_, message);
+                logger_->warn("Session {}: Skipped invalid JSON message: {}", session_id_, message);
             }
+        }
+        else
+        {
+            logger_->warn("Session {}: Skipped invalid UTF-8 message: {}", session_id_, message);
         }
     }
 

@@ -58,8 +58,8 @@ else()
     message(STATUS "  ALSA library found at ${ALSA_LIBRARY}")
 endif()
 
-find_package(Boost REQUIRED COMPONENTS Python)
-if(Boost_FOUND)
+find_package(Boost_Python REQUIRED COMPONENTS Python)
+if(Boost_Python_FOUND)
     message(STATUS "  Boost.Python found!")
     message(STATUS "  Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
     message(STATUS "  Boost_LIBRARIES: ${Boost_LIBRARIES}")
@@ -67,6 +67,14 @@ else()
     message(FATAL_ERROR "Boost.Python not found. Please install libboost-python3-dev.")
 endif()
 
+find_package(Boost_locale REQUIRED COMPONENTS locale)
+if(Boost_locale_FOUND)
+    message(STATUS "  Boost.locale found!")
+    message(STATUS "  Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+    message(STATUS "  Boost_LIBRARIES: ${Boost_LIBRARIES}")
+else()
+    message(FATAL_ERROR "Boost.locale not found. Please install libboost-locale-dev.")
+endif()
 ############ Manually Setup NPM ############
 message(STATUS "STEP: Setting up NPM")
 execute_process(
@@ -130,17 +138,29 @@ add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
 ############ Link Libraries ############
 message(STATUS "STEP: Linking")
 target_link_libraries(RaspPi_LED_Controller PRIVATE asound)
+target_link_libraries(RaspPi_LED_Controller PRIVATE Boost::locale)
 
 ############ Build NPM ############
 message(STATUS "STEP: Building Front End")
-add_custom_target(build_npm
+add_custom_target(Build_npm
     COMMAND npm run build
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/front_end
 )
 
 ############ Deploy to Raspberry Pi ############
 message(STATUS "STEP: Deploying to Raspberry Pi")
-add_custom_target(deploy
+add_custom_target(Build_All_Deploy
     COMMAND rsync -avz output/ ${RPI_USER}@${RPI_HOST}:${RPI_PATH}
     DEPENDS RaspPi_LED_Controller
 )
+
+############ Deploy to Raspberry Pi ############
+message(STATUS "STEP: Deploying to Raspberry Pi")
+add_custom_target(Deploy
+    COMMAND rsync -avz output/ ${RPI_USER}@${RPI_HOST}:${RPI_PATH}
+    DEPENDS RaspPi_LED_Controller
+)
+
+############ Run all steps in sequence ############
+add_dependencies(Build_All_Deploy Build_npm)
+add_dependencies(Build_npm RaspPi_LED_Controller)
