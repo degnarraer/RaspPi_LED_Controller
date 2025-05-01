@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
 project(RaspPi_LED_Controller)
+set(RPI_USER degnarraer)
+set(RPI_HOST ltop.local)
+set(RPI_PATH /home/degnarraer/)
 
 ############ Setup Build Output Folders ############
 message(STATUS "STEP: Setting up Build Output Folders")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/lib")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/lib")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/bin")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/output/")
 message(STATUS "  Output Archive Directory: ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}")
 message(STATUS "  Output Library Directory: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 message(STATUS "  Output Runtime Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
@@ -127,3 +130,17 @@ add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
 ############ Link Libraries ############
 message(STATUS "STEP: Linking")
 target_link_libraries(RaspPi_LED_Controller PRIVATE asound)
+
+############ Build NPM ############
+message(STATUS "STEP: Building Front End")
+add_custom_target(build_npm
+    COMMAND npm run build
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/front_end
+)
+
+############ Deploy to Raspberry Pi ############
+message(STATUS "STEP: Deploying to Raspberry Pi")
+add_custom_target(deploy
+    COMMAND rsync -avz output/ ${RPI_USER}@${RPI_HOST}:${RPI_PATH}
+    DEPENDS RaspPi_LED_Controller
+)
