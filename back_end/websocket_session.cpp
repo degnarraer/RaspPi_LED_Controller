@@ -167,6 +167,7 @@ bool WebSocketSession::is_valid_utf8(const std::string& str)
     }
     catch (const std::exception&)
     {
+        logger_->warn("Invalid UTF-8 string: {}", str);
         return false;
     }
 }

@@ -8,7 +8,7 @@
 class PixelGridAnimation
 {
 public:
-    explicit PixelGridAnimation(PixelGridSignal& grid, int frameRate = 30);
+    explicit PixelGridAnimation(PixelGridSignal& grid, int frameRate = 100);
     virtual ~PixelGridAnimation();
 
     void Start();

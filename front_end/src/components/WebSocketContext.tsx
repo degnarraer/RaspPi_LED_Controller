@@ -95,37 +95,46 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 
   const handleMessage = (event: MessageEvent) => {
     try {
-      if (event.data instanceof ArrayBuffer) {
-        console.debug('Received binary data:', event.data);
-      }
-  
-      if (event.data instanceof Blob) {
-        console.debug('Received Blob data:', event.data);
-      }
-  
       if (typeof event.data === 'string') {
+        let parsed: unknown;
+  
         try {
-          const batchMessages = JSON.parse(event.data) as WebSocketMessage[];
-          if (Array.isArray(batchMessages)) {
-            batchMessages.forEach((message) => {  
-              if (message.signal && subscribers.current.has(message.signal)) {
-                subscribers.current.get(message.signal)?.forEach((cb) => cb(message));
-              }
-            });
-          } else {
-            console.error('Received non-array batch message:', event.data);
-          }
+          parsed = JSON.parse(event.data);
         } catch (err) {
-          console.error('Error parsing batched messages:', event.data, err);
+          console.error('Invalid JSON received:', event.data);
+          return;
+        }
+  
+        const messages = Array.isArray(parsed) ? parsed : [parsed];
+  
+        for (const message of messages) {
+          if (
+            typeof message === 'object' &&
+            message !== null &&
+            'type' in message &&
+            typeof message.type === 'string' ) {
+              if( message.type === 'signal' && 'signal' in message && 'value' in message ) {
+                const validMessage = message as WebSocketMessage;
+                const callbacks = subscribers.current.get(validMessage.signal);
+                if (callbacks) {
+                  callbacks.forEach(cb => cb(validMessage));
+                }
+              } else {
+                console.warn('Invalid signal format, skipping:', message);
+              }
+            } else {
+              console.warn('Invalid message format, skipping:', message);
+            }
         }
       } else {
-        console.error('Unknown data type received:', event.data);
+        console.warn('Non-text message received:', event.data);
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error);
     }
   };
-
+  
+  
   useEffect(() => {
     connect();
 

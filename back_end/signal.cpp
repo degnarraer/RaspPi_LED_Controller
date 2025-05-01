@@ -3,6 +3,7 @@
 std::string encode_signal_name_and_json(const std::string& signal, const json& value)
 {
     json j;
+    j["type"] = "signal";
     j["signal"] = signal;
     j["value"] = value;
     return j.dump();
