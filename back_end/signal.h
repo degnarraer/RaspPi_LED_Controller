@@ -18,6 +18,9 @@ struct Point
     float y;
 };
 
+template<typename T>
+using JsonEncoder = std::function<std::string(const std::string&, const T&)>;
+
 template <typename T>
 inline std::string to_string(const T& value);
 
@@ -28,10 +31,30 @@ std::string encode_signal_name_and_json(const std::string& signal, const json& v
 std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>& values);
 
 template <typename T>
-std::string encode_signal_name_and_value(const std::string& signal, const T& value);
+std::string encode_signal_name_and_value(const std::string& signal, const T& value)
+{
+    json j;
+    j["type"] = "signal";
+    j["signal"] = signal;
+    j["value"] = value;
+    return j.dump();
+}
+
+template<typename T>
+JsonEncoder<T> get_signal_and_value_encoder()
+{
+    static const JsonEncoder<T> encoder = [](const std::string& signal, const T& value) {
+        json j;
+        j["type"] = "signal";
+        j["signal"] = signal;
+        j["value"] = value;
+        return j.dump();
+    };
+    return encoder;
+}
 
 template <typename T>
-json encode_labels_values_from_2_vectors(const std::vector<std::string>& labels, const std::vector<T>& values);
+json encode_labels_with_values(const std::vector<std::string>& labels, const std::vector<T>& values);
 
 class ISignalName
 {
@@ -63,11 +86,10 @@ class Signal : public ISignalValue<T>
              , public std::enable_shared_from_this<Signal<T>>
 {
     public:
-        using JsonEncoder = std::function<std::string(const std::string&, const T&)>;
         using Callback = typename ISignalValue<T>::Callback;
 
         explicit Signal(const std::string& name);
-        Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder encoder = nullptr);
+        Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder = nullptr);
 
         void Setup();
         void SetValue(const T& value, void* arg = nullptr) override;
@@ -98,7 +120,7 @@ class Signal : public ISignalValue<T>
         std::vector<typename ISignalValue<T>::CallbackData> callbacks_;
         std::shared_ptr<WebSocketServer> webSocketServer_;
         std::shared_ptr<spdlog::logger> logger_;
-        JsonEncoder encoder_;
+        JsonEncoder<T> encoder_;
         bool isUsingWebSocket_;
 
         void NotifyClients(void* arg);
@@ -114,7 +136,7 @@ public:
     std::shared_ptr<Signal<T>> CreateSignal(const std::string& name);
 
     template<typename T>
-    std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, typename Signal<T>::JsonEncoder encoder = nullptr);
+    std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder = nullptr);
 
     ISignalName* GetSignalByName(const std::string& name)
     {

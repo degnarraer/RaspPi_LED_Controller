@@ -93,6 +93,17 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
     }
   };
 
+  function isWebSocketMessage(msg: unknown): msg is WebSocketMessage {
+    return (
+      typeof msg === 'object' &&
+      msg !== null &&
+      'type' in msg && typeof (msg as any).type === 'string' &&
+      (msg as any).type === 'signal' &&
+      'signal' in msg && typeof (msg as any).signal === 'string' &&
+      'value' in msg
+    );
+  }
+
   const handleMessage = (event: MessageEvent) => {
     try {
       if (typeof event.data === 'string') {
@@ -104,33 +115,21 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
           console.error('Invalid JSON received:', event.data);
           return;
         }
-  
         const messages = Array.isArray(parsed) ? parsed : [parsed];
-  
         for (const message of messages) {
-          if (
-            typeof message === 'object' &&
-            message !== null &&
-            'type' in message &&
-            typeof message.type === 'string' ) {
-              if( message.type === 'signal' && 'signal' in message && 'value' in message ) {
-                const validMessage = message as WebSocketMessage;
-                const callbacks = subscribers.current.get(validMessage.signal);
-                if (callbacks) {
-                  callbacks.forEach(cb => cb(validMessage));
-                }
-              } else {
-                console.warn('Invalid signal format, skipping:', message);
-              }
-            } else {
-              console.warn('Invalid message format, skipping:', message);
-            }
+          if (isWebSocketMessage(message)) {
+            const callbacks = subscribers.current.get(message.signal);
+            callbacks?.forEach(cb => cb(message));
+          } else {
+            console.warn('unknown text message received:', event.data);
+          }
         }
       } else {
         console.warn('Non-text message received:', event.data);
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error);
+      return;
     }
   };
   

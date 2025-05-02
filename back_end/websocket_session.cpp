@@ -390,12 +390,19 @@ void WebSocketSession::do_write()
     }
 
     std::string combined_message = batch_message.dump();
-    retry_messages_.push_back(RetryMessage(combined_message));
-    ws_.text(true);
-    ws_.async_write(
-        asio::buffer(combined_message),
-        beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this())
-    );
+    if(is_valid_utf8(combined_message))
+    {
+        retry_messages_.push_back(RetryMessage(combined_message));
+        ws_.text(true);
+        ws_.async_write(
+            asio::buffer(combined_message),
+            beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this())
+        );
+    }
+    else
+    {
+        logger_->warn("Session {}: Skipped invalid UTF-8 batch message: {}", session_id_, combined_message);
+    }
 }
 
 void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transferred)

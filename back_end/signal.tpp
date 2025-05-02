@@ -7,18 +7,8 @@
 #include <iostream>
 #include <stdexcept>
 
-
 template <typename T>
-std::string encode_signal_name_and_value(const std::string& signal, const T& value)
-{
-    json j;
-    j["signal"] = signal;
-    j["value"] = value;
-    return j.dump();
-}
-
-template <typename T>
-json encode_labels_values_from_2_vectors(const std::vector<std::string>& labels, const std::vector<T>& values)
+json encode_labels_with_values(const std::vector<std::string>& labels, const std::vector<T>& values)
 {
     if (labels.size() != values.size())
     {
@@ -61,8 +51,8 @@ Signal<T>::Signal(const std::string& name)
 }
 
 template<typename T>
-Signal<T>::Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder encoder)
-    : name_(name), webSocketServer_(webSocketServer), data_(std::make_shared<T>()), encoder_(encoder ? encoder : [](const std::string signal, const T& value) { return to_string(value); }) , isUsingWebSocket_(true)
+Signal<T>::Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder)
+    : name_(name), webSocketServer_(webSocketServer), data_(std::make_shared<T>()), encoder_(encoder) , isUsingWebSocket_(true)
 {
     logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
 }
@@ -216,13 +206,13 @@ void Signal<T>::NotifyWebSocket()
     if(!isUsingWebSocket_) return;
     if (!webSocketServer_)
     {
-        logger_->error("WebSocketServer is not initialized.");
+        logger_->error("{}: WebSocketServer is not initialized.", name_);
         return;
     }
 
     if (!encoder_)
     {
-        logger_->error("Encoder is not initialized.");
+        logger_->error("{}: Encoder is not initialized.", name_);
         return;
     }
 
@@ -251,7 +241,7 @@ std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name)
 }
 
 template<typename T>
-std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, typename Signal<T>::JsonEncoder encoder)
+std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = signals_.find(name);

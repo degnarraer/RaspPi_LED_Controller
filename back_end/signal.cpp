@@ -18,7 +18,7 @@ std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>
         "16000 Hz", "20000 Hz"
     };
 
-    json valueJson = encode_labels_values_from_2_vectors(labels, values);
+    json valueJson = encode_labels_with_values(labels, values);
     return encode_signal_name_and_json(signal, valueJson);
 }
 

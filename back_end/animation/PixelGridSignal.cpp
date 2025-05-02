@@ -9,7 +9,9 @@ PixelGridSignal::PixelGridSignal(const std::string& signalName,
       height_(height),
       webSocketServer_(std::move(webSocketServer)),
       pixels_(height, std::vector<RGB>(width, RGB{0, 0, 0})),
-      signal_(SignalManager::GetInstance().CreateSignal<std::vector<std::vector<RGB>>>(signalName_, webSocketServer_, static_cast<std::string(*)(const std::string&, const std::vector<std::vector<RGB>>&)>(&encode_signal_name_and_value)))
+      signal_(SignalManager::GetInstance().CreateSignal<std::vector<std::vector<RGB>>>( signalName_
+                                                                                      , webSocketServer_
+                                                                                      , get_signal_and_value_encoder<std::vector<std::vector<RGB>>>()))
 {
     logger_ = InitializeLogger("PixelGridSignal", spdlog::level::info);
     logger_->info("PixelGridSignal created with dimensions: {}x{}", width_, height_);

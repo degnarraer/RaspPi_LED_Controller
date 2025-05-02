@@ -47,7 +47,11 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
         }
     };
-    SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>("Microphone")->RegisterCallback(microphoneSignalCallback_, this);
+    auto mic_signal = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone"));
+    if (mic_signal)
+    {
+        mic_signal->RegisterCallback(microphoneSignalCallback_, this);
+    }
     
     microphoneLeftChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
     {
@@ -58,7 +62,11 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
         }
     };
-    SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>("Microphone Left Channel")->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
+    auto left_mic_signal = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone Left Channel"));
+    if (left_mic_signal)
+    {
+        left_mic_signal->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
+    }
 
     microphoneRightChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
     {
@@ -69,7 +77,11 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
         }
     };
-    SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>("Microphone Right Channel")->RegisterCallback(microphoneRightChannelSignalCallback_, this);
+    auto right_mic_signal = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone Right Channel"));
+    if (right_mic_signal)
+    {
+        left_mic_signal->RegisterCallback(microphoneRightChannelSignalCallback_, this);
+    }
 }
 
 I2SMicrophone::~I2SMicrophone()
@@ -77,21 +89,21 @@ I2SMicrophone::~I2SMicrophone()
     StopReading();
     
     {
-        auto signal = dynamic_cast<Signal<int16_t>*>(SignalManager::GetInstance().GetSignalByName("Microphone"));
+        auto signal = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone"));
         if (signal)
         {
             signal->UnregisterCallbackByArg(this);
         }
     }
     {
-        auto signal = dynamic_cast<Signal<int16_t>*>(SignalManager::GetInstance().GetSignalByName("Microphone Left Channel"));
+        auto signal = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone Left Channel"));
         if (signal)
         {
             signal->UnregisterCallbackByArg(this);
         }
     }
     {
-        auto signal = dynamic_cast<Signal<int16_t>*>(SignalManager::GetInstance().GetSignalByName("Microphone Right Channel"));
+        auto signal = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone Right Channel"));
         if (signal)
         {
             signal->UnregisterCallbackByArg(this);
