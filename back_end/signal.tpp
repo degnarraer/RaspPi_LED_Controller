@@ -7,41 +7,6 @@
 #include <iostream>
 #include <stdexcept>
 
-template <typename T>
-json encode_labels_with_values(const std::vector<std::string>& labels, const std::vector<T>& values)
-{
-    if (labels.size() != values.size())
-    {
-        throw std::invalid_argument("Labels and values vectors must have the same size.");
-    }
-
-    json j;
-    j["labels"] = labels;
-    j["values"] = values;
-    return j;
-}
-
-template <typename T>
-inline std::string to_string(const T& value)
-{
-    std::ostringstream oss;
-    oss << value;
-    return oss.str();
-}
-
-template <typename T>
-inline std::string to_string(const std::vector<T>& vec)
-{
-    std::ostringstream oss;
-    oss << "[";
-    for (size_t i = 0; i < vec.size(); ++i)
-    {
-        if (i > 0) oss << ", ";
-        oss << to_string(vec[i]); // recursion
-    }
-    oss << "]";
-    return oss.str();
-}
 
 template<typename T>
 Signal<T>::Signal(const std::string& name)

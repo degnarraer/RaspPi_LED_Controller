@@ -91,4 +91,30 @@ private:
     std::vector<std::vector<RGB>> pixels_;
     std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> signal_;
     std::shared_ptr<spdlog::logger> logger_;
+    JsonEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_encoder()
+    {
+        const JsonEncoder<std::vector<std::vector<RGB>>> encoder = [](const std::string& signal, const std::vector<std::vector<RGB>>& value) {
+            json j;
+            j["type"] = "signal";
+            j["signal"] = signal;
+
+            json value_json = json::array();
+            for (const auto& row : value) {
+                json row_json = json::array();
+                for (const auto& rgb : row) {
+                    row_json.push_back({
+                        {"r", rgb.r},
+                        {"g", rgb.g},
+                        {"b", rgb.b}
+                    });
+                }
+                value_json.push_back(row_json);
+            }
+            j["value"] = value_json;
+
+            return j.dump();
+        };
+
+        return encoder;
+    }
 };

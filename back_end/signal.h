@@ -9,6 +9,7 @@
 #include "logger.h"
 #include "websocket_server.h"
 #include <nlohmann/json.hpp>
+#include <type_traits>
 
 using json = nlohmann::json;
 
@@ -22,17 +23,71 @@ template<typename T>
 using JsonEncoder = std::function<std::string(const std::string&, const T&)>;
 
 template <typename T>
-inline std::string to_string(const T& value);
-
-template <typename T>
-std::string to_string(const std::vector<T>& vec);
-
-std::string encode_signal_name_and_json(const std::string& signal, const json& value);
-std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>& values);
-
-template <typename T>
-std::string encode_signal_name_and_value(const std::string& signal, const T& value)
+inline std::string to_string(const T& value)
 {
+    std::ostringstream oss;
+    oss << value;
+    return oss.str();
+}
+
+template <typename T>
+inline std::string to_string(const std::vector<T>& vec)
+{
+    std::ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < vec.size(); ++i)
+    {
+        if (i > 0) oss << ", ";
+        oss << to_string(vec[i]);
+    }
+    oss << "]";
+    return oss.str();
+}
+
+template <typename T>
+inline json encode_labels_with_values(const std::vector<std::string>& labels, const std::vector<T>& values)
+{
+    static_assert(std::is_constructible<json, std::vector<T>>::value,
+        "T must be serializable to nlohmann::json");
+
+    if (labels.size() != values.size())
+    {
+        throw std::invalid_argument("Labels and values vectors must have the same size.");
+    }
+
+    json j;
+    j["labels"] = labels;
+    j["values"] = values;
+    return j;
+}
+
+inline std::string encode_signal_name_and_json(const std::string& signal, const json& value)
+{
+    json j;
+    j["type"] = "signal";
+    j["signal"] = signal;
+    j["value"] = value;
+    return j.dump();
+}
+
+inline std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>& values)
+{
+    std::vector<std::string> labels = {
+        "16 Hz", "20 Hz", "25 Hz", "31.5 Hz", "40 Hz", "50 Hz", "63 Hz", "80 Hz", "100 Hz",
+        "125 Hz", "160 Hz", "200 Hz", "250 Hz", "315 Hz", "400 Hz", "500 Hz", "630 Hz", "800 Hz", "1000 Hz", "1250 Hz",
+        "1600 Hz", "2000 Hz", "2500 Hz", "3150 Hz", "4000 Hz", "5000 Hz", "6300 Hz", "8000 Hz", "10000 Hz", "12500 Hz",
+        "16000 Hz", "20000 Hz"
+    };
+
+    json valueJson = encode_labels_with_values(labels, values);
+    return encode_signal_name_and_json(signal, valueJson);
+}
+
+template <typename T>
+inline std::string encode_signal_name_and_value(const std::string& signal, const T& value)
+{
+    static_assert(std::is_constructible<json, T>::value,
+        "T must be serializable to nlohmann::json");
     json j;
     j["type"] = "signal";
     j["signal"] = signal;
@@ -43,7 +98,9 @@ std::string encode_signal_name_and_value(const std::string& signal, const T& val
 template<typename T>
 JsonEncoder<T> get_signal_and_value_encoder()
 {
-    static const JsonEncoder<T> encoder = [](const std::string& signal, const T& value) {
+    static_assert(std::is_constructible<json, T>::value,
+        "T must be serializable to nlohmann::json");
+    const JsonEncoder<T> encoder = [](const std::string& signal, const T& value) {
         json j;
         j["type"] = "signal";
         j["signal"] = signal;
@@ -52,9 +109,6 @@ JsonEncoder<T> get_signal_and_value_encoder()
     };
     return encoder;
 }
-
-template <typename T>
-json encode_labels_with_values(const std::vector<std::string>& labels, const std::vector<T>& values);
 
 class ISignalName
 {
