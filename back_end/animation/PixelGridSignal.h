@@ -102,11 +102,7 @@ private:
             for (const auto& row : value) {
                 json row_json = json::array();
                 for (const auto& rgb : row) {
-                    row_json.push_back({
-                        {"r", rgb.r},
-                        {"g", rgb.g},
-                        {"b", rgb.b}
-                    });
+                    row_json.push_back(to_hex_string(rgb));
                 }
                 value_json.push_back(row_json);
             }
@@ -114,7 +110,6 @@ private:
 
             return j.dump();
         };
-
         return encoder;
     }
 };

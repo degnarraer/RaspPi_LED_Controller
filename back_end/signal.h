@@ -78,9 +78,7 @@ inline std::string encode_FFT_Bands(const std::string& signal, const std::vector
         "1600 Hz", "2000 Hz", "2500 Hz", "3150 Hz", "4000 Hz", "5000 Hz", "6300 Hz", "8000 Hz", "10000 Hz", "12500 Hz",
         "16000 Hz", "20000 Hz"
     };
-
-    json valueJson = encode_labels_with_values(labels, values);
-    return encode_signal_name_and_json(signal, valueJson);
+    return encode_signal_name_and_json(signal, encode_labels_with_values(labels, values));
 }
 
 template <typename T>
