@@ -9,10 +9,12 @@
 #include <mutex>
 #include <thread>
 #include <atomic>
+#include <optional>
 #include <boost/locale.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/asio.hpp>
 #include "logger.h"
 #include <nlohmann/json.hpp>
 
@@ -53,9 +55,8 @@ public:
     {
         std::string message;
         int retry_count = 0;
-        RetryMessage(std::string msg)
-        : message(std::move(msg), 0) {}
     };
+
     explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
     void run();
     void close();
@@ -75,9 +76,24 @@ private:
     void handle_write_error(beast::error_code ec);
     void maybe_backoff();
     void schedule_backoff();
+    void retry_message(const std::string& message);
+    void send_signal_update(const std::string& signal_name, const std::string& data);
+    void handle_disconnection();
+    void on_disconnect();
     void resume_sending();
     void remove_sent_message_from_retry_queue();
     bool is_valid_utf8(const std::string& str);
+    static std::string truncate_for_log(const std::string& str, size_t max_length = 200)
+    {
+        if (str.length() <= max_length)
+        {
+            return str;
+        }
+        else
+        {
+            return str.substr(0, max_length) + "...";
+        }
+    }
 
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
@@ -91,6 +107,7 @@ private:
     mutable std::mutex write_mutex_;
 
     std::deque<RetryMessage> retry_messages_;
+    std::optional<std::string> pending_retry_message_;
     std::mutex retry_mutex_;
 
     const int MAX_RETRY_COUNT = 5;
