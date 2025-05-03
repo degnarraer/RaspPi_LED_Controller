@@ -159,16 +159,22 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   };
 
   const subscribe = (signal: string, callback: (message: WebSocketMessage) => void) => {
+    let isFirstSubscriber = false;
+  
     if (!subscribers.current.has(signal)) {
       subscribers.current.set(signal, new Set());
+      isFirstSubscriber = true;
     }
-
+  
     const signalSubscribers = subscribers.current.get(signal);
+    const prevSize = signalSubscribers?.size ?? 0;
     signalSubscribers?.add(callback);
-    console.log(`Subscribing to signal: ${signal}`);
-
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      sendMessage({ type: 'subscribe', signal });
+  
+    if (isFirstSubscriber || prevSize === 0) {
+      console.log(`Subscribing to signal: ${signal}`);
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        sendMessage({ type: 'subscribe', signal });
+      }
     }
   };
 
@@ -176,13 +182,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
     const signalSubscribers = subscribers.current.get(signal);
     signalSubscribers?.delete(callback);
     console.log(`Unsubscribing from signal: ${signal}`);
+    
     if (signalSubscribers?.size === 0) {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        sendMessage({ type: 'unsubscribe', signal });
-      }
-      subscribers.current.delete(signal);
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            sendMessage({ type: 'unsubscribe', signal });
+        }
+        subscribers.current.delete(signal);
     }
-  };
+};
 
   return (
     <WebSocketContext.Provider value={{ socket, sendMessage, subscribe, unsubscribe }}>

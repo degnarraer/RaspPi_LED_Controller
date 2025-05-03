@@ -31,7 +31,7 @@ int main()
     mic->StartReadingMicrophone();
     systemStatusMonitor->startMonitoring();
     
-    PixelGridSignal grid("Pixel Grid", 32, 64, webSocketServer);
+    PixelGridSignal grid("Pixel Grid", 32, 1, webSocketServer);
     RainbowAnimation animation(grid);
     animation.Start();
 

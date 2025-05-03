@@ -1,5 +1,6 @@
 import { Component, createRef } from 'react';
 import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
+import { RateLimitedLogger } from '../utils/RateLimitedLogger';
 
 interface LEDRowProps {
     ledCount: number;
@@ -18,6 +19,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     private containerRef = createRef<HTMLDivElement>();
     private resizeObserver: ResizeObserver | null = null;
     private intervalId: ReturnType<typeof setInterval> | null = null;
+    private webSocketLogger = new RateLimitedLogger(10000);
 
     constructor(props: LEDRowProps) {
         super(props);
@@ -31,7 +33,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
         this.props.randomMode ? this.startRandomUpdates() : this.registerSignal(this.props.signal);
         this.setupResizeObserver();
     }
-    
+
     componentWillUnmount() {
         this.props.randomMode ? this.stopRandomUpdates() : this.unregisterSignal(this.props.signal);
         this.teardownResizeObserver();
@@ -41,12 +43,18 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
         const { socket } = this.props;
         socket.subscribe(signal, this.handleSignalValue);
         socket.sendMessage({ type: 'subscribe', signal });
+
+        // Log subscribing normally
+        console.log(`Subscribed to signal: ${signal}`);
     }
 
     private unregisterSignal(signal: string) {
         const { socket } = this.props;
         socket.unsubscribe(signal, this.handleSignalValue);
         socket.sendMessage({ type: 'unsubscribe', signal });
+
+        // Log unsubscribing normally
+        console.log(`Unsubscribed from signal: ${signal}`);
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {
@@ -54,15 +62,16 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
         if (!(message.signal === this.props.signal)) {
             return;
         }
-        else if(!Array.isArray(value) || value.length <= this.props.rowIndex || !Array.isArray(value[this.props.rowIndex])) {
-            console.warn('LEDRow: Unexpected signal value format:', value);
-            return;
-        }
-        else
-        {
+        else if (Array.isArray(value) && this.props.rowIndex < value.length && Array.isArray(value[this.props.rowIndex])) {
             const rowColors = value[this.props.rowIndex];
             const colors = rowColors.map(this.hexToRgb);
             this.setState({ ledColors: colors });
+
+            // Rate-limit WebSocket data log (value received)
+            this.webSocketLogger.log(`Received data for signal: ${this.props.signal}, row: ${this.props.rowIndex}`);
+        } else {
+            // Rate-limited log for unexpected signal format, now including occurrence count
+            this.webSocketLogger.log(`LEDRow: Unexpected signal value format: ${JSON.stringify(value)}`);
         }
     };
 

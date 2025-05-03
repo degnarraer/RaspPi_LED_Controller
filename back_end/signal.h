@@ -81,18 +81,6 @@ inline std::string encode_FFT_Bands(const std::string& signal, const std::vector
     return encode_signal_name_and_json(signal, encode_labels_with_values(labels, values));
 }
 
-template <typename T>
-inline std::string encode_signal_name_and_value(const std::string& signal, const T& value)
-{
-    static_assert(std::is_constructible<json, T>::value,
-        "T must be serializable to nlohmann::json");
-    json j;
-    j["type"] = "signal";
-    j["signal"] = signal;
-    j["value"] = value;
-    return j.dump();
-}
-
 template<typename T>
 JsonEncoder<T> get_signal_and_value_encoder()
 {

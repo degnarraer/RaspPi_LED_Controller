@@ -99,7 +99,7 @@ function App() {
     
     return (
       <div style={gridStyle}>
-        {Array.from({ length: 64 }, (_, i) => (
+        {Array.from({ length: 1 }, (_, i) => (
           <>
             <div key={`led-${i}`} style={itemStyle}>
               <LedRow ledCount={32} signal="Pixel Grid" rowIndex={i} socket={socket} randomMode={false} />

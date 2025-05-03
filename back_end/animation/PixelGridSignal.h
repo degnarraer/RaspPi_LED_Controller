@@ -93,7 +93,7 @@ private:
     std::shared_ptr<spdlog::logger> logger_;
     JsonEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_encoder()
     {
-        const JsonEncoder<std::vector<std::vector<RGB>>> encoder = [](const std::string& signal, const std::vector<std::vector<RGB>>& value) {
+        const JsonEncoder<std::vector<std::vector<RGB>>> encoder = [this](const std::string& signal, const std::vector<std::vector<RGB>>& value) {
             json j;
             j["type"] = "signal";
             j["signal"] = signal;
@@ -107,7 +107,6 @@ private:
                 value_json.push_back(row_json);
             }
             j["value"] = value_json;
-
             return j.dump();
         };
         return encoder;
