@@ -164,17 +164,13 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     setupSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
-    
         socket.subscribe(signal, this.handleSignalValue);
-        socket.sendMessage({ type: 'subscribe', signal });
     }
 
     teardownSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
-    
         socket.unsubscribe(signal, this.handleSignalValue);
-        socket.sendMessage({ type: 'unsubscribe', signal });
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {

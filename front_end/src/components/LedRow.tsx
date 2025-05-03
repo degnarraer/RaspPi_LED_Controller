@@ -42,18 +42,12 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     private registerSignal(signal: string) {
         const { socket } = this.props;
         socket.subscribe(signal, this.handleSignalValue);
-        socket.sendMessage({ type: 'subscribe', signal });
-
-        // Log subscribing normally
         console.log(`Subscribed to signal: ${signal}`);
     }
 
     private unregisterSignal(signal: string) {
         const { socket } = this.props;
         socket.unsubscribe(signal, this.handleSignalValue);
-        socket.sendMessage({ type: 'unsubscribe', signal });
-
-        // Log unsubscribing normally
         console.log(`Unsubscribed from signal: ${signal}`);
     }
 

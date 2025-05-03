@@ -1,5 +1,5 @@
 import React, { Component, createRef } from 'react';
-import { WebSocketContextType } from './WebSocketContext';
+import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 import { RenderTickContext } from './RenderingTick';
 
 interface ScrollingHeatmapProps {
@@ -54,10 +54,14 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         if (this.context) {
             this.context(this.startRenderLoop); // Pass the render loop to the callback
         }
+
+        // Setup socket connection for signal data
+        this.setupSocket();
     }
 
     componentWillUnmount() {
         this.teardownResizeObserver();
+        this.teardownSocket();
     }
 
     componentDidUpdate(prevProps: ScrollingHeatmapProps) {
@@ -91,38 +95,27 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         }
     }
 
-    private readonly socketListener = (event: MessageEvent) => this.handleSocketMessage(event);
+    private readonly handleSignalValue = (message: WebSocketMessage) => {
+        if (message.signal === this.props.signal) {
+            if (Array.isArray(message.value?.values)) {
+                this.queueRow(message.value.values);
+            } else {
+                console.error('Invalid data format:', message.value);
+            }
+        }
+    };
 
     setupSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.addEventListener('message', this.socketListener);
-            socket.sendMessage({ type: 'subscribe', signal: this.props.signal });
-        }
+        const { socket, signal } = this.props;
+        if (!socket) return;
+        socket.subscribe(signal, this.handleSignalValue);
     }
 
     teardownSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.removeEventListener('message', this.socketListener);
-            socket.sendMessage({ type: 'unsubscribe', signal: this.props.signal });
-        }
+        const { socket, signal } = this.props;
+        if (!socket) return;
+        socket.unsubscribe(signal, this.handleSignalValue);
     }
-
-    handleSocketMessage = (event: MessageEvent) => {
-        try {
-            const parsed = JSON.parse(event.data);
-            if (parsed && parsed.signal === this.props.signal) {
-                if (Array.isArray(parsed.value?.values)) {
-                    this.queueRow(parsed.value.values); // Queue the new data
-                } else {
-                    console.error('Invalid data format:', parsed.value);
-                }
-            }
-        } catch (e) {
-            console.error('ScrollingHeatmap: Invalid WebSocket message format:', e);
-        }
-    };
 
     queueRow(newRow: number[]) {
         const clampedRow = newRow.slice(0, this.maxCols);

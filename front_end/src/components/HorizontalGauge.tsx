@@ -32,12 +32,10 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
 
     componentDidMount() {
         this.props.socket.subscribe(this.props.signal, this.handleSignalUpdate);
-        this.props.socket.sendMessage({ type: 'subscribe', signal: this.props.signal });
     }
 
     componentWillUnmount() {
         this.props.socket.unsubscribe(this.props.signal, this.handleSignalUpdate);
-        this.props.socket.sendMessage({ type: 'unsubscribe', signal: this.props.signal });
     }
 
     handleSignalUpdate = (message: WebSocketMessage) => {

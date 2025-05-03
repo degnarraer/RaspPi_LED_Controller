@@ -92,6 +92,13 @@ void WebSocketSession::send_message(const std::string& message)
             return;
         }
 
+        // UTF-8 validation before adding the message to the queue
+        if (!is_valid_utf8(message))
+        {
+            logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
+            return;
+        }
+
         outgoing_messages_.push_back(message);
         should_write = !writing_ && !backoff_enabled_;
         if (should_write)
@@ -342,7 +349,7 @@ void WebSocketSession::on_read(std::size_t)
 void WebSocketSession::do_write()
 {
     std::lock_guard<std::mutex> lock(write_mutex_);
-    json batch_message = json::array();  // Create a JSON array to store the messages.  
+    json batch_message = json::array();  // Create a JSON array to store the messages.
     if (!ws_.is_open())
     {
         logger_->warn("WebSocket not open.");
@@ -362,23 +369,24 @@ void WebSocketSession::do_write()
     for (size_t i = 0; i < batch_count; ++i)
     {
         const std::string& message = outgoing_messages_.front();
-        
-        if (is_valid_utf8(message))
-        {
-            try
-            {
-                json msg_json = json::parse(message);
-                batch_message.push_back(std::move(msg_json));
-                outgoing_messages_.pop_front();  // Only pop on success
-            }
-            catch (const std::exception& e)
-            {
-                logger_->warn("Session {}: Skipped invalid JSON message: {}", session_id_, message);
-            }
-        }
-        else
+
+        // Validate UTF-8 before parsing it as JSON
+        if (!is_valid_utf8(message))
         {
             logger_->warn("Session {}: Skipped invalid UTF-8 message: {}", session_id_, message);
+            outgoing_messages_.pop_front();  // Remove invalid message from queue
+            continue;
+        }
+
+        try
+        {
+            json msg_json = json::parse(message);
+            batch_message.push_back(std::move(msg_json));
+            outgoing_messages_.pop_front();  // Only pop on success
+        }
+        catch (const std::exception& e)
+        {
+            logger_->warn("Session {}: Skipped invalid JSON message: {}", session_id_, message);
         }
     }
 
@@ -390,7 +398,7 @@ void WebSocketSession::do_write()
     }
 
     std::string combined_message = batch_message.dump();
-    if(is_valid_utf8(combined_message))
+    if (is_valid_utf8(combined_message))
     {
         retry_messages_.push_back(RetryMessage(combined_message));
         ws_.text(true);

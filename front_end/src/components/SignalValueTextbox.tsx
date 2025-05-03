@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { WebSocketContextType } from './WebSocketContext';
+import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
 interface SignalValueTextBoxProps {
     signal: string;
@@ -31,27 +31,27 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
     setupSocket() {
         const { socket, signal } = this.props;
         if (socket?.socket instanceof WebSocket) {
-            socket.socket.addEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'subscribe', signal });
+            socket.subscribe(signal, this.handleSignalValue);
         }
     }
 
     teardownSocket() {
         const { socket, signal } = this.props;
         if (socket?.socket instanceof WebSocket) {
-            socket.socket.removeEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'unsubscribe', signal });
+            socket.unsubscribe(signal, this.handleSignalValue);
         }
     }
 
-    handleSocketMessage = (event: MessageEvent) => {
-        try {
-            const parsed = JSON.parse(event.data);
-            if (parsed && parsed?.signal === this.props.signal) {
-                this.setState({ value: String(parsed.value) });
+    private handleSignalValue = (message: WebSocketMessage) =>  {
+        if (message.signal === this.props.signal) {
+            const value = message.value;
+            if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
+                this.setState({
+                    value: value.values.join(', '),
+                });
+            } else {
+                console.error('Invalid signal value format:', value);
             }
-        } catch (e) {
-            console.error('SignalValueTextBox: Invalid WebSocket message format:', e);
         }
     };
 
