@@ -17,8 +17,8 @@ public:
     ~WebSocketServer();
     void Run();
     void Stop();
-    void broadcast_message_to_websocket(const std::string& message);
-    void broadcast_signal_to_websocket(const std::string& signal_name, const std::string& message);
+    void broadcast_message_to_websocket(const WebSocketMessage& webSocketMessage);
+    void broadcast_signal_to_websocket(const std::string& signal_name, const WebSocketMessage& webSocketMessage);
     void register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client);
     void deregister_backend_client(const std::string& client_name);
     void close_session(const std::string& session_id);

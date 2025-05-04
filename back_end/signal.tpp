@@ -16,8 +16,18 @@ Signal<T>::Signal(const std::string& name)
 }
 
 template<typename T>
-Signal<T>::Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder)
-    : name_(name), webSocketServer_(webSocketServer), data_(std::make_shared<T>()), encoder_(encoder) , isUsingWebSocket_(true)
+Signal<T>::Signal( const std::string& name
+                 , std::shared_ptr<WebSocketServer> webSocketServer
+                 , JsonEncoder<T> encoder
+                 , MessagePriority priority
+                 , bool should_retry )
+                 : name_(name)
+                 , webSocketServer_(webSocketServer)
+                 , data_(std::make_shared<T>())
+                 , encoder_(encoder)
+                 , priority_(priority)
+                 , should_retry_(should_retry)
+                 , isUsingWebSocket_(true)
 {
     logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
 }
@@ -187,7 +197,7 @@ void Signal<T>::NotifyWebSocket()
     }
 
     std::string jsonMessage = encoder_(name_, *data_);
-    webSocketServer_->broadcast_signal_to_websocket(name_, jsonMessage);
+    webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
 }
 
 template<typename T>

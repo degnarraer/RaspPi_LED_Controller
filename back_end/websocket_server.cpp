@@ -77,20 +77,20 @@ void WebSocketServer::Stop()
     }
 }
 
-void WebSocketServer::broadcast_message_to_websocket(const std::string& message)
+void WebSocketServer::broadcast_message_to_websocket(const WebSocketMessage& webSocketMessage)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->debug("Broadcast Message to Clients: {}.", message);
+    logger_->debug("Broadcast Message to Clients: {}.", webSocketMessage.message);
     for (auto& [id, session] : sessions_)
     {
         if (auto shared_session = session.lock())
         {
-            shared_session->send_message(message);
+            shared_session->send_message(webSocketMessage);
         }
     }
 }
 
-void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const std::string& message)
+void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const WebSocketMessage& message)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
     for (auto it = sessions_.begin(); it != sessions_.end();)
@@ -135,7 +135,7 @@ void WebSocketServer::close_session(const std::string& session_id)
     {
         if (auto session = it->second.lock())
         {
-            session->send_message("Session closing...");
+            session->send_message(WebSocketMessage("Session closing...", MessagePriority::High, true));
             session->close();
             logger_->info("Session {}: Closed.", session_id);
         }
@@ -155,7 +155,7 @@ void WebSocketServer::close_all_sessions()
     {
         if (auto shared_session = session.lock())
         {
-            shared_session->send_message("Server shutting down...");
+            shared_session->send_message(WebSocketMessage("Server shutting down...", MessagePriority::High, true));
             shared_session->close();
         }
     }

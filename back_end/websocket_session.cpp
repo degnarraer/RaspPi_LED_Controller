@@ -27,6 +27,7 @@ WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server), backoff_timer_(ws_.get_executor())
 {
     logger_ = InitializeLogger("Web Socket Session", spdlog::level::info);
+    rll_logger_ = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
     logger_->info("Created new WebSocket session: {}", session_id_);
 }
@@ -76,7 +77,7 @@ std::string WebSocketSession::GetSessionID() const
     return session_id_;
 }
 
-void WebSocketSession::send_message(const std::string& message)
+void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
 {
     bool should_write = false;
     {
@@ -94,13 +95,13 @@ void WebSocketSession::send_message(const std::string& message)
         }
 
         // UTF-8 validation before adding the message to the queue
-        if (!is_valid_utf8(message))
+        if (!is_valid_utf8(webSocketMessage.message))
         {
             logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
             return;
         }
 
-        outgoing_messages_.push_back(message);
+        outgoing_messages_.push_back(webSocketMessage);
         should_write = !writing_ && !backoff_enabled_;
         if (should_write)
         {
@@ -143,7 +144,7 @@ void WebSocketSession::resume_sending()
             if (it->retry_count < MAX_RETRY_ATTEMPTS)
             {
                 ++it->retry_count;
-                outgoing_messages_.push_front(it->message);
+                outgoing_messages_.push_front(*it);
                 it = retry_messages_.erase(it);
             }
             else
@@ -351,41 +352,46 @@ void WebSocketSession::do_write()
     }
 
     // Get the next message to send
-    auto message = outgoing_messages_.front();
+    auto webSocketMessage = outgoing_messages_.front();
     outgoing_messages_.pop_front();
 
     ws_.async_write(
-        asio::buffer(message),
-        [self = shared_from_this(), message](beast::error_code ec, std::size_t bytes_transferred)
+        asio::buffer(webSocketMessage.message),
+        [self = shared_from_this(), webSocketMessage](beast::error_code ec, std::size_t bytes_transferred)
         {
             if (ec)
             {
-                self->logger_->warn("Write error: {}", ec.message());
-                self->schedule_backoff(); // Re-enable backoff if there is a write error
-                self->retry_message(message);
+                self->rll_logger_->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
+                self->schedule_backoff();
+                if(webSocketMessage.should_retry)
+                {
+                    self->retry_message(webSocketMessage);
+                }
+                else
+                {
+                    self->logger_->warn("Session {}: Message not retried: {}", self->GetSessionID(), webSocketMessage.message);
+                }
             }
             else
             {
-                self->logger_->debug("Sent message: {}, bytes transferred: {}", message, bytes_transferred);
+                self->logger_->debug("Sent message: {}, bytes transferred: {}", webSocketMessage.message, bytes_transferred);
             }
 
-            self->do_write(); // Continue sending the next message in the queue
+            self->do_write();
         });
 }
 
-void WebSocketSession::retry_message(const std::string& message)
+void WebSocketSession::retry_message(const WebSocketMessage& webSocketMessage)
 {
     std::lock_guard<std::mutex> lock(retry_mutex_);
-
-    // Retry the message for a maximum number of attempts
     if (retry_messages_.size() < MAX_BATCH_COUNT)
     {
-        retry_messages_.push_back({message, 0}); // Add the message to retry list
-        logger_->info("Message queued for retry: {}", message);
+        retry_messages_.push_back(webSocketMessage);
+        rll_logger_->log("Queued for retry", spdlog::level::info, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
     }
     else
     {
-        logger_->warn("Retry queue full, dropping message: {}", truncate_for_log(message));
+        rll_logger_->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
     }
 }
 

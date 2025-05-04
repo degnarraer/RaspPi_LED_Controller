@@ -48,19 +48,30 @@ protected:
     static const std::unordered_map<MessageType, std::string> type_to_string_;
 };
 
+enum MessagePriority
+{
+    High,
+    Medium,
+    Low
+};
+
+struct WebSocketMessage
+{
+    std::string message;
+    MessagePriority priority = MessagePriority::Low;
+    int retry_count = 0;
+    bool should_retry = false;
+    WebSocketMessage(const std::string& msg, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
+        : message(msg), priority(p), should_retry(retry_flag) {}
+};
+
 class WebSocketSession : public MessageTypeHelper, public std::enable_shared_from_this<WebSocketSession>
 {
 public:
-    struct RetryMessage
-    {
-        std::string message;
-        int retry_count = 0;
-    };
-
     explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
     void run();
     void close();
-    void send_message(const std::string& message);
+    void send_message(const WebSocketMessage& message);
     std::string GetSessionID() const;
 
     bool subscribe_to_signal(const std::string& signal_name);
@@ -76,7 +87,7 @@ private:
     void handle_write_error(beast::error_code ec);
     void maybe_backoff();
     void schedule_backoff();
-    void retry_message(const std::string& message);
+    void retry_message(const WebSocketMessage& message);
     void send_signal_update(const std::string& signal_name, const std::string& data);
     void handle_disconnection();
     void on_disconnect();
@@ -98,16 +109,17 @@ private:
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
     std::shared_ptr<spdlog::logger> logger_;
+    std::shared_ptr<RateLimitedLogger> rll_logger_;
     beast::flat_buffer buffer_;
     std::string session_id_;
 
-    std::deque<std::string> outgoing_messages_;
+    std::deque<WebSocketMessage> outgoing_messages_;
     bool writing_ = false;
     mutable std::mutex read_mutex_;
     mutable std::mutex write_mutex_;
 
-    std::deque<RetryMessage> retry_messages_;
-    std::optional<std::string> pending_retry_message_;
+    std::deque<WebSocketMessage> retry_messages_;
+    std::optional<WebSocketMessage> pending_retry_message_;
     std::mutex retry_mutex_;
 
     const int MAX_RETRY_COUNT = 5;

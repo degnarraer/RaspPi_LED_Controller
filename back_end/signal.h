@@ -129,7 +129,11 @@ class Signal : public ISignalValue<T>
         using Callback = typename ISignalValue<T>::Callback;
 
         explicit Signal(const std::string& name);
-        Signal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder = nullptr);
+        Signal( const std::string& name
+              , std::shared_ptr<WebSocketServer> webSocketServer
+              , JsonEncoder<T> encoder = nullptr
+              , MessagePriority priority = MessagePriority::Low
+              , bool should_retry = false );
 
         void Setup();
         void SetValue(const T& value, void* arg = nullptr) override;
@@ -161,6 +165,8 @@ class Signal : public ISignalValue<T>
         std::shared_ptr<WebSocketServer> webSocketServer_;
         std::shared_ptr<spdlog::logger> logger_;
         JsonEncoder<T> encoder_;
+        MessagePriority priority_;
+        bool should_retry_;
         bool isUsingWebSocket_;
 
         void NotifyClients(void* arg);
