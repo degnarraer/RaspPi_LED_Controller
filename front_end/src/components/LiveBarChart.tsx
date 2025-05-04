@@ -174,8 +174,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {
-        if (message.signal !== this.props.signal) return;
-        if (message.type === 'text') {
+        if (message.type === 'signal') {
             const value = message.value;
             if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({
@@ -183,10 +182,13 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                     dataValues: value.values,
                 });
             } else {
-                console.error('Invalid signal value format:', value);
+                console.warn('Invalid signal value format:', value);
             } 
         } else if (message.type === 'binary') {
-            console.log('Received unsuported binary data.');
+            console.warn('Received unsuported binary data.');
+        }
+        else{
+            console.warn('Received unsuported message type: ', message.type);
         }
     };
 

@@ -12,8 +12,8 @@ export type ControlWebSocketMessage = {
   signal: string;
 };
 
-export type TextWebSocketMessage = {
-  type: 'text';
+export type SignalValueWebSocketMessage = {
+  type: 'text' | 'signal';
   signal: string;
   value?: any;
 };
@@ -24,7 +24,7 @@ export type BinaryWebSocketMessage = {
   payload: Uint8Array;
 };
 
-export type WebSocketMessage = ControlWebSocketMessage | TextWebSocketMessage | BinaryWebSocketMessage;
+export type WebSocketMessage = ControlWebSocketMessage | SignalValueWebSocketMessage | BinaryWebSocketMessage;
 
 export type WebSocketContextType = {
   socket: WebSocket | null;
@@ -138,21 +138,30 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   };
   
   const handleArrayBufferMessage = (buffer: ArrayBuffer) => {
-    const data = new Uint8Array(buffer);
+    let length = buffer.byteLength;
+    console.log('Array buffer message received of byte length: ', length);
+  };
+  
+  const handleBlobMessage = (event: MessageEvent) => {
+    console.log('Blob message received.');
+    const data = new Uint8Array(event.data);
+    console.log('Blob message received of byte length: ', data.byteLength);
     const messageType = data[0];
   
     switch (messageType) {
-      case 0x01: // Named_Binary_Encoder
+      case 0x01:
+        
         handleNamedBinaryEncoder(data);
         break;
       default:
-        console.warn('Unknown binary message type:', messageType);
+        console.warn('Unknown blob message type:', messageType);
     }
   };
-  
+
   const handleNamedBinaryEncoder = (data: Uint8Array) => {
+    console.log('Named Binary message received.');
     if (data.length < 3) {
-      console.warn("Binary message too short");
+      console.warn("Binary message too short.");
       return;
     }
   
@@ -177,16 +186,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         payload,
       });
   };
-  
-  const handleBlobMessage = (event: MessageEvent) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      handleMessage({ ...event, data: reader.result as string });
-    };
-    reader.onerror = () => console.error('Failed to read blob message');
-    reader.readAsText(event.data);
-  };
-  
+
   const handleTextMessage = (textData: string) => {
     let parsed: unknown;
     try {

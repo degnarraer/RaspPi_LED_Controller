@@ -43,8 +43,7 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
     }
 
     private handleSignalValue = (message: WebSocketMessage) =>  {
-        if (message.signal !== this.props.signal) return;
-        if (message.type === 'text') {
+        if (message.type === 'signal') {
             const value = message.value;
             if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({

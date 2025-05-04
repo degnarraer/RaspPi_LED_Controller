@@ -18,42 +18,45 @@ Signal<T>::Signal( const std::string& name )
                  , isUsingWebSocket_(false)
 {
     logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+    logger_->info("Created Signal\n Name: {}\n Type: Internal ", name_);
 }
 
 template<typename T>
 Signal<T>::Signal( const std::string& name
                  , std::shared_ptr<WebSocketServer> webSocketServer
-                 , JsonEncoder<T> encoder
+                 , JsonEncoder<T> jsonEncoder
                  , MessagePriority priority
                  , bool should_retry )
                  : name_(name)
                  , webSocketServer_(webSocketServer)
                  , data_(std::make_shared<T>())
-                 , jsonEncoder_(encoder)
+                 , jsonEncoder_(jsonEncoder)
                  , binaryEncoder_(nullptr)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
 {
     logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+    logger_->info("Created Signal\n Name: {}\n Type: json WebSocket", name_);
 }
 
 template<typename T>
 Signal<T>::Signal( const std::string& name
                  , std::shared_ptr<WebSocketServer> webSocketServer
-                 , BinaryEncoder<T> encoder
+                 , BinaryEncoder<T> binaryEncoder
                  , MessagePriority priority
                  , bool should_retry )
                  : name_(name)
                  , webSocketServer_(webSocketServer)
                  , data_(std::make_shared<T>())
                  , jsonEncoder_(nullptr)
-                 , binaryEncoder_(encoder)
+                 , binaryEncoder_(binaryEncoder)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
 {
     logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+    logger_->info("Created Signal\n Name: {}\n Type: binary WebSocket", name_);
 }
 
 template<typename T>

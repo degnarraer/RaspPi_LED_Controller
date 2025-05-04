@@ -96,8 +96,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     }
 
     private readonly handleSignalValue = (message: WebSocketMessage) => {
-        if (message.signal !== this.props.signal) return;
-        if (message.type === 'text') {
+        if (message.type === 'signal') {
             if (Array.isArray(message.value?.values)) {
                 this.queueRow(message.value.values);
             } else {
