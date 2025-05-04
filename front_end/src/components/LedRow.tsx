@@ -52,20 +52,19 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {
-        const value = message.value;
-        if (!(message.signal === this.props.signal)) {
-            return;
-        }
-        else if (Array.isArray(value) && this.props.rowIndex < value.length && Array.isArray(value[this.props.rowIndex])) {
-            const rowColors = value[this.props.rowIndex];
-            const colors = rowColors.map(this.hexToRgb);
-            this.setState({ ledColors: colors });
-
-            // Rate-limit WebSocket data log (value received)
-            this.webSocketLogger.log(`Received data for signal: ${this.props.signal}, row: ${this.props.rowIndex}`);
-        } else {
-            // Rate-limited log for unexpected signal format, now including occurrence count
-            this.webSocketLogger.log(`LEDRow: Unexpected signal value format: ${JSON.stringify(value)}`);
+        if (message.signal !== this.props.signal) return;
+        if (message.type === 'text') {
+            const value = message.value;
+            if (Array.isArray(value) && this.props.rowIndex < value.length && Array.isArray(value[this.props.rowIndex])) {
+                const rowColors = value[this.props.rowIndex];
+                const colors = rowColors.map(this.hexToRgb);
+                this.setState({ ledColors: colors });
+                this.webSocketLogger.log(`Received data for signal: ${this.props.signal}, row: ${this.props.rowIndex}`);
+            } else {
+                this.webSocketLogger.log(`LEDRow: Unexpected signal value format: ${JSON.stringify(value)}`);
+            }
+        } else if (message.type === 'binary') {
+            console.log('Received unsuported binary data.');
         }
     };
 

@@ -142,19 +142,22 @@ export default class MirroredVerticalBarChart extends Component<
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {
-        const { leftSignal, rightSignal } = this.props;
-    
-        // Check if the signal matches left or right
-        if (message.signal === leftSignal) {
-            this.setState({
-                dataLabels: message.value.labels,
-                leftValues: message.value.values,
-            });
-        } else if (message.signal === rightSignal) {
-            this.setState({
-                dataLabels: message.value.labels,
-                rightValues: message.value.values,
-            });
+        if (message.signal !== this.props.leftSignal || message.signal !== this.props.rightSignal) return;
+        if (message.type === 'text') {
+            const { leftSignal, rightSignal } = this.props;
+            if (message.signal === leftSignal) {
+                this.setState({
+                    dataLabels: message.value.labels,
+                    leftValues: message.value.values,
+                });
+            } else if (message.signal === rightSignal) {
+                this.setState({
+                    dataLabels: message.value.labels,
+                    rightValues: message.value.values,
+                });
+            }
+        } else if (message.type === 'binary') {
+            console.log('Received unsuported binary data.');
         }
     };
 

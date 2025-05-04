@@ -96,12 +96,15 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     }
 
     private readonly handleSignalValue = (message: WebSocketMessage) => {
-        if (message.signal === this.props.signal) {
+        if (message.signal !== this.props.signal) return;
+        if (message.type === 'text') {
             if (Array.isArray(message.value?.values)) {
                 this.queueRow(message.value.values);
             } else {
                 console.error('Invalid data format:', message.value);
-            }
+            }  
+        } else if (message.type === 'binary') {
+            console.log('Received unsuported binary data.');
         }
     };
 

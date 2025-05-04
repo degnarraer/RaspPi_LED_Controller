@@ -1,5 +1,5 @@
 import { Component, createRef } from 'react';
-import { WebSocketContextType } from './WebSocketContext';
+import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
 interface StreamingScatterPlotProps {
     signal: string;
@@ -108,40 +108,23 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
     }
 
     setupSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.addEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'subscribe', signal: this.props.signal });
-        }
+        const { socket, signal } = this.props;
+        if (!socket) return;
+        socket.subscribe(signal, this.handleSignalValue);
     }
 
     teardownSocket() {
-        const { socket } = this.props;
-        if (socket?.socket instanceof WebSocket) {
-            socket.socket.removeEventListener('message', this.handleSocketMessage);
-            socket.sendMessage({ type: 'unsubscribe', signal: this.props.signal });
-        }
+        const { socket, signal } = this.props;
+        if (!socket) return;
+        socket.unsubscribe(signal, this.handleSignalValue);
     }
 
-    handleSocketMessage = (event: MessageEvent) => {
-        try {
-            const parsed = JSON.parse(event.data);
-            if ( parsed && parsed.signal === this.props.signal){
-                if(Array.isArray(parsed.value)){
-                    this.setState((prevState) => {
-                        const newFast = parsed.value.slice(-1000);
-                        const newSlow = [...prevState.slowPoints, ...parsed.value];
-                        return {
-                            fastPoints: newFast,
-                            slowPoints: newSlow.slice(-480000),
-                        };
-                    }, this.updateChart);
-                }else{
-                    console.error('StreamingScatterPlot: Invalid data format:', parsed.value);
-                }
-            }
-        } catch (e) {
-            console.error('StreamingScatterPlot: Invalid WebSocket message format:', e);
+    private readonly handleSignalValue = (message: WebSocketMessage) => {
+        if (message.signal !== this.props.signal) return;
+        if (message.type === 'text') {
+            console.log('Received un implemented text data.');
+        } else if (message.type === 'binary') {
+            console.log('Received unsuported binary data.');
         }
     };
 

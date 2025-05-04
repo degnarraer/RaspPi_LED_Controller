@@ -262,3 +262,19 @@ std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name, 
     signals_[name] = signal;
     return signal;
 }
+
+template<typename T>
+std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = signals_.find(name);
+    if (it != signals_.end())
+    {
+        return std::static_pointer_cast<Signal<T>>(it->second);
+    }
+
+    auto signal = std::make_shared<Signal<T>>(name, webSocketServer, encoder);
+    signal->Setup();
+    signals_[name] = signal;
+    return signal;
+}

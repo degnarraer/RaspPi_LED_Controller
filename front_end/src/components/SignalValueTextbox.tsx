@@ -43,7 +43,8 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
     }
 
     private handleSignalValue = (message: WebSocketMessage) =>  {
-        if (message.signal === this.props.signal) {
+        if (message.signal !== this.props.signal) return;
+        if (message.type === 'text') {
             const value = message.value;
             if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({
@@ -52,6 +53,8 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
             } else {
                 console.error('Invalid signal value format:', value);
             }
+        } else if (message.type === 'binary') {
+            console.log('Received unsuported binary data.');
         }
     };
 

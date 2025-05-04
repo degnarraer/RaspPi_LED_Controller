@@ -7,11 +7,24 @@ import React, {
   useContext,
 } from 'react';
 
-export interface WebSocketMessage {
-  type: string;
+export type ControlWebSocketMessage = {
+  type: 'subscribe' | 'unsubscribe';
+  signal: string;
+};
+
+export type TextWebSocketMessage = {
+  type: 'text';
   signal: string;
   value?: any;
-}
+};
+
+export type BinaryWebSocketMessage = {
+  type: 'binary';
+  signal: string;
+  payload: Uint8Array;
+};
+
+export type WebSocketMessage = ControlWebSocketMessage | TextWebSocketMessage | BinaryWebSocketMessage;
 
 export type WebSocketContextType = {
   socket: WebSocket | null;
@@ -107,51 +120,97 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
       'value' in msg
     );
   };
-
+  
   const handleMessage = (event: MessageEvent) => {
     try {
-      let textData: string;
-
       if (event.data instanceof ArrayBuffer) {
-        const decoder = new TextDecoder('utf-8', { fatal: false });
-        textData = decoder.decode(event.data);
+        handleArrayBufferMessage(event.data);
       } else if (event.data instanceof Blob) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          handleMessage({ ...event, data: reader.result as string });
-        };
-        reader.onerror = () => console.error('Failed to read blob message');
-        reader.readAsText(event.data);
-        return;
+        handleBlobMessage(event);
       } else if (typeof event.data === 'string') {
-        textData = event.data;
+        handleTextMessage(event.data);
       } else {
         console.warn('Unhandled WebSocket message type:', typeof event.data);
-        return;
-      }
-
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(textData);
-      } catch (err) {
-        console.error('Invalid JSON received:', textData);
-        return;
-      }
-
-      const messages = Array.isArray(parsed) ? parsed : [parsed];
-      for (const message of messages) {
-        if (isWebSocketMessage(message)) {
-          const callbacks = subscribers.current.get(message.signal);
-          callbacks?.forEach(cb => cb(message));
-        } else {
-          console.warn('Unexpected message structure:', message);
-        }
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error);
     }
   };
-
+  
+  const handleArrayBufferMessage = (buffer: ArrayBuffer) => {
+    const data = new Uint8Array(buffer);
+    const messageType = data[0];
+  
+    switch (messageType) {
+      case 0x01: // Named_Binary_Encoder
+        handleNamedBinaryEncoder(data);
+        break;
+      default:
+        console.warn('Unknown binary message type:', messageType);
+    }
+  };
+  
+  const handleNamedBinaryEncoder = (data: Uint8Array) => {
+    if (data.length < 3) {
+      console.warn("Binary message too short");
+      return;
+    }
+  
+    const nameLen = (data[1] << 8) | data[2];
+    const nameStart = 3;
+    const nameEnd = nameStart + nameLen;
+  
+    if (data.length < nameEnd) {
+      console.warn("Binary message truncated before signal name");
+      return;
+    }
+  
+    const nameBytes = data.slice(nameStart, nameEnd);
+    const decoder = new TextDecoder('utf-8');
+    const signalName = decoder.decode(nameBytes);
+  
+    const payload = data.slice(nameEnd);
+  
+    handleCallbacks(signalName, {
+        type: 'binary',
+        signal: signalName,
+        payload,
+      });
+  };
+  
+  const handleBlobMessage = (event: MessageEvent) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      handleMessage({ ...event, data: reader.result as string });
+    };
+    reader.onerror = () => console.error('Failed to read blob message');
+    reader.readAsText(event.data);
+  };
+  
+  const handleTextMessage = (textData: string) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textData);
+    } catch (err) {
+      console.error('Invalid JSON received:', textData);
+      return;
+    }
+  
+    const messages = Array.isArray(parsed) ? parsed : [parsed];
+    for (const message of messages) {
+      if (isWebSocketMessage(message)) {
+        handleCallbacks(message.signal, message);
+      } else {
+        console.warn('Unexpected message structure:', message);
+      }
+    }
+  };
+  
+  const handleCallbacks = (signalName: string, message: WebSocketMessage) => {
+    const callbacks = subscribers.current.get(signalName);
+    callbacks?.forEach(cb => cb(message));
+  };
+  
   const sendMessage = (message: WebSocketMessage) => {
     const currentSocket = wsRef.current;
     if (currentSocket?.readyState === WebSocket.OPEN) {

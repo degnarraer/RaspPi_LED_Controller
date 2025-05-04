@@ -91,11 +91,10 @@ private:
     std::vector<std::vector<RGB>> pixels_;
     std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> signal_;
     std::shared_ptr<spdlog::logger> logger_;
-    template<typename T>
-
+    
     BinaryEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_to_binary_encoder()
     {
-        return [](const std::string& signal_name, const std::vector<std::vector<RGB>>& matrix) -> std::vector<uint8_t>
+        const BinaryEncoder<std::vector<std::vector<RGB>>> encoder = [this](const std::string& signal_name, const std::vector<std::vector<RGB>>& matrix) -> std::vector<uint8_t>
         {
             std::vector<uint8_t> buffer;
 
@@ -126,11 +125,12 @@ private:
                     buffer.push_back(pixel.b);
                 }
             }
-
             return buffer;
         };
+        return encoder;
     }
-    JsonEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_encoder()
+
+    JsonEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_to_json_encoder()
     {
         const JsonEncoder<std::vector<std::vector<RGB>>> encoder = [this](const std::string& signal, const std::vector<std::vector<RGB>>& value) {
             json j;
