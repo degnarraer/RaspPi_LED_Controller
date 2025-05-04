@@ -27,7 +27,7 @@ WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     : ws_(std::move(socket)), server_(server), backoff_timer_(ws_.get_executor())
 {
     logger_ = InitializeLogger("Web Socket Session", spdlog::level::info);
-    rll_logger_ = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
+    rate_limited_log = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
     logger_->info("Created new WebSocket session: {}", session_id_);
 }
@@ -361,7 +361,7 @@ void WebSocketSession::do_write()
         {
             if (ec)
             {
-                self->rll_logger_->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
+                self->rate_limited_log->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
                 self->schedule_backoff();
                 if(webSocketMessage.should_retry)
                 {
@@ -369,7 +369,7 @@ void WebSocketSession::do_write()
                 }
                 else
                 {
-                    self->logger_->warn("Session {}: Message not retried: {}", self->GetSessionID(), webSocketMessage.message);
+                    self->rate_limited_log->log("not retried", spdlog::level::warn, "Session {}: Message not retried: {}", self->GetSessionID(), truncate_for_log(webSocketMessage.message));
                 }
             }
             else
@@ -387,11 +387,11 @@ void WebSocketSession::retry_message(const WebSocketMessage& webSocketMessage)
     if (retry_messages_.size() < MAX_BATCH_COUNT)
     {
         retry_messages_.push_back(webSocketMessage);
-        rll_logger_->log("Queued for retry", spdlog::level::info, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
+        rate_limited_log->log("Queued for retry", spdlog::level::info, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
     }
     else
     {
-        rll_logger_->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
+        rate_limited_log->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
     }
 }
 

@@ -109,7 +109,7 @@ private:
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
     std::shared_ptr<spdlog::logger> logger_;
-    std::shared_ptr<RateLimitedLogger> rll_logger_;
+    std::shared_ptr<RateLimitedLogger> rate_limited_log;
     beast::flat_buffer buffer_;
     std::string session_id_;
 
