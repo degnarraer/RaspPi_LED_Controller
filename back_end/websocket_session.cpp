@@ -371,7 +371,10 @@ void WebSocketSession::do_write()
                         {
                             self->rate_limited_log->log("write error", spdlog::level::warn, "Text write error: {}", ec.message());
                             self->schedule_backoff();
-                            self->retry_message(webSocketMessage);
+                            if(webSocketMessage.should_retry)
+                            {
+                                self->retry_message(webSocketMessage);
+                            }
                         }
                         else
                         {
@@ -392,7 +395,10 @@ void WebSocketSession::do_write()
                         {
                             self->rate_limited_log->log("write error", spdlog::level::warn, "Binary write error: {}", ec.message());
                             self->schedule_backoff();
-                            self->retry_message(webSocketMessage);
+                            if(webSocketMessage.should_retry)
+                            {
+                                self->retry_message(webSocketMessage);
+                            }
                         }
                         else
                         {

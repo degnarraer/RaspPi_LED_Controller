@@ -22,6 +22,32 @@ struct Point
 template<typename T>
 using JsonEncoder = std::function<std::string(const std::string&, const T&)>;
 
+enum class BinaryEncoderType : uint8_t
+{
+    /**
+     * Named_Binary_Encoder (0x01)
+     *
+     * Binary layout:
+     * --------------------------------------------------------
+     * | Offset | Field        | Size    | Description         |
+     * |--------|--------------|---------|---------------------|
+     * | 0      | message_type | 1 byte  | Always 0x01         |
+     * | 1–2    | name_length  | 2 bytes | Big-endian uint16_t |
+     * | 3–N    | signal_name  | N bytes | UTF-8, not null-term|
+     * | N+1+   | payload      | varies  | Signal value data   |
+     * 
+     * Notes:
+     * - Byte order: All multi-byte fields use **big-endian**.
+     * - signal_name: Encoded as raw UTF-8, no null terminator.
+     * - payload: Binary blob of the signal's value, e.g., RGB matrix.
+     * - Extensible by using new values for `BinaryEncoderType`.
+     */
+    Named_Binary_Encoder = 0x01,
+};
+
+template<typename T>
+using BinaryEncoder = std::function<std::vector<uint8_t>(const std::string&, const T&)>;
+
 template <typename T>
 inline std::string to_string(const T& value)
 {
@@ -134,6 +160,11 @@ class Signal : public ISignalValue<T>
               , JsonEncoder<T> encoder = nullptr
               , MessagePriority priority = MessagePriority::Low
               , bool should_retry = false );
+        Signal( const std::string& name
+              , std::shared_ptr<WebSocketServer> webSocketServer
+              , BinaryEncoder<T> encoder = nullptr
+              , MessagePriority priority = MessagePriority::Low
+              , bool should_retry = false );
 
         void Setup();
         void SetValue(const T& value, void* arg = nullptr) override;
@@ -164,7 +195,8 @@ class Signal : public ISignalValue<T>
         std::vector<typename ISignalValue<T>::CallbackData> callbacks_;
         std::shared_ptr<WebSocketServer> webSocketServer_;
         std::shared_ptr<spdlog::logger> logger_;
-        JsonEncoder<T> encoder_;
+        JsonEncoder<T> jsonEncoder_;
+        BinaryEncoder<T> binaryEncoder_;
         MessagePriority priority_;
         bool should_retry_;
         bool isUsingWebSocket_;
@@ -183,6 +215,9 @@ public:
 
     template<typename T>
     std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder = nullptr);
+    
+    template<typename T>
+    std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder = nullptr);
 
     ISignalName* GetSignalByName(const std::string& name)
     {

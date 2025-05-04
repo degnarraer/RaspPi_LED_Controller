@@ -9,8 +9,13 @@
 
 
 template<typename T>
-Signal<T>::Signal(const std::string& name)
-    : name_(name), webSocketServer_(nullptr), data_(std::make_shared<T>()), encoder_(nullptr), isUsingWebSocket_(false)
+Signal<T>::Signal( const std::string& name )
+                 : name_(name)
+                 , webSocketServer_(nullptr)
+                 , data_(std::make_shared<T>())
+                 , jsonEncoder_(nullptr)
+                 , binaryEncoder_(nullptr)
+                 , isUsingWebSocket_(false)
 {
     logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
 }
@@ -24,7 +29,26 @@ Signal<T>::Signal( const std::string& name
                  : name_(name)
                  , webSocketServer_(webSocketServer)
                  , data_(std::make_shared<T>())
-                 , encoder_(encoder)
+                 , jsonEncoder_(encoder)
+                 , binaryEncoder_(nullptr)
+                 , priority_(priority)
+                 , should_retry_(should_retry)
+                 , isUsingWebSocket_(true)
+{
+    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+}
+
+template<typename T>
+Signal<T>::Signal( const std::string& name
+                 , std::shared_ptr<WebSocketServer> webSocketServer
+                 , BinaryEncoder<T> encoder
+                 , MessagePriority priority
+                 , bool should_retry )
+                 : name_(name)
+                 , webSocketServer_(webSocketServer)
+                 , data_(std::make_shared<T>())
+                 , jsonEncoder_(nullptr)
+                 , binaryEncoder_(encoder)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
@@ -185,7 +209,7 @@ void Signal<T>::NotifyWebSocket()
         return;
     }
 
-    if (!encoder_)
+    if (!jsonEncoder_ && !binaryEncoder_)
     {
         logger_->error("{}: Encoder is not initialized.", name_);
         return;
@@ -196,8 +220,16 @@ void Signal<T>::NotifyWebSocket()
         logger_->debug("NotifyWebSocket: {}", to_string(*data_));
     }
 
-    std::string jsonMessage = encoder_(name_, *data_);
-    webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
+    if(jsonEncoder_)
+    {
+        std::string jsonMessage = jsonEncoder_(name_, *data_);
+        webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
+    }
+    else if(binaryEncoder_)
+    {
+        const std::vector<uint8_t> binaryMessage = binaryEncoder_(name_, *data_);
+        webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(binaryMessage, priority_, should_retry_));
+    }
 }
 
 template<typename T>
