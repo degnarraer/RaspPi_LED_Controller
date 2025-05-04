@@ -5,7 +5,7 @@ WebSocketServer::WebSocketServer(short port)
     , port_(port)
     , acceptor_(ioc_, tcp::endpoint(tcp::v4(), port_))
 {
-    logger_ = spdlog::stdout_color_mt("websocket_server");
+    logger_ = spdlog::stdout_color_mt("Websocket Server");
     logger_->set_level(spdlog::level::info);
 
     try {        

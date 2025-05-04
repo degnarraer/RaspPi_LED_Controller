@@ -55,14 +55,24 @@ enum MessagePriority
     Low
 };
 
+enum WebSocketMessageType
+{
+    Text,
+    Binary
+};
+
 struct WebSocketMessage
 {
     std::string message;
+    std::vector<uint8_t> binary_data;
+    WebSocketMessageType webSocket_Message_type = WebSocketMessageType::Text;
     MessagePriority priority = MessagePriority::Low;
     int retry_count = 0;
     bool should_retry = false;
     WebSocketMessage(const std::string& msg, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
         : message(msg), priority(p), should_retry(retry_flag) {}
+    WebSocketMessage(const std::vector<uint8_t>& data, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
+    : binary_data(data), webSocket_Message_type(WebSocketMessageType::Binary), priority(p), should_retry(retry_flag) {}
 };
 
 class WebSocketSession : public MessageTypeHelper, public std::enable_shared_from_this<WebSocketSession>
@@ -72,6 +82,7 @@ public:
     void run();
     void close();
     void send_message(const WebSocketMessage& message);
+    void send_binary_message(const std::vector<uint8_t>& message);
     std::string GetSessionID() const;
 
     bool subscribe_to_signal(const std::string& signal_name);
@@ -119,7 +130,6 @@ private:
     mutable std::mutex write_mutex_;
 
     std::deque<WebSocketMessage> retry_messages_;
-    std::optional<WebSocketMessage> pending_retry_message_;
     std::mutex retry_mutex_;
 
     const int MAX_RETRY_COUNT = 5;

@@ -93,8 +93,6 @@ void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
             }
             return;
         }
-
-        // UTF-8 validation before adding the message to the queue
         if (!is_valid_utf8(webSocketMessage.message))
         {
             logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
@@ -113,6 +111,12 @@ void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
     {
         do_write();
     }
+}
+
+void WebSocketSession::send_binary_message(const std::vector<uint8_t>& message)
+{
+    WebSocketMessage binary_msg(message, MessagePriority::Low, false);
+    send_message(binary_msg);
 }
 
 void WebSocketSession::schedule_backoff()
@@ -138,7 +142,6 @@ void WebSocketSession::resume_sending()
 
         backoff_enabled_ = false;
 
-        // Move retryable messages back to outgoing if under retry limit
         for (auto it = retry_messages_.begin(); it != retry_messages_.end();)
         {
             if (it->retry_count < MAX_RETRY_ATTEMPTS)
@@ -150,7 +153,7 @@ void WebSocketSession::resume_sending()
             else
             {
                 logger_->warn("Dropping message after {} retries: {}", MAX_RETRY_ATTEMPTS, it->message);
-                it = retry_messages_.erase(it);  // Drop it
+                it = retry_messages_.erase(it);
             }
         }
 
@@ -351,34 +354,59 @@ void WebSocketSession::do_write()
         return;
     }
 
-    // Get the next message to send
     auto webSocketMessage = outgoing_messages_.front();
     outgoing_messages_.pop_front();
+    writing_ = true;
 
-    ws_.async_write(
-        asio::buffer(webSocketMessage.message),
-        [self = shared_from_this(), webSocketMessage](beast::error_code ec, std::size_t bytes_transferred)
-        {
-            if (ec)
+    switch(webSocketMessage.webSocket_Message_type)
+    {
+        case WebSocketMessageType::Text:
             {
-                self->rate_limited_log->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
-                self->schedule_backoff();
-                if(webSocketMessage.should_retry)
-                {
-                    self->retry_message(webSocketMessage);
-                }
-                else
-                {
-                    self->rate_limited_log->log("not retried", spdlog::level::warn, "Session {}: Message not retried: {}", self->GetSessionID(), truncate_for_log(webSocketMessage.message));
-                }
+                ws_.text(true);
+                ws_.async_write(
+                    asio::buffer(webSocketMessage.message),
+                    [self = shared_from_this(), webSocketMessage](beast::error_code ec, std::size_t bytes_transferred)
+                    {
+                        if (ec)
+                        {
+                            self->rate_limited_log->log("write error", spdlog::level::warn, "Text write error: {}", ec.message());
+                            self->schedule_backoff();
+                            self->retry_message(webSocketMessage);
+                        }
+                        else
+                        {
+                            self->logger_->debug("Sent text message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
+                            self->do_write();
+                        }
+                    });
             }
-            else
+            break;
+        case WebSocketMessageType::Binary:
             {
-                self->logger_->debug("Sent message: {}, bytes transferred: {}", webSocketMessage.message, bytes_transferred);
+                ws_.binary(true);
+                ws_.async_write(
+                    asio::buffer(webSocketMessage.binary_data),
+                    [self = shared_from_this(), webSocketMessage](beast::error_code ec, std::size_t bytes_transferred)
+                    {
+                        if (ec)
+                        {
+                            self->rate_limited_log->log("write error", spdlog::level::warn, "Binary write error: {}", ec.message());
+                            self->schedule_backoff();
+                            self->retry_message(webSocketMessage);
+                        }
+                        else
+                        {
+                            self->logger_->debug("Sent binary message, bytes: {}", bytes_transferred);
+                            self->do_write();
+                        }
+                    });
             }
-
-            self->do_write();
-        });
+            break;
+        default:
+            logger_->warn("Session: {} Unknown message type", GetSessionID());
+            writing_ = false;
+            return;
+    }
 }
 
 void WebSocketSession::retry_message(const WebSocketMessage& webSocketMessage)
@@ -387,7 +415,7 @@ void WebSocketSession::retry_message(const WebSocketMessage& webSocketMessage)
     if (retry_messages_.size() < MAX_BATCH_COUNT)
     {
         retry_messages_.push_back(webSocketMessage);
-        rate_limited_log->log("Queued for retry", spdlog::level::info, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
+        rate_limited_log->log("Queued for retry", spdlog::level::info, "Queued message for retry: {}", truncate_for_log(webSocketMessage.message));
     }
     else
     {
