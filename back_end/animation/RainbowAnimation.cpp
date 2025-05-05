@@ -1,7 +1,7 @@
 #include "RainbowAnimation.h"
 
 RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
-    : PixelGridAnimation(grid, 20)
+    : PixelGridAnimation(grid, 100)
 {
     auto leftBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Left Channel");
     auto rightBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Right Channel");

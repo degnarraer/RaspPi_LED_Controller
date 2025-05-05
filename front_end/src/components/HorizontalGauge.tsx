@@ -39,8 +39,7 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
     }
 
     handleSignalUpdate = (message: WebSocketMessage) => {
-        if (message.signal !== this.props.signal) return;
-        if (message.type === 'text') {
+        if (message.type === 'signal') {
             const value = message.value;
             this.setState({ value: parseFloat(value.replace(/[^\d.-]/g, '')) || 0 });
         } else if (message.type === 'binary') {
