@@ -126,7 +126,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
       if (event.data instanceof ArrayBuffer) {
         handleArrayBufferMessage(event.data);
       } else if (event.data instanceof Blob) {
-        handleBlobMessage(event);
+        event.data.arrayBuffer().then(buffer => {
+          const uint8Array = new Uint8Array(buffer);
+          handleBlobMessage(uint8Array);
+        });
       } else if (typeof event.data === 'string') {
         handleTextMessage(event.data);
       } else {
@@ -142,15 +145,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
     console.log('Array buffer message received of byte length: ', length);
   };
   
-  const handleBlobMessage = (event: MessageEvent) => {
-    console.log('Blob message received.');
-    const data = new Uint8Array(event.data);
-    console.log('Blob message received of byte length: ', data.byteLength);
+  const handleBlobMessage = (data: Uint8Array) => {
     const messageType = data[0];
-  
     switch (messageType) {
       case 0x01:
-        
         handleNamedBinaryEncoder(data);
         break;
       default:
@@ -159,7 +157,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   };
 
   const handleNamedBinaryEncoder = (data: Uint8Array) => {
-    console.log('Named Binary message received.');
     if (data.length < 3) {
       console.warn("Binary message too short.");
       return;

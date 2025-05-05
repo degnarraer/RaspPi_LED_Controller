@@ -378,7 +378,7 @@ void WebSocketSession::do_write()
                         }
                         else
                         {
-                            self->logger_->debug("Sent text message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
+                            self->rate_limited_log->log("text write success", spdlog::level::info, "Sent text message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
                             self->do_write();
                         }
                     });
@@ -402,7 +402,7 @@ void WebSocketSession::do_write()
                         }
                         else
                         {
-                            self->logger_->debug("Sent binary message, bytes: {}", bytes_transferred);
+                            self->rate_limited_log->log("binary write success", spdlog::level::info, "Sent binary message, bytes: {}", bytes_transferred);
                             self->do_write();
                         }
                     });
