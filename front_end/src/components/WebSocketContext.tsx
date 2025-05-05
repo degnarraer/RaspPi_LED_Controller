@@ -147,8 +147,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   
   const handleBlobMessage = (data: Uint8Array) => {
     const messageType = data[0];
+    console.log('blob message type: ', messageType);
     switch (messageType) {
-      case 0x01:
+      case 1:
         handleNamedBinaryEncoder(data);
         break;
       default:

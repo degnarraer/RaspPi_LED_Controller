@@ -53,21 +53,58 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
 
     private handleSignalValue = (message: WebSocketMessage) => {
         if (message.signal !== this.props.signal) return;
+    
         if (message.type === 'text') {
             const value = message.value;
             if (Array.isArray(value) && this.props.rowIndex < value.length && Array.isArray(value[this.props.rowIndex])) {
                 const rowColors = value[this.props.rowIndex];
                 const colors = rowColors.map(this.hexToRgb);
                 this.setState({ ledColors: colors });
-                this.webSocketLogger.log(`Received data for signal: ${this.props.signal}, row: ${this.props.rowIndex}`);
+                this.webSocketLogger.log(`Received text data for signal: ${this.props.signal}, row: ${this.props.rowIndex}`);
             } else {
-                this.webSocketLogger.log(`LEDRow: Unexpected signal value format: ${JSON.stringify(value)}`);
+                this.webSocketLogger.log(`LEDRow: Unexpected text signal value format: ${JSON.stringify(value)}`);
             }
-        } else if (message.type === 'binary') {
-            console.log('Received unsuported binary data.');
+        } else if (message.type === 'binary' && message.payload instanceof Uint8Array) {
+            const buffer = message.payload;
+            let offset = 0;
+    
+            const type = buffer[offset++];
+            if (type !== 1) return; // only handle type 1 for now
+    
+            const nameLen = (buffer[offset++] << 8) | buffer[offset++];
+            const name = new TextDecoder().decode(buffer.slice(offset, offset + nameLen));
+            offset += nameLen;
+    
+            const rows = (buffer[offset++] << 8) | buffer[offset++];
+            const cols = (buffer[offset++] << 8) | buffer[offset++];
+    
+            if (this.props.rowIndex >= rows) {
+                this.webSocketLogger.log(`LEDRow: Row index out of bounds`);
+                return;
+            }
+    
+            const startPixel = this.props.rowIndex * cols;
+            const startByte = offset + startPixel * 3;
+            const endByte = startByte + cols * 3;
+    
+            if (endByte > buffer.length) {
+                this.webSocketLogger.log(`LEDRow: Binary payload too short for expected row data`);
+                return;
+            }
+    
+            const colors: string[] = [];
+            for (let i = startByte; i < endByte; i += 3) {
+                const r = buffer[i];
+                const g = buffer[i + 1];
+                const b = buffer[i + 2];
+                colors.push(`rgb(${r},${g},${b})`);
+            }
+    
+            this.setState({ ledColors: colors });
+            this.webSocketLogger.log(`Received binary data for signal: ${name}, row: ${this.props.rowIndex}`);
         }
     };
-
+    
     private hexToRgb(hex: string): string {
         const match = /^#?([a-f\d]{6})$/i.exec(hex);
         if (!match) return 'black';
