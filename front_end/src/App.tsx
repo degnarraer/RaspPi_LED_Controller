@@ -85,11 +85,12 @@ function App() {
       display: 'grid',
       gridTemplateColumns: 'auto auto',
       gridTemplateRows: 'auto auto',
-      gap: '1px',
+      gap: '0px',
+      backgroundColor: 'darkgray',
     };
   
     const itemStyle = {
-      backgroundColor: 'lightgray',
+      backgroundColor: 'darkgray',
     };
   
     /*const textStyle = {

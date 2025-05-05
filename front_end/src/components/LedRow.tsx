@@ -153,9 +153,10 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                     style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${ledColors.length}, 1fr)`,
-                        gap: '1px',
+                        gap: '0px',
                         width: '100%',
                         height: '100%',
+                        backgroundColor: 'darkgray',
                     }}
                 >
                     {ledColors.map((color, index) => (
@@ -163,7 +164,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                             key={index}
                             style={{
                                 backgroundColor: color,
-                                border: '1px solid black',
+                                border: '1px solid darkgray',
                                 borderRadius: '0.1em',
                                 boxSizing: 'border-box',
                                 width: '100%',
