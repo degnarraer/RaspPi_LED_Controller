@@ -1,23 +1,24 @@
-
 export class RateLimitedLogger {
-    private lastLogTime: number;
     private rateLimitMs: number;
-    private occurrences: number;
+    private logMap: Map<string, { lastLogTime: number; occurrences: number }>;
 
     constructor(rateLimitMs: number) {
-        this.lastLogTime = 0;
         this.rateLimitMs = rateLimitMs;
-        this.occurrences = 0;
+        this.logMap = new Map();
     }
 
-    log(message: string) {
+    log(key: string, message: string) {
         const currentTime = Date.now();
-        this.occurrences++;
+        const entry = this.logMap.get(key) || { lastLogTime: 0, occurrences: 0 };
 
-        if (currentTime - this.lastLogTime >= this.rateLimitMs) {
-            console.log(`${message} (Occurred ${this.occurrences} times)`);
-            this.lastLogTime = currentTime;
-            this.occurrences = 0;
+        entry.occurrences++;
+
+        if (currentTime - entry.lastLogTime >= this.rateLimitMs) {
+            console.log(`${message} (Occurred ${entry.occurrences} times)`);
+            entry.lastLogTime = currentTime;
+            entry.occurrences = 0;
         }
+
+        this.logMap.set(key, entry);
     }
 }
