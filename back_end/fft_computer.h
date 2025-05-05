@@ -126,6 +126,13 @@ class FFTComputer
         const float sqrt2 = std::sqrt(2.0);
         std::shared_ptr<spdlog::logger> logger;
 
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_);
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalLeftChannel_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel");
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalRightChannel_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel");
+        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands);
+
         void registerCallbacks()
         {
             auto callback = [](const std::vector<int32_t>& value, void* arg, ChannelType channel)
@@ -135,34 +142,54 @@ class FFTComputer
                 self->addData(value, channel);
             };
 
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_)->RegisterCallback(
-                [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel")->RegisterCallback(
-                [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel")->RegisterCallback(
-                [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this);
+            inputSignal_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
+            inputSignalLeftChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
+            inputSignalRightChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
         }
 
         void unregisterCallbacks()
         {
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_)->UnregisterCallbackByArg(this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel")->UnregisterCallbackByArg(this);
-            SignalManager::GetInstance().GetSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel")->UnregisterCallbackByArg(this);
+            inputSignal_->UnregisterCallbackByArg(this);
+            inputSignalLeftChannel_->UnregisterCallbackByArg(this);
+            inputSignalRightChannel_->UnregisterCallbackByArg(this);
         }
 
         void processQueue()
         {
+            std::vector<int32_t> accumulatedData;  // Buffer for incoming data
+            size_t requiredSamples = fft_size_;    // 8192 samples required for FFT
+            size_t overlapSamples = fft_size_ / 4; // 75% overlap (2048 samples)
+            size_t nonOverlappingSamples = requiredSamples - overlapSamples; // Non-overlapping part
+
             while (!stopFlag_)
             {
                 DataPacket dataPacket{};
+                
                 {
                     std::unique_lock<std::mutex> lock(queueMutex_);
                     cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
                     if (stopFlag_) break;
+                    
                     dataPacket = std::move(dataQueue_.front());
                     dataQueue_.pop();
                 }
-                processFFT(dataPacket);
+
+                // Accumulate the incoming data
+                accumulatedData.insert(accumulatedData.end(), dataPacket.data.begin(), dataPacket.data.end());
+
+                // Process when we have enough data for the FFT with overlap
+                while (accumulatedData.size() >= requiredSamples)
+                {
+                    // Take the first `requiredSamples` from the accumulated data for FFT
+                    std::vector<int32_t> fftData(accumulatedData.begin(), accumulatedData.begin() + requiredSamples);
+
+                    // Remove the processed data from the front of the buffer, but keep the overlap
+                    accumulatedData.erase(accumulatedData.begin(), accumulatedData.begin() + nonOverlappingSamples);
+
+                    // Process FFT on this chunk of data
+                    DataPacket fftPacket{ std::move(fftData), dataPacket.channel };
+                    processFFT(fftPacket);  // Call the existing FFT processing function
+                }
             }
         }
 
@@ -197,15 +224,15 @@ class FFTComputer
             {
                 case ChannelType::Mono:
                     logger->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
+                    monoOutputSignal_->SetValue(saeBands);
                 break;
                 case ChannelType::Left:
                     logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
+                    leftChannelOutputSignal_->SetValue(saeBands);
                 break;
                 case ChannelType::Right:
                     logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    SignalManager::GetInstance().GetSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands)->SetValue(saeBands);
+                    rightChannelOutputSignal_->SetValue(saeBands);
                 break;
                 default:
                     logger->error("Device {}: Unsupported channel type:", name_);

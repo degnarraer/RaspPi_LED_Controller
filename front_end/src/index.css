@@ -1,0 +1,7 @@
+sl-drawer::part(body) {
+  padding: 1rem;
+}
+
+sl-button {
+  margin: 1rem;
+}
