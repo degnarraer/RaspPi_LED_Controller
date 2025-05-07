@@ -11,7 +11,7 @@
 #include "logger.h"
 #include "kiss_fft.h"
 #include "ring_buffer.h"
-#include "signal.h"
+#include "signals/signal.h"
 #include "websocket_server.h"
 
 enum class ChannelType

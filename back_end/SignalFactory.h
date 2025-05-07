@@ -1,6 +1,6 @@
 #pragma once
 
-#include "signal.h"
+#include "signals/signal.h"
 #include "websocket_server.h"
 
 class SignalFactory

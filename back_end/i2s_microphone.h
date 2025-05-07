@@ -8,7 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include "logger.h"
-#include "signal.h"
+#include "signals/signal.h"
 #include "websocket_server.h"
 
 class I2SMicrophone 

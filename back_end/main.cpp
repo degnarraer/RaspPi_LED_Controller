@@ -1,6 +1,5 @@
 #include <iostream>
 #include <sstream>
-#include "signal.h"
 #include "i2s_microphone.h"
 #include "fft_computer.h"
 #include "websocket_server.h"
@@ -8,7 +7,8 @@
 #include "logger.h"
 #include "SystemStatusMonitor.h"
 #include "SignalFactory.h"
-#include "./animation/PixelGridSignal.h"
+#include "signals/signal.h"
+#include "signals/PixelGridSignal.h"
 #include "./animation/FFTAnimation.h"
 #include "./animation/RainbowAnimation.h"
 //#include "ws281x_led_controller.h"

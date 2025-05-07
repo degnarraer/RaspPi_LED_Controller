@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <sys/statvfs.h>
 #include "logger.h"
-#include "signal.h"
+#include "signals/signal.h"
 
 class SystemStatusMonitor
 {

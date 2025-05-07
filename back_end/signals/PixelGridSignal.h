@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
-#include "../signal.h"
+#include "signal.h"
 #include "../websocket_server.h"
 
 struct RGB
