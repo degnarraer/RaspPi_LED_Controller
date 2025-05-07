@@ -92,15 +92,14 @@ public:
 private:
     void do_read();
     void on_read(std::size_t bytes_transferred);
-    void handle_read_error(beast::error_code ec);
+    void handleWebSocketError(const std::error_code& ec, const std::string& context = "");
     void do_write();
     void on_write(beast::error_code ec, std::size_t bytes_transferred);
-    void handle_write_error(beast::error_code ec);
     void maybe_backoff();
     void schedule_backoff();
     void retry_message(const WebSocketMessage& message);
     void send_signal_update(const std::string& signal_name, const std::string& data);
-    void handle_disconnection();
+    void end_session();
     void on_disconnect();
     void resume_sending();
     void remove_sent_message_from_retry_queue();

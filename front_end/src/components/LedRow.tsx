@@ -156,7 +156,8 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                         gap: '0px',
                         width: '100%',
                         height: '100%',
-                        backgroundColor: 'darkgray',
+                        backgroundColor: 'black',
+                        padding: '0px',
                     }}
                 >
                     {ledColors.map((color, index) => (
@@ -164,11 +165,12 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                             key={index}
                             style={{
                                 backgroundColor: color,
-                                border: '1px solid darkgray',
+                                border: '1px solid black',
                                 borderRadius: '0.1em',
                                 boxSizing: 'border-box',
                                 width: '100%',
                                 height: '100%',
+                                padding: '0px',
                             }}
                         />
                     ))}

@@ -86,7 +86,8 @@ function App() {
       gridTemplateColumns: 'auto auto',
       gridTemplateRows: 'auto auto',
       gap: '0px',
-      backgroundColor: 'darkgray',
+      backgroundColor: 'black',
+      padding: '0px',
     };
   
     const itemStyle = {
