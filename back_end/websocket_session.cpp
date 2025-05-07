@@ -45,7 +45,7 @@ void WebSocketSession::run()
             else
             {
                 self->logger_->warn("Accept error: {}", ec.message());
-                self->server_.close_session(self->GetSessionID());
+                self->end_session();
             }
         });
 }
@@ -68,6 +68,7 @@ void WebSocketSession::close()
             else
             {
                 self->logger_->info("Session {} closed cleanly.", self->GetSessionID());
+                self->end_session();
             }
         });
 }
@@ -194,52 +195,106 @@ void WebSocketSession::do_read()
         {
             if (ec)
             {
-                self->handle_read_error(ec);
+                self->handleWebSocketError(ec);
                 return;
             }
             self->on_read(bytes_transferred);
             self->do_read();
         });
 }
-
-void WebSocketSession::handle_read_error(beast::error_code ec)
+void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std::string& context)
 {
-    if (ec)
+    if (!ec)
     {
-        logger_->warn("Read error: {}", ec.message());
-
-        // Handle permanent errors
-        if (ec == beast::errc::not_connected || ec == beast::errc::connection_aborted)
-        {
-            logger_->warn("Connection lost or aborted. Closing session...");
-            server_.close_session(GetSessionID());
-            return;
-        }
-
-        // Handle temporary network-related errors
-        else if (ec == beast::errc::network_unreachable || ec == beast::errc::host_unreachable)
-        {
-            logger_->warn("Network issue detected, retrying after backoff...");
-            schedule_backoff();
-            return;
-        }
-
-        // Handle other transient errors (e.g., connection refused)
-        else if (ec == beast::errc::connection_refused)
-        {
-            logger_->warn("Connection refused. Retrying...");
-            schedule_backoff();
-            return;
-        }
-
-        // For any other unhandled errors, log and schedule backoff
-        else
-        {
-            logger_->warn("Unexpected WebSocket read error: {}. Retrying...", ec.message());
-            schedule_backoff();
-            return;
-        }
+        return;
     }
+
+    auto sid = GetSessionID();
+
+    switch (ec.value())
+    {
+        case ECONNREFUSED:
+            logger_->error("{}: Connection refused: server may be down or rejecting connections.", sid);
+            schedule_backoff();
+            break;
+        case ECONNRESET:
+            logger_->error("{}: Connection reset: peer closed the connection unexpectedly.", sid);
+            schedule_backoff();
+            break;
+        case ECONNABORTED:
+            logger_->error("{}: Connection aborted.", sid);
+            schedule_backoff();
+            break;
+        case ETIMEDOUT:
+            logger_->error("{}: Operation timed out.", sid);
+            schedule_backoff();
+            break;
+        case EHOSTUNREACH:
+        case ENETUNREACH:
+            logger_->error("{}: Network unreachable.", sid);
+            schedule_backoff();
+            break;
+        case ENOTCONN:
+            logger_->error("{}: Socket not connected.", sid);
+            end_session();
+            break;
+        case EISCONN:
+            logger_->error("{}: Socket already connected.", sid);
+            end_session();
+            break;
+        case EADDRINUSE:
+            logger_->error("{}: Address in use: another process may be using this port.", sid);
+            schedule_backoff();
+            break;
+        case EALREADY:
+        case EINPROGRESS:
+            logger_->error("{}: Connection already in progress.", sid);
+            schedule_backoff();
+            break;
+        case EAGAIN:
+            logger_->error("{}: Operation would block (non-blocking mode).", sid);
+            break;
+        case ENOBUFS:
+            logger_->error("{}: No buffer space available.", sid);
+            schedule_backoff();
+            break;
+        case EMFILE:
+        case ENFILE:
+            logger_->error("{}: Too many open files: descriptor limit reached.", sid);
+            schedule_backoff();
+            break;
+        case EBADF:
+        case ENOTSOCK:
+            logger_->error("{}: Invalid socket or file descriptor.", sid);
+            end_session();
+            break;
+        case EPIPE:
+            logger_->error("{}: Broken pipe: attempted to write to a closed connection.", sid);
+            end_session();
+            break;
+        case EPROTO:
+            logger_->error("{}: Protocol error: invalid WebSocket message or handshake.", sid);
+            end_session();
+            break;
+        case EMSGSIZE:
+            logger_->error("{}: Message too large.", sid);
+            end_session();
+            break;
+        case EPERM:
+        case EACCES:
+        case EINVAL:
+            logger_->error("{}: Permission denied or invalid argument.", sid);
+            end_session();
+            break;
+        default:
+            logger_->error("{}: Unhandled WebSocket error: {}", sid, ec.message());
+            end_session();
+            break;
+    }
+
+    std::cerr << "[WebSocket Error] "
+              << (context.empty() ? "" : context + ": ")
+              << ec.message() << " (code: " << ec.value() << ", sid: " << sid << ")" << std::endl;
 }
 
 bool WebSocketSession::is_subscribed_to(const std::string& signal_name) const
@@ -464,25 +519,23 @@ void WebSocketSession::send_signal_update(const std::string& signal_name, const 
     send_message(update_msg.dump());
 }
 
-void WebSocketSession::handle_disconnection()
+void WebSocketSession::end_session()
 {
     logger_->info("Session: {} disconnected. Cleaning up.", GetSessionID());
 
     std::lock_guard<std::mutex> lock(subscription_mutex_);
     subscribed_signals_.clear();
 
-    // Optionally, send a disconnect message or cleanup resources as needed.
-    // This is just an example:
     json disconnect_msg;
     disconnect_msg["type"] = "disconnect";
     disconnect_msg["session_id"] = GetSessionID();
     send_message(disconnect_msg.dump());
+    server_.close_session(GetSessionID());
 }
 
 void WebSocketSession::on_disconnect()
 {
     logger_->info("Session {}: Handling disconnection.", GetSessionID());
-    handle_disconnection();
-    server_.close_session(GetSessionID());
+    end_session();
 }
 
