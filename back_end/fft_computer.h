@@ -161,16 +161,17 @@ class FFTComputer
 
         void processQueue()
         {
-            std::vector<int32_t> accumulatedMonoData;  // Buffer for incoming data
-            std::vector<int32_t> accumulatedLeftData;  // Buffer for incoming data
-            std::vector<int32_t> accumulatedRightData;  // Buffer for incoming data
-            size_t requiredSamples = fft_size_;    // 8192 samples required for FFT
-            size_t overlapSamples = fft_size_ / 4; // 75% overlap (2048 samples)
-            size_t nonOverlappingSamples = requiredSamples - overlapSamples; // Non-overlapping part
+            std::vector<int32_t> monoBuffer;
+            std::vector<int32_t> leftBuffer;
+            std::vector<int32_t> rightBuffer;
+            const size_t minimumStepSize = 512;
+            const size_t requiredSamples = fft_size_;
+            const size_t overlapSamples = std::min(fft_size_ - 512, std::max(minimumStepSize, fft_size_));
+            const size_t nonOverlappingSamples = requiredSamples - overlapSamples;
 
             while (!stopFlag_)
             {
-                DataPacket dataPacket{};
+                DataPacket dataPacket;
                 {
                     std::unique_lock<std::mutex> lock(queueMutex_);
                     cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
@@ -178,34 +179,29 @@ class FFTComputer
                     dataPacket = std::move(dataQueue_.front());
                     dataQueue_.pop();
                 }
-                std::vector<int32_t> *accumulatedData = nullptr;
-                switch(dataPacket.channel)
+
+                // Select buffer based on channel
+                std::vector<int32_t>* buffer = nullptr;
+                switch (dataPacket.channel)
                 {
-                    case ChannelType::Mono:
-                        accumulatedData = &accumulatedMonoData;
-                        break;
-                    case ChannelType::Left:
-                        accumulatedData = &accumulatedLeftData;
-                        break;
-                    case ChannelType::Right:
-                        accumulatedData = &accumulatedRightData;
-                        break;
-                    default:
-                        break;
+                    case ChannelType::Mono: buffer = &monoBuffer; break;
+                    case ChannelType::Left: buffer = &leftBuffer; break;
+                    case ChannelType::Right: buffer = &rightBuffer; break;
+                    default: continue;
                 }
+
+                buffer->insert(buffer->end(), std::make_move_iterator(dataPacket.data.begin()), std::make_move_iterator(dataPacket.data.end()));
+
+                while (buffer->size() >= requiredSamples)
                 {
-                    std::lock_guard<std::mutex> lock(queueMutex_);
-                    accumulatedData->insert(accumulatedData->end(), dataPacket.data.begin(), dataPacket.data.end());
-                }
-                while (accumulatedData->size() >= requiredSamples)
-                {
-                    std::vector<int32_t> fftData(accumulatedData->begin(), accumulatedData->begin() + requiredSamples);
-                    accumulatedData->erase(accumulatedData->begin(), accumulatedData->begin() + nonOverlappingSamples);
-                    DataPacket fftPacket{ std::move(fftData), dataPacket.channel };
-                    processFFT(fftPacket);
+                    std::vector<int32_t> fftData(buffer->begin(), buffer->begin() + requiredSamples);
+                    buffer->erase(buffer->begin(), buffer->begin() + nonOverlappingSamples);
+
+                    processFFT({ std::move(fftData), dataPacket.channel });
                 }
             }
         }
+
 
         void processFFT(const DataPacket& dataPacket)
         {
