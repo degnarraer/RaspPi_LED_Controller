@@ -1,14 +1,17 @@
 import { Component, createRef } from 'react';
 import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
+const slowPointsCount = 50000; // Slow Graph data points
+const fastPointsCount = 2000;  // Fast Graph data points
+
 interface StreamingScatterPlotProps {
     signal: string;
     socket: WebSocketContextType;
 }
 
 interface StreamingScatterPlotState {
-    fastPoints: number[];
-    slowPoints: number[];
+    fastPoints: { x: number; y: number }[]; // Fast Graph points
+    slowPoints: { x: number; y: number }[]; // Slow Graph points
 }
 
 export default class StreamingScatterPlot extends Component<StreamingScatterPlotProps, StreamingScatterPlotState> {
@@ -16,12 +19,14 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
     private resizeObserver: ResizeObserver | null = null;
     private chart: any = null;
     private ChartJS: any = null;
+    private xCounter = 0;
+    private updateTimeout: any = null;
 
     constructor(props: StreamingScatterPlotProps) {
         super(props);
         this.state = {
-            fastPoints: [],
-            slowPoints: [],
+            fastPoints: [] as { x: number; y: number }[],
+            slowPoints: [] as { x: number; y: number }[],
         };
     }
 
@@ -38,6 +43,9 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         this.teardownResizeObserver();
         if (this.chart) {
             this.chart.destroy();
+        }
+        if (this.updateTimeout) {
+            clearTimeout(this.updateTimeout);
         }
     }
 
@@ -57,19 +65,21 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
                 datasets: [
                     {
                         label: 'Fast Graph',
-                        data: [],
+                        data: [], // Will be updated with fastPoints
                         borderColor: 'red',
                         borderWidth: 1,
                         pointRadius: 0,
                         tension: 0,
+                        fill: false, // Don't fill the area under the line
                     },
                     {
                         label: 'Slow Graph',
-                        data: [],
+                        data: [], // Will be updated with slowPoints
                         borderColor: 'yellow',
                         borderWidth: 1,
                         pointRadius: 0,
                         tension: 0,
+                        fill: false, // Don't fill the area under the line
                     },
                 ],
             },
@@ -79,53 +89,116 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
                 animation: false,
                 scales: {
                     x: {
-                        type: 'linear',
-                        display: false,
-                        min: 0,
-                        max: 999, // Fixed size window
+                        type: 'linear', // Continuous scale for X-axis
+                        position: 'bottom',
                     },
                     y: {
-                        beginAtZero: true,
+                        min: -500000,  // Adjust Y-axis range based on data
+                        max: 500000,
+                        ticks: {
+                            color: 'white',
+                        },
+                        grid: {
+                            color: 'white',
+                        },
                     },
                 },
                 plugins: {
-                    legend: { display: false },
+                    legend: {
+                        display: true, // Show legend for clarity
+                        labels: {
+                            color: 'white',
+                        },
+                    },
+                },
+                layout: {
+                    padding: {
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                    },
                 },
             },
         });
     }
 
-    updateChart() {
-        if (!this.chart) return;
-
-        const fastData = this.state.fastPoints.slice(-1000);
-        const slowData = this.state.slowPoints.slice(-1000);
-
-        this.chart.data.datasets[0].data = fastData.map((y, i) => ({ x: i, y }));
-        this.chart.data.datasets[1].data = slowData.map((y, i) => ({ x: i, y }));
-
-        this.chart.update();
-    }
-
     setupSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
-        socket.subscribe(signal, this.handleSignalValue);
+        socket.subscribe(signal, this.handleSignal);
     }
 
     teardownSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
-        socket.unsubscribe(signal, this.handleSignalValue);
+        socket.unsubscribe(signal, this.handleSignal);
     }
 
-    private readonly handleSignalValue = (message: WebSocketMessage) => {
-        if (message.signal !== this.props.signal) return;
-        if (message.type === 'text') {
-            console.log('Received un implemented text data.');
-        } else if (message.type === 'binary') {
-            console.log('Received unsuported binary data.');
+    private readonly handleSignal = (message: WebSocketMessage) => {
+        if (message.type === 'binary' && message.payloadType === 2) {
+    
+            const buffer = new Uint8Array(message.payload);
+            let offset = 8;  
+            const count = (buffer[offset] << 8) | buffer[offset + 1];
+            offset += 2;
+    
+            const newValues: number[] = [];
+            for (let i = 0; i < count; i++) {
+                const val =
+                    (buffer[offset] << 24) |
+                    (buffer[offset + 1] << 16) |
+                    (buffer[offset + 2] << 8) |
+                    buffer[offset + 3];
+                newValues.push(val | 0);
+                offset += 4;
+            }
+
+            this.setState(prev => {
+                const values = [...prev.slowPoints.map(p => p.y), ...newValues];
+                const maxSlowHistory = slowPointsCount;
+                if (values.length > maxSlowHistory) {
+                    values.splice(0, values.length - maxSlowHistory);
+                }
+    
+                const slowPoints = values.map((y, i) => ({ x: i, y }));
+                const fastPoints = values
+                    .slice(-fastPointsCount)
+                    .map((y, i) => ({ x: values.length - fastPointsCount + i, y }));
+    
+                return {
+                    slowPoints,
+                    fastPoints,
+                };
+            });
         }
+    };
+
+    updateChart() {
+        if (!this.chart) return;
+
+        const { fastPoints, slowPoints } = this.state;
+
+        const maxX = this.xCounter;
+        const minX = Math.max(0, maxX - slowPointsCount);
+
+        // Update the chart with new data
+        this.chart.data.datasets[0].data = fastPoints;
+        this.chart.data.datasets[1].data = slowPoints;
+
+        this.chart.options.scales!.x!.min = minX;
+        this.chart.options.scales!.x!.max = maxX;
+
+        this.chart.update();
+    }
+
+    batchUpdateChart = () => {
+        if (this.updateTimeout) {
+            clearTimeout(this.updateTimeout);
+        }
+        this.updateTimeout = setTimeout(() => {
+            this.updateChart();
+        }, 10);
     };
 
     setupResizeObserver() {
@@ -150,10 +223,12 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
 
     render() {
         return (
-            <canvas
-                ref={this.canvasRef}
-                style={{ width: '100%', height: '100%' }}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <canvas
+                    ref={this.canvasRef}
+                    style={{ backgroundColor: 'black', flex: 1, width: '100%' }}
+                />
+            </div>
         );
     }
 }

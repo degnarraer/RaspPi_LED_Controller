@@ -1,22 +1,21 @@
 #pragma once
 
-#include "signals/signal.h"
-#include "websocket_server.h"
+#include "signal.h"
+#include "IntVectorSignal.h"
+#include "../websocket_server.h"
 
 class SignalFactory
 {
 public:
     static void CreateSignals(std::shared_ptr<WebSocketServer> webSocketServer)
     {
-        // Ensure the WebSocketServer is provided
         if (!webSocketServer)
         {
             throw std::invalid_argument("WebSocketServer cannot be null");
         }
-
-        SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>("Microphone");
-        SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>("Microphone Left Channel");
-        SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>("Microphone Right Channel");
+        IntVectorSignal("Microphone", webSocketServer);
+        IntVectorSignal("Microphone Left Channel", webSocketServer);
+        IntVectorSignal("Microphone Right Channel", webSocketServer);
         SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands", webSocketServer, encode_FFT_Bands);
         SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, encode_FFT_Bands);
         SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, encode_FFT_Bands);

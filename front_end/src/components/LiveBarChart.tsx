@@ -101,6 +101,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                         ticks: {
                             minRotation: this.props.yLabelMinRotation ?? 0,
                             maxRotation: this.props.yLabelMaxRotation ?? 50,
+                            color: 'white', // White text for Y-axis labels
                         },
                     },
                     x: {
@@ -112,6 +113,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                             display: true,
                             minRotation: this.props.xLabelMinRotation ?? 0,
                             maxRotation: this.props.xLabelMaxRotation ?? 50,
+                            color: 'white', // White text for X-axis labels
                         },
                     },
                 },
@@ -124,6 +126,8 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 plugins: {
                     legend: { display: false },
                 },
+                // Background color for the chart area
+                backgroundColor: 'black',
             },
         });
 
@@ -175,6 +179,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     private handleSignalValue = (message: WebSocketMessage) => {
         if (message.type === 'signal') {
+            console.log('Received');
             const value = message.value;
             if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({
@@ -183,12 +188,11 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 });
             } else {
                 console.warn('Invalid signal value format:', value);
-            } 
+            }
         } else if (message.type === 'binary') {
-            console.warn('Received unsuported binary data.');
-        }
-        else{
-            console.warn('Received unsuported message type: ', message.type);
+            console.warn('Received unsupported binary data.');
+        } else {
+            console.warn('Received unsupported message type:', message.type);
         }
     };
 
@@ -226,10 +230,23 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     render() {
         return (
-            <div ref={this.containerRef} style={{ width: '100%', height: '100%' }}>
+            <div
+                ref={this.containerRef}
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'black',
+                    color: 'white',
+                }}
+            >
                 <canvas
                     ref={this.canvasRef}
-                    style={{ width: '100%', height: '100%', display: 'block' }}
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'block',
+                        backgroundColor: 'black',
+                    }}
                 />
             </div>
         );
