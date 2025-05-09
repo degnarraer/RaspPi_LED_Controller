@@ -242,7 +242,7 @@ function App() {
           position: 'fixed',
           top: '10px',
           right: '10px',
-          zIndex: 10000, // Ensure button is on top of everything else
+          zIndex: 10000,
         }}
       >
         Menu

@@ -179,7 +179,6 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
 
     private handleSignalValue = (message: WebSocketMessage) => {
         if (message.type === 'signal') {
-            console.log('Received');
             const value = message.value;
             if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({

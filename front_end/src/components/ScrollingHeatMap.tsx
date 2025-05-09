@@ -135,13 +135,8 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         this.setState(prevState => {
             const updatedBuffer = [...prevState.buffer];
             const updatedQueue = [...prevState.dataQueue];
-    
-            if (updatedQueue.length === 1) {
-                updatedBuffer.push(updatedQueue[0]);
-            } else if (updatedQueue.length > 1) {
-                updatedBuffer.push(updatedQueue.shift()!);
-            }
-    
+            updatedBuffer.push(...updatedQueue);
+            updatedQueue.length = 0;
             if (updatedBuffer.length > this.maxRows) {
                 updatedBuffer.shift();
             }
@@ -149,6 +144,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             return { buffer: updatedBuffer, dataQueue: updatedQueue };
         });
     }
+    
 
     startRenderLoop = () => {
         this.flushDataToBuffer();
