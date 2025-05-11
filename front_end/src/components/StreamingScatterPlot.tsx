@@ -89,7 +89,10 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
                         ticks: { color: 'white' },
                         grid: { display: false },
                     },
-                }
+                },
+                plugins: {
+                    legend: {display: false},
+                },
             },
         });
 
