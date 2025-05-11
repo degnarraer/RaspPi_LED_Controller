@@ -1,8 +1,7 @@
 import { Component, createRef } from 'react';
 import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
-const slowPointsCount = 50000; // Slow Graph data points
-const fastPointsCount = 2000;  // Fast Graph data points
+const pointsCount = 2000;  // Maximum number of points to display
 
 interface StreamingScatterPlotProps {
     signal: string;
@@ -10,8 +9,7 @@ interface StreamingScatterPlotProps {
 }
 
 interface StreamingScatterPlotState {
-    fastPoints: { x: number; y: number }[]; // Fast Graph points
-    slowPoints: { x: number; y: number }[]; // Slow Graph points
+    points: { x: number; y: number }[]; // Chart data points
 }
 
 export default class StreamingScatterPlot extends Component<StreamingScatterPlotProps, StreamingScatterPlotState> {
@@ -20,20 +18,17 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
     private chart: any = null;
     private ChartJS: any = null;
     private xCounter = 0;
-    private updateTimeout: any = null;
 
     constructor(props: StreamingScatterPlotProps) {
         super(props);
         this.state = {
-            fastPoints: [] as { x: number; y: number }[],
-            slowPoints: [] as { x: number; y: number }[],
+            points: [],
         };
     }
 
-    componentDidMount() {
-        this.loadChartLibrary().then(() => {
-            this.createChart();
-        });
+    async componentDidMount() {
+        await this.loadChartLibrary();
+        this.createChart();
         this.setupSocket();
         this.setupResizeObserver();
     }
@@ -43,9 +38,6 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         this.teardownResizeObserver();
         if (this.chart) {
             this.chart.destroy();
-        }
-        if (this.updateTimeout) {
-            clearTimeout(this.updateTimeout);
         }
     }
 
@@ -64,22 +56,13 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
             data: {
                 datasets: [
                     {
-                        label: 'Fast Graph',
-                        data: [], // Will be updated with fastPoints
+                        label: 'Waveform',
+                        data: [],
                         borderColor: 'red',
-                        borderWidth: 1,
+                        borderWidth: 2,
                         pointRadius: 0,
                         tension: 0,
-                        fill: false, // Don't fill the area under the line
-                    },
-                    {
-                        label: 'Slow Graph',
-                        data: [], // Will be updated with slowPoints
-                        borderColor: 'yellow',
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        tension: 0,
-                        fill: false, // Don't fill the area under the line
+                        fill: false,
                     },
                 ],
             },
@@ -89,35 +72,25 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
                 animation: false,
                 scales: {
                     x: {
-                        type: 'linear', // Continuous scale for X-axis
+                        type: 'linear',
                         position: 'bottom',
+                        ticks: { display: false, },
+                        grid: { display: false, },
                     },
                     y: {
-                        min: -500000,  // Adjust Y-axis range based on data
+                        min: -500000,
                         max: 500000,
-                        ticks: {
-                            color: 'white',
-                        },
-                        grid: {
-                            color: 'white',
-                        },
+                        ticks: { color: 'white' },
+                        grid: { display: false, },
                     },
                 },
                 plugins: {
                     legend: {
-                        display: true, // Show legend for clarity
-                        labels: {
-                            color: 'white',
-                        },
+                        display: false,
                     },
                 },
                 layout: {
-                    padding: {
-                        left: 0,
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                    },
+                    padding: 0,
                 },
             },
         });
@@ -137,68 +110,45 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
 
     private readonly handleSignal = (message: WebSocketMessage) => {
         if (message.type === 'binary' && message.payloadType === 2) {
-    
             const buffer = new Uint8Array(message.payload);
-            let offset = 8;  
+            let offset = 8;
+
+            if (offset + 2 > buffer.length) return;
             const count = (buffer[offset] << 8) | buffer[offset + 1];
             offset += 2;
-    
-            const newValues: number[] = [];
+
+            const newPoints: { x: number; y: number }[] = [];
             for (let i = 0; i < count; i++) {
+                if (offset + 4 > buffer.length) break;
                 const val =
                     (buffer[offset] << 24) |
                     (buffer[offset + 1] << 16) |
                     (buffer[offset + 2] << 8) |
                     buffer[offset + 3];
-                newValues.push(val | 0);
                 offset += 4;
+
+                newPoints.push({ x: this.xCounter++, y: val | 0 });
             }
 
             this.setState(prev => {
-                const values = [...prev.slowPoints.map(p => p.y), ...newValues];
-                const maxSlowHistory = slowPointsCount;
-                if (values.length > maxSlowHistory) {
-                    values.splice(0, values.length - maxSlowHistory);
-                }
-    
-                const slowPoints = values.map((y, i) => ({ x: i, y }));
-                const fastPoints = values
-                    .slice(-fastPointsCount)
-                    .map((y, i) => ({ x: values.length - fastPointsCount + i, y }));
-    
-                return {
-                    slowPoints,
-                    fastPoints,
-                };
-            });
+                const updated = [...prev.points, ...newPoints];
+                const trimmed = updated.slice(-pointsCount);
+                return { points: trimmed };
+            }, this.updateChart);
         }
     };
 
-    updateChart() {
+    updateChart = () => {
         if (!this.chart) return;
 
-        const { fastPoints, slowPoints } = this.state;
-
+        const { points } = this.state;
+        const minX = Math.max(0, this.xCounter - pointsCount);
         const maxX = this.xCounter;
-        const minX = Math.max(0, maxX - slowPointsCount);
 
-        // Update the chart with new data
-        this.chart.data.datasets[0].data = fastPoints;
-        this.chart.data.datasets[1].data = slowPoints;
-
+        this.chart.data.datasets[0].data = points;
         this.chart.options.scales!.x!.min = minX;
         this.chart.options.scales!.x!.max = maxX;
-
-        this.chart.update();
-    }
-
-    batchUpdateChart = () => {
-        if (this.updateTimeout) {
-            clearTimeout(this.updateTimeout);
-        }
-        this.updateTimeout = setTimeout(() => {
-            this.updateChart();
-        }, 10);
+        this.chart.update('none');
     };
 
     setupResizeObserver() {

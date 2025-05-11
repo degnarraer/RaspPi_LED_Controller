@@ -202,6 +202,9 @@ function App() {
               min={0}
               max={10}
               flipX={true}
+              minColor={'#000000'}
+              midColor={'#0000ff'}
+              maxColor={'#00ffff'}
               socket={socket}
             />
           </div>
@@ -213,6 +216,9 @@ function App() {
               min={0}
               max={10}
               flipX={false}
+              minColor={'#000000'}
+              midColor={'#ff0000'}
+              maxColor={'#ffff00'}
               socket={socket}
             />
           </div>
