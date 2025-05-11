@@ -1,28 +1,30 @@
 import { Component, createRef } from 'react';
 import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
 
-const pointsCount = 2000;  // Maximum number of points to display
+const pointsCount = 1024;
 
 interface StreamingScatterPlotProps {
-    signal: string;
+    signal1: string;
+    signal2: string;
     socket: WebSocketContextType;
+    color?: string; // Second signal color
 }
 
 interface StreamingScatterPlotState {
-    points: { x: number; y: number }[]; // Chart data points
+    values1: number[];
+    values2: number[];
 }
 
 export default class StreamingScatterPlot extends Component<StreamingScatterPlotProps, StreamingScatterPlotState> {
     private canvasRef = createRef<HTMLCanvasElement>();
-    private resizeObserver: ResizeObserver | null = null;
     private chart: any = null;
     private ChartJS: any = null;
-    private xCounter = 0;
 
     constructor(props: StreamingScatterPlotProps) {
         super(props);
         this.state = {
-            points: [],
+            values1: Array(pointsCount).fill(0),
+            values2: Array(pointsCount).fill(0),
         };
     }
 
@@ -30,15 +32,11 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         await this.loadChartLibrary();
         this.createChart();
         this.setupSocket();
-        this.setupResizeObserver();
     }
 
     componentWillUnmount() {
         this.teardownSocket();
-        this.teardownResizeObserver();
-        if (this.chart) {
-            this.chart.destroy();
-        }
+        if (this.chart) this.chart.destroy();
     }
 
     async loadChartLibrary() {
@@ -56,13 +54,20 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
             data: {
                 datasets: [
                     {
-                        label: 'Waveform',
+                        label: 'Signal 1',
                         data: [],
                         borderColor: 'red',
                         borderWidth: 2,
                         pointRadius: 0,
                         tension: 0,
-                        fill: false,
+                    },
+                    {
+                        label: 'Signal 2',
+                        data: [],
+                        borderColor: this.props.color || 'blue',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0,
                     },
                 ],
             },
@@ -73,42 +78,40 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
                 scales: {
                     x: {
                         type: 'linear',
-                        position: 'bottom',
-                        ticks: { display: false, },
-                        grid: { display: false, },
+                        min: 0,
+                        max: pointsCount - 1,
+                        ticks: { display: false },
+                        grid: { display: false },
                     },
                     y: {
                         min: -500000,
                         max: 500000,
                         ticks: { color: 'white' },
-                        grid: { display: false, },
+                        grid: { display: false },
                     },
-                },
-                plugins: {
-                    legend: {
-                        display: false,
-                    },
-                },
-                layout: {
-                    padding: 0,
-                },
+                }
             },
         });
+
+        this.updateChart();
     }
 
     setupSocket() {
-        const { socket, signal } = this.props;
-        if (!socket) return;
-        socket.subscribe(signal, this.handleSignal);
+        const { socket, signal1, signal2 } = this.props;
+        socket.subscribe(signal1, this.handleSignal1);
+        socket.subscribe(signal2, this.handleSignal2);
     }
 
     teardownSocket() {
-        const { socket, signal } = this.props;
-        if (!socket) return;
-        socket.unsubscribe(signal, this.handleSignal);
+        const { socket, signal1, signal2 } = this.props;
+        socket.unsubscribe(signal1, this.handleSignal1);
+        socket.unsubscribe(signal2, this.handleSignal2);
     }
 
-    private readonly handleSignal = (message: WebSocketMessage) => {
+    handleSignal1 = (msg: WebSocketMessage) => this.handleSignal(msg, 'values1');
+    handleSignal2 = (msg: WebSocketMessage) => this.handleSignal(msg, 'values2');
+
+    handleSignal(message: WebSocketMessage, stateKey: 'values1' | 'values2') {
         if (message.type === 'binary' && message.payloadType === 2) {
             const buffer = new Uint8Array(message.payload);
             let offset = 8;
@@ -117,66 +120,41 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
             const count = (buffer[offset] << 8) | buffer[offset + 1];
             offset += 2;
 
-            const newPoints: { x: number; y: number }[] = [];
-            for (let i = 0; i < count; i++) {
-                if (offset + 4 > buffer.length) break;
-                const val =
+            const newVals: number[] = [];
+            for (let i = 0; i < count && offset + 4 <= buffer.length; i++) {
+                const val = 
                     (buffer[offset] << 24) |
                     (buffer[offset + 1] << 16) |
                     (buffer[offset + 2] << 8) |
                     buffer[offset + 3];
+                newVals.push(val | 0);
                 offset += 4;
-
-                newPoints.push({ x: this.xCounter++, y: val | 0 });
             }
 
             this.setState(prev => {
-                const updated = [...prev.points, ...newPoints];
+                const updated = [...prev[stateKey], ...newVals];
                 const trimmed = updated.slice(-pointsCount);
-                return { points: trimmed };
+                return { [stateKey]: trimmed } as Pick<StreamingScatterPlotState, typeof stateKey>;
             }, this.updateChart);
         }
-    };
+    }
 
     updateChart = () => {
         if (!this.chart) return;
 
-        const { points } = this.state;
-        const minX = Math.max(0, this.xCounter - pointsCount);
-        const maxX = this.xCounter;
+        const { values1, values2 } = this.state;
 
-        this.chart.data.datasets[0].data = points;
-        this.chart.options.scales!.x!.min = minX;
-        this.chart.options.scales!.x!.max = maxX;
+        this.chart.data.datasets[0].data = values1.map((y, x) => ({ x, y }));
+        this.chart.data.datasets[1].data = values2.map((y, x) => ({ x, y }));
         this.chart.update('none');
     };
 
-    setupResizeObserver() {
-        const canvas = this.canvasRef.current;
-        if (!canvas || typeof ResizeObserver === 'undefined') return;
-
-        this.resizeObserver = new ResizeObserver(() => {
-            if (this.chart) {
-                this.chart.resize();
-            }
-        });
-
-        this.resizeObserver.observe(canvas);
-    }
-
-    teardownResizeObserver() {
-        if (this.resizeObserver && this.canvasRef.current) {
-            this.resizeObserver.unobserve(this.canvasRef.current);
-            this.resizeObserver.disconnect();
-        }
-    }
-
     render() {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ height: '100%' }}>
                 <canvas
                     ref={this.canvasRef}
-                    style={{ backgroundColor: 'black', flex: 1, width: '100%' }}
+                    style={{ backgroundColor: 'black', width: '100%', height: '100%' }}
                 />
             </div>
         );
