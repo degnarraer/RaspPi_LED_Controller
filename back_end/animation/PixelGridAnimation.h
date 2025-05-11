@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PixelGridSignal.h"
+#include "../signals/PixelGridSignal.h"
 #include <thread>
 #include <atomic>
 #include <chrono>

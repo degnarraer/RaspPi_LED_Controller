@@ -20,6 +20,7 @@ export type SignalValueWebSocketMessage = {
 
 export type BinaryWebSocketMessage = {
   type: 'binary';
+  payloadType: number;
   signal: string;
   payload: Uint8Array;
 };
@@ -149,6 +150,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
     const messageType = data[0];
     switch (messageType) {
       case 1:
+      case 2:
         handleNamedBinaryEncoder(data);
         break;
       default:
@@ -181,6 +183,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         type: 'binary',
         signal: signalName,
         payload,
+        payloadType: data[0],
       });
   };
 

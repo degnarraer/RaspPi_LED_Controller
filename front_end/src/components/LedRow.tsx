@@ -62,7 +62,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
             } else {
                 this.webSocketLogger.log('received text error', `LEDRow: Unexpected text signal value format: ${JSON.stringify(value)}`);
             }
-        } else if (message.type === 'binary' && message.payload instanceof Uint8Array) {
+        } else if (message.type === 'binary' && message.payloadType === 1 && message.payload instanceof Uint8Array) {
             let offset = 0;
 
             const rows = (message.payload[offset++] << 8) | message.payload[offset++];

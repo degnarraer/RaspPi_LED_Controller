@@ -8,9 +8,10 @@
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
+#include <mutex>
 #include <spdlog/spdlog.h>
 
-#include "../signal.h"
+#include "signal.h"
 #include "../websocket_server.h"
 
 struct RGB
@@ -91,23 +92,21 @@ private:
     std::vector<std::vector<RGB>> pixels_;
     std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> signal_;
     std::shared_ptr<spdlog::logger> logger_;
-    
+    mutable std::mutex mutex_;
+
     BinaryEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_to_binary_encoder()
     {
         const BinaryEncoder<std::vector<std::vector<RGB>>> encoder = [this](const std::string& signal_name, const std::vector<std::vector<RGB>>& matrix) -> std::vector<uint8_t>
         {
             std::vector<uint8_t> buffer;
 
-            // Message type
             buffer.push_back(static_cast<uint8_t>(BinaryEncoderType::Named_Binary_Encoder));
 
-            // Signal name
             uint16_t name_len = static_cast<uint16_t>(signal_name.size());
             buffer.push_back((name_len >> 8) & 0xFF);
             buffer.push_back(name_len & 0xFF);
             buffer.insert(buffer.end(), signal_name.begin(), signal_name.end());
-            
-            // Matrix dimensions
+
             uint16_t rows = static_cast<uint16_t>(matrix.size());
             uint16_t cols = rows > 0 ? static_cast<uint16_t>(matrix[0].size()) : 0;
             buffer.push_back((rows >> 8) & 0xFF);
@@ -115,7 +114,6 @@ private:
             buffer.push_back((cols >> 8) & 0xFF);
             buffer.push_back(cols & 0xFF);
 
-            // Flatten and write RGB values row-major
             for (const auto& row : matrix)
             {
                 for (const RGB& pixel : row)

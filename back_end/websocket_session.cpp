@@ -433,7 +433,7 @@ void WebSocketSession::do_write()
                         }
                         else
                         {
-                            self->rate_limited_log->log("text write success", spdlog::level::info, "Sent text message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
+                            self->rate_limited_log->log("text write success", spdlog::level::debug, "Sent text message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
                             self->do_write();
                         }
                     });
@@ -457,7 +457,7 @@ void WebSocketSession::do_write()
                         }
                         else
                         {
-                            self->rate_limited_log->log("binary write success", spdlog::level::info, "Sent binary message, bytes: {}", bytes_transferred);
+                            self->rate_limited_log->log("binary write success", spdlog::level::debug, "Sent binary message, bytes: {}", bytes_transferred);
                             self->do_write();
                         }
                     });
@@ -489,7 +489,7 @@ bool WebSocketSession::subscribe_to_signal(const std::string& signal_name)
     std::lock_guard<std::mutex> lock(subscription_mutex_);
     if (subscribed_signals_.find(signal_name) == subscribed_signals_.end())
     {
-        subscribed_signals_.insert(signal_name);
+        subscribed_signals_.emplace(signal_name);
         logger_->info("Session: {} Subscribed to signal: {}", GetSessionID(), signal_name);
         return true;
     }
@@ -522,10 +522,10 @@ void WebSocketSession::send_signal_update(const std::string& signal_name, const 
 void WebSocketSession::end_session()
 {
     logger_->info("Session: {} disconnected. Cleaning up.", GetSessionID());
-
+    {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
     subscribed_signals_.clear();
-
+    }
     json disconnect_msg;
     disconnect_msg["type"] = "disconnect";
     disconnect_msg["session_id"] = GetSessionID();

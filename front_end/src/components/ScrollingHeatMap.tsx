@@ -34,6 +34,10 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     private maxCols: number;
     private maxRows: number;
 
+    private messageTimestamps: number[] = [];
+    private lastFlushTime: number = 0;
+    private targetFrameInterval: number = 1000 / (this.props.frameRate || 30);
+
     constructor(props: ScrollingHeatmapProps) {
         super(props);
         this.maxCols = props.dataWidth || 1000;
@@ -49,13 +53,9 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
 
     componentDidMount() {
         this.setupResizeObserver();
-
-        // Execute render callback directly
         if (this.context) {
-            this.context(this.startRenderLoop); // Pass the render loop to the callback
+            this.context(this.startRenderLoop);
         }
-
-        // Setup socket connection for signal data
         this.setupSocket();
     }
 
@@ -103,7 +103,7 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
                 console.error('Invalid data format:', message.value);
             }  
         } else if (message.type === 'binary') {
-            console.log('Received unsuported binary data.');
+            console.log('Received unsupported binary data.');
         }
     };
 
@@ -125,33 +125,72 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             ? [...clampedRow, ...Array(this.maxCols - clampedRow.length).fill(0)]
             : clampedRow;
 
-        this.setState(prevState => {
-            const updatedQueue = [...prevState.dataQueue, paddedRow]; // Add to the queue
-            return { dataQueue: updatedQueue };
-        });
+        const now = Date.now();
+        this.messageTimestamps.push(now);
+        while (this.messageTimestamps.length > 100) {
+            this.messageTimestamps.shift();
+        }
+
+        this.setState(prevState => ({
+            dataQueue: [...prevState.dataQueue, paddedRow]
+        }));
+    }
+
+    getDataRate(): number {
+        const now = Date.now();
+        this.messageTimestamps.push(now);
+
+        this.messageTimestamps = this.messageTimestamps.filter(ts => now - ts <= 1000);
+
+        if (this.messageTimestamps.length > 100) {
+            this.messageTimestamps = this.messageTimestamps.slice(-100);
+        }
+
+        if (this.messageTimestamps.length < 2) {
+            return 0;
+        }
+
+        let totalDifference = 0;
+        for (let i = 1; i < this.messageTimestamps.length; i++) {
+            totalDifference += this.messageTimestamps[i] - this.messageTimestamps[i - 1];
+        }
+
+        const averageDifference = totalDifference / (this.messageTimestamps.length - 1);
+
+        return 1000 / averageDifference;
     }
 
     flushDataToBuffer() {
         this.setState(prevState => {
             const updatedBuffer = [...prevState.buffer];
             const updatedQueue = [...prevState.dataQueue];
-    
-            if (updatedQueue.length === 1) {
-                updatedBuffer.push(updatedQueue[0]);
-            } else if (updatedQueue.length > 1) {
-                updatedBuffer.push(updatedQueue.shift()!);
+
+            while (updatedQueue.length > 0) {
+                const row = updatedQueue.shift()!;
+                updatedBuffer.push(row);
+                if (updatedBuffer.length > this.maxRows) {
+                    updatedBuffer.shift();
+                }
             }
-    
-            if (updatedBuffer.length > this.maxRows) {
-                updatedBuffer.shift();
-            }
-    
-            return { buffer: updatedBuffer, dataQueue: updatedQueue };
+
+            return {
+                buffer: updatedBuffer,
+                dataQueue: updatedQueue,
+            };
         });
     }
 
     startRenderLoop = () => {
-        this.flushDataToBuffer();
+        const now = Date.now();
+        const dataRate = this.getDataRate();
+        const frameInterval = dataRate > 0 ? 1000 / dataRate : this.targetFrameInterval;
+        const timeSinceLastFlush = now - this.lastFlushTime;
+
+        if (timeSinceLastFlush >= frameInterval) {
+            this.flushDataToBuffer();
+            this.lastFlushTime = now;
+        }
+
         this.drawHeatmap();
     };
 
@@ -166,7 +205,6 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         const { minColor, midColor, maxColor, min, max, flipX, flipY } = this.props;
 
         const imageData = ctx.createImageData(renderWidth, renderHeight);
-
         const minRGB = this.hexToRgb(minColor || '#000000');
         const midRGB = this.hexToRgb(midColor || '#ff0000');
         const maxRGB = this.hexToRgb(maxColor || '#ffff00');

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PixelGridAnimation.h"
-#include "../signal.h"
+#include "../signals/signal.h"
 #include <vector>
 #include <mutex>
 

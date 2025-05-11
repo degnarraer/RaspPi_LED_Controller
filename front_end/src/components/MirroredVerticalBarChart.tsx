@@ -75,13 +75,13 @@ export default class MirroredVerticalBarChart extends Component<
                 datasets: [
                     {
                         data: this.state.leftValues.map((v) => -v),
-                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)', 
                         categoryPercentage: 1.0,
                         barPercentage: 1.0,
                     },
                     {
                         data: this.state.rightValues,
-                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)', 
                         categoryPercentage: 1.0,
                         barPercentage: 1.0,
                     },
@@ -98,11 +98,15 @@ export default class MirroredVerticalBarChart extends Component<
                         beginAtZero: true,
                         ticks: {
                             callback: (val: number) => Math.abs(val).toString(),
+                            color: '#ffffff', // white text for x-axis labels
                         },
                     },
                     y: {
                         stacked: true,
                         reverse: true,
+                        ticks: {
+                            color: '#ffffff', // white text for y-axis labels
+                        },
                     },
                 },
                 animation: {
@@ -110,8 +114,22 @@ export default class MirroredVerticalBarChart extends Component<
                     easing: 'linear',
                 },
                 plugins: {
-                    legend: { display: false, },
+                    legend: { display: false },
                 },
+                elements: {
+                    bar: {
+                        borderWidth: 0, // No border for bars
+                    },
+                },
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 10,
+                        top: 10,
+                        bottom: 10,
+                    },
+                },
+                backgroundColor: '#000000', // black background for the chart area
             },
         });
     }
@@ -156,7 +174,7 @@ export default class MirroredVerticalBarChart extends Component<
                 });
             }
         } else if (message.type === 'binary') {
-            console.log('Received unsuported binary data.');
+            console.log('Received unsupported binary data.');
         }
     };
 
@@ -185,7 +203,7 @@ export default class MirroredVerticalBarChart extends Component<
         return (
             <canvas
                 ref={this.canvasRef}
-                style={{ width: '100%', height: '100%' }}
+                style={{ width: '100%', height: '100%', backgroundColor: '#000000' }} // black background for the canvas
             />
         );
     }

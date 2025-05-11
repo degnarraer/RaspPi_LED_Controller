@@ -11,7 +11,7 @@
 #include "logger.h"
 #include "kiss_fft.h"
 #include "ring_buffer.h"
-#include "signal.h"
+#include "signals/IntVectorSignal.h"
 #include "websocket_server.h"
 
 enum class ChannelType
@@ -57,7 +57,12 @@ class FFTComputer
         {
             // Retrieve existing logger or create a new one
             logger = InitializeLogger("FFT Computer", spdlog::level::info);
-
+            inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_));
+            if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_);
+            inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_ + " Left Channel"));
+            if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Left Channel");
+            inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_ + " Right Channel"));
+            if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Right Channel");
             fft_ = kiss_fft_alloc(fft_size_, 0, nullptr, nullptr);
             if (!fft_)
             {
@@ -126,9 +131,9 @@ class FFTComputer
         const float sqrt2 = std::sqrt(2.0);
         std::shared_ptr<spdlog::logger> logger;
 
-        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_);
-        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalLeftChannel_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_ + " Left Channel");
-        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalRightChannel_ = SignalManager::GetInstance().CreateSignal<std::vector<int32_t>>(input_signal_name_ + " Right Channel");
+        Signal<std::vector<int32_t>>* inputSignal_;
+        Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
+        Signal<std::vector<int32_t>>* inputSignalRightChannel_;
         std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands);
         std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands);
         std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands);
@@ -156,42 +161,47 @@ class FFTComputer
 
         void processQueue()
         {
-            std::vector<int32_t> accumulatedData;  // Buffer for incoming data
-            size_t requiredSamples = fft_size_;    // 8192 samples required for FFT
-            size_t overlapSamples = fft_size_ / 4; // 75% overlap (2048 samples)
-            size_t nonOverlappingSamples = requiredSamples - overlapSamples; // Non-overlapping part
+            std::vector<int32_t> monoBuffer;
+            std::vector<int32_t> leftBuffer;
+            std::vector<int32_t> rightBuffer;
+            const size_t minimumStepSize = 512;
+            const size_t requiredSamples = fft_size_;
+            const size_t overlapSamples = std::min(fft_size_ - 512, std::max(minimumStepSize, fft_size_));
+            const size_t nonOverlappingSamples = requiredSamples - overlapSamples;
 
             while (!stopFlag_)
             {
-                DataPacket dataPacket{};
-                
+                DataPacket dataPacket;
                 {
                     std::unique_lock<std::mutex> lock(queueMutex_);
                     cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
                     if (stopFlag_) break;
-                    
                     dataPacket = std::move(dataQueue_.front());
                     dataQueue_.pop();
                 }
 
-                // Accumulate the incoming data
-                accumulatedData.insert(accumulatedData.end(), dataPacket.data.begin(), dataPacket.data.end());
-
-                // Process when we have enough data for the FFT with overlap
-                while (accumulatedData.size() >= requiredSamples)
+                // Select buffer based on channel
+                std::vector<int32_t>* buffer = nullptr;
+                switch (dataPacket.channel)
                 {
-                    // Take the first `requiredSamples` from the accumulated data for FFT
-                    std::vector<int32_t> fftData(accumulatedData.begin(), accumulatedData.begin() + requiredSamples);
+                    case ChannelType::Mono: buffer = &monoBuffer; break;
+                    case ChannelType::Left: buffer = &leftBuffer; break;
+                    case ChannelType::Right: buffer = &rightBuffer; break;
+                    default: continue;
+                }
 
-                    // Remove the processed data from the front of the buffer, but keep the overlap
-                    accumulatedData.erase(accumulatedData.begin(), accumulatedData.begin() + nonOverlappingSamples);
+                buffer->insert(buffer->end(), std::make_move_iterator(dataPacket.data.begin()), std::make_move_iterator(dataPacket.data.end()));
 
-                    // Process FFT on this chunk of data
-                    DataPacket fftPacket{ std::move(fftData), dataPacket.channel };
-                    processFFT(fftPacket);  // Call the existing FFT processing function
+                while (buffer->size() >= requiredSamples)
+                {
+                    std::vector<int32_t> fftData(buffer->begin(), buffer->begin() + requiredSamples);
+                    buffer->erase(buffer->begin(), buffer->begin() + nonOverlappingSamples);
+
+                    processFFT({ std::move(fftData), dataPacket.channel });
                 }
             }
         }
+
 
         void processFFT(const DataPacket& dataPacket)
         {
@@ -261,7 +271,7 @@ class FFTComputer
 
                 if (i == 0)
                 {
-                    lowerFreq = ISO_32_BAND_CENTERS[i] / sqrt2; // First band: Lower bound is half of center
+                    lowerFreq = ISO_32_BAND_CENTERS[i] / sqrt2;
                 }
                 else
                 {
@@ -270,7 +280,7 @@ class FFTComputer
 
                 if (i == ISO_32_BAND_CENTERS.size() - 1)
                 {
-                    upperFreq = ISO_32_BAND_CENTERS[i] * sqrt2; // Last band: Upper bound extends beyond
+                    upperFreq = ISO_32_BAND_CENTERS[i] * sqrt2;
                 }
                 else
                 {
@@ -280,7 +290,6 @@ class FFTComputer
                 size_t binStart = static_cast<size_t>(std::floor(lowerFreq / freqResolution));
                 size_t binEnd = static_cast<size_t>(std::ceil(upperFreq / freqResolution));
 
-                // Ensure bin ranges are within bounds
                 binStart = std::min(binStart, fft_size_ - 1);
                 binEnd = std::min(binEnd, fft_size_ - 1);
 
@@ -289,14 +298,13 @@ class FFTComputer
 
                 for (size_t j = binStart; j <= binEnd; ++j)
                 {
-                    saeBands[i] += magnitudes[j] * magnitudes[j]; // Sum squared magnitudes (power)
+                    saeBands[i] += magnitudes[j] * magnitudes[j];
                     ++count;
                 }
 
-                // Compute power-based normalization (RMS of the power in the band)
                 if (count > 0)
                 {
-                    saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count)); // Square root of mean power
+                    saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count));
                 }
             }
         }

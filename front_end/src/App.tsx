@@ -16,8 +16,7 @@ const SCREENS = {
   TOWER_SCREEN: 'tower screen',
   HORIZONTAL_STEREO_SPECTRUM: 'horrizontal stereo spectrum',
   VERTICAL_STEREO_SPECTRUM: 'vertical stereo spectrum',
-  LEFT_CHANNEL_WAVE: 'left channel wave screen',
-  RIGHT_CHANNEL_WAVE: 'right channel wave screen',
+  WAVE_SCREEN: 'wave screen',
   SCROLLING_HEAT_MAP: 'scrolling heat map screen',
 };
 
@@ -47,9 +46,8 @@ function App() {
     { key: '2', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen' },
     { key: '3', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum' },
     { key: '4', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum' },
-    { key: '5', screen: SCREENS.LEFT_CHANNEL_WAVE, label: 'Left Channel Wave' },
-    { key: '6', screen: SCREENS.RIGHT_CHANNEL_WAVE, label: 'Right Channel Wave' },
-    { key: '7', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map' },
+    { key: '5', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen' },
+    { key: '6', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map' },
   ];
 
   const renderScreen = () => {
@@ -62,10 +60,8 @@ function App() {
         return <HorizontalStereoSpectrumScreen />;
       case SCREENS.VERTICAL_STEREO_SPECTRUM:
         return <VerticalStereoSpectrumScreen />;
-      case SCREENS.LEFT_CHANNEL_WAVE:
-        return <LeftChannelWaveScreen />;
-      case SCREENS.RIGHT_CHANNEL_WAVE:
-        return <RightChannelWaveScreen />;
+      case SCREENS.WAVE_SCREEN:
+        return <WaveScreen />;
       case SCREENS.SCROLLING_HEAT_MAP:
         return <ScrollingHeatMapScreen />;
       default:
@@ -174,18 +170,13 @@ function App() {
     );
   }
 
-  function LeftChannelWaveScreen() {
+  function WaveScreen() {
     return (
       <div style={{ width: '100%', height: '100%' }}>
-        <StreamingScatterPlot signal="Microphone Left Channel" socket={socket} />
-      </div>
-    );
-  }
-
-  function RightChannelWaveScreen() {
-    return (
-      <div style={{ width: '100%', height: '100%' }}>
-        <StreamingScatterPlot signal="Microphone Right Channel" socket={socket} />
+        <StreamingScatterPlot 
+          signal1="Microphone Right Channel"
+          signal2="Microphone Left Channel"
+          socket={socket} />
       </div>
     );
   }
@@ -202,6 +193,9 @@ function App() {
               min={0}
               max={10}
               flipX={true}
+              minColor={'#000000'}
+              midColor={'#0000ff'}
+              maxColor={'#00ffff'}
               socket={socket}
             />
           </div>
@@ -213,6 +207,9 @@ function App() {
               min={0}
               max={10}
               flipX={false}
+              minColor={'#000000'}
+              midColor={'#ff0000'}
+              maxColor={'#ffff00'}
               socket={socket}
             />
           </div>
@@ -242,7 +239,7 @@ function App() {
           position: 'fixed',
           top: '10px',
           right: '10px',
-          zIndex: 10000, // Ensure button is on top of everything else
+          zIndex: 10000,
         }}
       >
         Menu

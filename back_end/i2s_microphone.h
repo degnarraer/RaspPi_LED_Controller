@@ -8,7 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include "logger.h"
-#include "signal.h"
+#include "signals/IntVectorSignal.h"
 #include "websocket_server.h"
 
 class I2SMicrophone 
@@ -46,6 +46,9 @@ class I2SMicrophone
         std::atomic<bool> stopReading_;
         std::thread readingThread_;
         std::thread sineWaveThread_;
+        Signal<std::vector<int32_t>>* inputSignal_;
+        Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
+        Signal<std::vector<int32_t>>* inputSignalRightChannel_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneLeftChannelSignalCallback_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneRightChannelSignalCallback_;
