@@ -83,11 +83,14 @@ std::string WebSocketSession::GetSessionID() const
 
 void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
 {
-    // First validate the message before queue interaction
-    if (!is_valid_utf8(webSocketMessage.message))
+    // Only validate UTF-8 for text messages
+    if (webSocketMessage.webSocket_Message_type == WebSocketMessageType::Text)
     {
-        logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
-        return;
+        if (!is_valid_utf8(webSocketMessage.message))
+        {
+            logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
+            return;
+        }
     }
 
     auto self = shared_from_this();
@@ -105,9 +108,9 @@ void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
         }
 
         bool write_in_progress = !self->outgoing_messages_.empty();
-        self->outgoing_messages_.push_back(webSocketMessage);
+        self->outgoing_messages_.push_back(std::move(webSocketMessage));
 
-        if (!write_in_progress)
+        if (!write_in_progress && !self->backoff_enabled_)
         {
             self->do_write();
         }
@@ -136,9 +139,9 @@ void WebSocketSession::schedule_backoff()
 void WebSocketSession::resume_sending()
 {
     auto self = shared_from_this();
-    asio::post(strand_, [self]() {
+    asio::post(strand_, [self]()
+    {        
         self->backoff_enabled_ = false;
-
         while (!self->retry_messages_.empty())
         {
             auto& msg = self->retry_messages_.front();
@@ -153,8 +156,7 @@ void WebSocketSession::resume_sending()
             }
             self->retry_messages_.pop_front();
         }
-
-        if (!self->outgoing_messages_.empty())
+        if (!self->outgoing_messages_.empty() && !self->backoff_enabled_)
         {
             self->do_write();
         }
@@ -431,20 +433,16 @@ void WebSocketSession::handle_unknown_message(const json& incoming)
 }
 
 void WebSocketSession::do_write()
-{
-    WebSocketMessage webSocketMessage;
+{    
+    if (writing_ || outgoing_messages_.empty() || backoff_enabled_)
     {
-        std::lock_guard<std::mutex> lock(write_mutex_);
-        if (writing_ || outgoing_messages_.empty() || backoff_enabled_)
-        {
-            return;
-        }
-
-        webSocketMessage = outgoing_messages_.front();
-        outgoing_messages_.pop_front();
-        writing_ = true;
+        return;
     }
-    
+
+    auto webSocketMessage = outgoing_messages_.front();
+    outgoing_messages_.pop_front();
+    writing_ = true;
+        
     auto self = shared_from_this();
     switch (webSocketMessage.webSocket_Message_type)
     {
@@ -481,7 +479,6 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
     auto self = shared_from_this();
     asio::post(strand_, [self, ec, bytes_transferred, webSocketMessage]() mutable {
         self->writing_ = false;
-
         if (ec)
         {
             self->rate_limited_log->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
@@ -497,7 +494,7 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
                                         "Sent message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
         }
 
-        if (!self->outgoing_messages_.empty())
+        if (!self->outgoing_messages_.empty() && !self->backoff_enabled_)
         {
             self->do_write();
         }

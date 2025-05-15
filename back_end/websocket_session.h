@@ -133,7 +133,6 @@ private:
 
     std::deque<WebSocketMessage> outgoing_messages_;
     mutable std::mutex read_mutex_;
-    mutable std::mutex write_mutex_;
     bool writing_ = false;
 
     std::deque<WebSocketMessage> retry_messages_;
