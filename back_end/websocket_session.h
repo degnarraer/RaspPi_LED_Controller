@@ -92,6 +92,12 @@ public:
 private:
     void do_read();
     void on_read(std::size_t bytes_transferred);
+    void handle_subscribe(const json& incoming);
+    void handle_unsubscribe(const json& incoming);
+    void handle_text_message(const json& incoming);
+    void handle_signal_message(const json& incoming);
+    void handle_echo_message(const json& incoming);
+    void handle_unknown_message(const json& incoming);
     void handleWebSocketError(const std::error_code& ec, const std::string& context = "");
     void do_write();
     void on_write(beast::error_code ec, std::size_t bytes_transferred);

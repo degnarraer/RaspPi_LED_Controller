@@ -138,9 +138,7 @@ void WebSocketSession::resume_sending()
     bool should_write = false;
 
     {
-        std::lock_guard<std::mutex> lock(write_mutex_);
-        std::lock_guard<std::mutex> retry_lock(retry_mutex_);
-
+        std::scoped_lock lock(write_mutex_, retry_mutex_);
         backoff_enabled_ = false;
 
         for (auto it = retry_messages_.begin(); it != retry_messages_.end();)
@@ -321,67 +319,17 @@ void WebSocketSession::on_read(std::size_t)
             switch (string_to_type_.at(incoming["type"]))
             {
                 case MessageType::Subscribe:
-                    logger_->info("Session: {} Subscribe Message", GetSessionID());
-                    if(incoming.contains("signal"))
-                    {
-                        if(subscribe_to_signal(incoming["signal"]))
-                        {
-                            //json response;
-                            //response["type"] = type_to_string_.at(MessageType::Echo);
-                            //response["message"] = "Successfully subscribed to " + incoming["signal"].get<std::string>();
-                            //send_message(response.dump());
-                        }
-                        else
-                        {
-                            //json response;
-                            //response["type"] = type_to_string_.at(MessageType::Echo);
-                            //response["message"] = "Already subscribed to " + incoming["signal"].get<std::string>();
-                            //send_message(response.dump());
-                        }
-                    }
-                    else
-                    {
-                        logger_->warn("Session: {} Subscribe Message without signal", GetSessionID());
-                        //json response;
-                        //response["type"] = type_to_string_.at(MessageType::Echo);
-                        //response["message"] = "Subscribe message missing signal";
-                        //send_message(response.dump());
-                    }
+                    handle_subscribe(incoming);
                     break;
                 case MessageType::Unsubscribe:
-                    logger_->info("Session: {} Unsubscribe Message", GetSessionID());
-                    if(incoming.contains("signal"))
-                    {
-                        
-                        if(unsubscribe_from_signal(incoming["signal"]))
-                        {
-                            //json response;
-                            //response["type"] = type_to_string_.at(MessageType::Echo);
-                            //response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
-                            //send_message(response.dump());
-                        }
-                        else
-                        {
-                            //json response;
-                            //response["type"] = type_to_string_.at(MessageType::Echo);
-                            //response["message"] = "Already unsubscribed from " + incoming["signal"].get<std::string>();
-                            //send_message(response.dump());
-                        }
-                    }
-                    else
-                    {
-                        logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
-                        //json response;
-                        //response["type"] = type_to_string_.at(MessageType::Echo);
-                        //response["message"] = "Unsubscribe message missing signal";
-                        //send_message(response.dump());
-                    }
+                    handle_unsubscribe(incoming);
+                    break;
+                case MessageType::Text:
+                    handle_text_message(incoming);
                     break;
                 case MessageType::Signal:
-                {
-                    std::string signal_data = incoming["signal"].get<std::string>();
-                    logger_->info("Received signal data: {}", signal_data);
-                    // Handle signal data processing
+                {  
+                    handle_signal_message(incoming);
                     break;
                 }
                 default:
@@ -397,6 +345,98 @@ void WebSocketSession::on_read(std::size_t)
     {
         logger_->error("Exception while parsing message: {}", e.what());
     }
+}
+
+void WebSocketSession::handle_subscribe(const json& incoming)
+{
+    if(incoming.contains("signal"))
+    {
+        if(subscribe_to_signal(incoming["signal"]))
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
+            send_message(response.dump());
+        }
+        else
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Already unsubscribed from " + incoming["signal"].get<std::string>();
+            send_message(response.dump());
+        }
+    }
+    else
+    {
+        logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
+        json response;
+        response["type"] = type_to_string_.at(MessageType::Echo);
+        response["message"] = "Unsubscribe message missing signal";
+        send_message(response.dump());
+    }
+}
+void WebSocketSession::handle_unsubscribe(const json& incoming)
+{
+    logger_->info("Session: {} Unsubscribe Message", GetSessionID());
+    if(incoming.contains("signal"))
+    {
+        if(unsubscribe_from_signal(incoming["signal"]))
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
+            send_message(response.dump());
+        }
+        else
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Already unsubscribed from " + incoming["signal"].get<std::string>();
+            send_message(response.dump());
+        }
+    }
+    else
+    {
+        logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
+        json response;
+        response["type"] = type_to_string_.at(MessageType::Echo);
+        response["message"] = "Unsubscribe message missing signal";
+        send_message(response.dump());
+    }
+    
+}
+
+void WebSocketSession::handle_text_message(const json& incoming)
+{
+    logger_->warn("Received text message: {} Not Yet Handled", incoming.dump());
+}
+
+void WebSocketSession::handle_signal_message(const json& incoming)
+{
+    if(incoming.contains("signal"))
+    {
+        std::string signal_data = incoming["signal"].get<std::string>();
+        logger_->warn("Received signal data: {} Not Yet Handled", signal_data);
+        // Handle signal data processing
+    }
+    else
+    {
+        logger_->warn("Session: {} Unsubscribe Message without signal", GetSessionID());
+        json response;
+        response["type"] = type_to_string_.at(MessageType::Echo);
+        response["message"] = "Unsubscribe message missing signal";
+        send_message(response.dump());
+    }
+}
+
+void WebSocketSession::handle_echo_message(const json& incoming)
+{
+    
+}
+
+void WebSocketSession::handle_unknown_message(const json& incoming)
+{
+    logger_->warn("Received unknown message: {}", incoming.dump()); 
 }
 
 void WebSocketSession::do_write()
