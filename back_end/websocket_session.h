@@ -69,6 +69,7 @@ struct WebSocketMessage
     MessagePriority priority = MessagePriority::Low;
     int retry_count = 0;
     bool should_retry = false;
+    WebSocketMessage() = default;
     WebSocketMessage(const std::string& msg, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
         : message(msg), priority(p), should_retry(retry_flag) {}
     WebSocketMessage(const std::vector<uint8_t>& data, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
@@ -100,7 +101,7 @@ private:
     void handle_unknown_message(const json& incoming);
     void handleWebSocketError(const std::error_code& ec, const std::string& context = "");
     void do_write();
-    void on_write(beast::error_code ec, std::size_t bytes_transferred);
+    void on_write(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
     void maybe_backoff();
     void schedule_backoff();
     void retry_message(const WebSocketMessage& message);
@@ -124,15 +125,16 @@ private:
 
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
+    boost::asio::io_context::strand strand_;
     std::shared_ptr<spdlog::logger> logger_;
     std::shared_ptr<RateLimitedLogger> rate_limited_log;
     beast::flat_buffer buffer_;
     std::string session_id_;
 
     std::deque<WebSocketMessage> outgoing_messages_;
-    bool writing_ = false;
     mutable std::mutex read_mutex_;
     mutable std::mutex write_mutex_;
+    bool writing_ = false;
 
     std::deque<WebSocketMessage> retry_messages_;
     std::mutex retry_mutex_;
