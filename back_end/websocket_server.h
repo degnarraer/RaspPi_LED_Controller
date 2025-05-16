@@ -34,6 +34,8 @@ private:
     std::unordered_map<std::string, std::weak_ptr<WebSocketSession>> sessions_;
     std::unordered_map<std::string, std::shared_ptr<IWebSocketServer_BackendClient>> backend_clients_;
     std::shared_ptr<spdlog::logger> logger_;
+    std::atomic<bool> is_running_ = false;
+    std::mutex server_mutex_;
 
     void register_session(std::shared_ptr<WebSocketSession> session);
     void do_accept();

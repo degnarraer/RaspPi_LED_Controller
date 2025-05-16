@@ -97,13 +97,7 @@ void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
     asio::post(strand_, [self, webSocketMessage]() {
         if (self->outgoing_messages_.size() >= MAX_QUEUE_SIZE)
         {
-            if (!self->backoff_enabled_)
-            {
-                self->backoff_enabled_ = true;
-                self->backoff_attempts_++;
-                self->logger_->warn("Backoff enabled for session {}, queue size {}", self->session_id_, self->outgoing_messages_.size());
-                self->schedule_backoff();
-            }
+            self->try_schedule_backoff();
             return;
         }
 
@@ -123,8 +117,19 @@ void WebSocketSession::send_binary_message(const std::vector<uint8_t>& message)
     send_message(binary_msg);
 }
 
+void WebSocketSession::try_schedule_backoff()
+{
+    if (!backoff_enabled_)
+    {
+        backoff_enabled_ = true;
+        backoff_attempts_++;
+        schedule_backoff();
+    }
+}
+
 void WebSocketSession::schedule_backoff()
 {
+    logger_->warn("Backoff enabled for session {}, queue size {}", session_id_, outgoing_messages_.size());
     int delay = BASE_BACKOFF_MS * (1 << std::min(backoff_attempts_, 6));
     backoff_timer_.expires_after(std::chrono::milliseconds(delay));
     backoff_timer_.async_wait([self = shared_from_this()](const beast::error_code& ec)
@@ -208,24 +213,24 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
     {
         case ECONNREFUSED:
             logger_->error("{}: Connection refused: server may be down or rejecting connections.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case ECONNRESET:
             logger_->error("{}: Connection reset: peer closed the connection unexpectedly.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case ECONNABORTED:
             logger_->error("{}: Connection aborted.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case ETIMEDOUT:
             logger_->error("{}: Operation timed out.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case EHOSTUNREACH:
         case ENETUNREACH:
             logger_->error("{}: Network unreachable.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case ENOTCONN:
             logger_->error("{}: Socket not connected.", sid);
@@ -237,24 +242,24 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
             break;
         case EADDRINUSE:
             logger_->error("{}: Address in use: another process may be using this port.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case EALREADY:
         case EINPROGRESS:
             logger_->error("{}: Connection already in progress.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case EAGAIN:
             logger_->error("{}: Operation would block (non-blocking mode).", sid);
             break;
         case ENOBUFS:
             logger_->error("{}: No buffer space available.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case EMFILE:
         case ENFILE:
             logger_->error("{}: Too many open files: descriptor limit reached.", sid);
-            schedule_backoff();
+            try_schedule_backoff();
             break;
         case EBADF:
         case ENOTSOCK:
@@ -482,7 +487,7 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
         if (ec)
         {
             self->rate_limited_log->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
-            self->schedule_backoff();
+            self->try_schedule_backoff();
             if (webSocketMessage.should_retry)
             {
                 self->retry_message(webSocketMessage);

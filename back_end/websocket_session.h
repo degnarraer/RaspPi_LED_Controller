@@ -103,6 +103,7 @@ private:
     void do_write();
     void on_write(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
     void maybe_backoff();
+    void try_schedule_backoff();
     void schedule_backoff();
     void retry_message(const WebSocketMessage& message);
     void send_signal_update(const std::string& signal_name, const std::string& data);
