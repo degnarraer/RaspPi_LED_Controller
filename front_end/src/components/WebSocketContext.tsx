@@ -159,50 +159,78 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   };
 
   const handleNamedBinaryEncoder = (data: Uint8Array) => {
-    if (data.length < 3) {
-      console.warn("Binary message too short.");
-      return;
+    const TYPE_HEADER_LENGTH = 1;
+    const NAME_LENGTH_BYTES = 2;
+
+    if (data.length < TYPE_HEADER_LENGTH + NAME_LENGTH_BYTES) {
+        console.warn("Binary message too short.");
+        return;
     }
-  
+
+    const payloadType = data[0];
+
     const nameLen = (data[1] << 8) | data[2];
     const nameStart = 3;
     const nameEnd = nameStart + nameLen;
-  
+
     if (data.length < nameEnd) {
-      console.warn("Binary message truncated before signal name");
-      return;
+        console.warn(`Binary message truncated before signal name. Needed at least ${nameEnd}, got ${data.length}`);
+        return;
     }
-  
-    const nameBytes = data.slice(nameStart, nameEnd);
-    const decoder = new TextDecoder('utf-8');
-    const signalName = decoder.decode(nameBytes);
-  
-    const payload = data.slice(nameEnd);
-  
+
+    const nameBytes = data.subarray(nameStart, nameEnd);
+    let signalName: string;
+    try {
+        const decoder = new TextDecoder('utf-8');
+        signalName = decoder.decode(nameBytes);
+    } catch (err) {
+        console.error("Failed to decode signal name:", err);
+        return;
+    }
+
+    const payloadStart = nameEnd;
+    const payload = data.subarray(payloadStart);
+
+    if (payload.length < 4) {
+        console.warn(`Binary payload too short to include dimensions (rows/cols): ${payload.length}`);
+        return;
+    }
+
+    // Optional debug log:
+    // console.log(`Decoded binary message. Signal: ${signalName}, Payload type: ${payloadType}, Payload length: ${payload.length}`);
+
     handleCallbacks(signalName, {
         type: 'binary',
         signal: signalName,
         payload,
-        payloadType: data[0],
-      });
+        payloadType,
+    });
   };
 
   const handleTextMessage = (textData: string) => {
     let parsed: unknown;
+
     try {
-      parsed = JSON.parse(textData);
+        parsed = JSON.parse(textData);
     } catch (err) {
-      console.error('Invalid JSON received:', textData);
-      return;
+        console.error('Invalid JSON received:', textData);
+        return;
     }
-  
-    const messages = Array.isArray(parsed) ? parsed : [parsed];
+
+    const messages: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+
     for (const message of messages) {
-      if (isWebSocketMessage(message)) {
-        handleCallbacks(message.signal, message);
-      } else {
-        console.warn('Unexpected message structure:', message);
-      }
+        if (typeof message !== 'object' || message === null) {
+            console.warn('Message is not an object:', message);
+            continue;
+        }
+
+        if (isWebSocketMessage(message)) {
+            const signal = (message as WebSocketMessage).signal;
+            handleCallbacks(signal, message as WebSocketMessage);
+        } else {
+            console.warn('Unexpected message structure:', message);
+        }
     }
   };
   
@@ -243,7 +271,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
     
     if (signalSubscribers) {
       signalSubscribers.delete(callback);
-  
+
       if (signalSubscribers.size === 0) {
         subscribers.current.delete(signal);
         
