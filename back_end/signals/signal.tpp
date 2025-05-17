@@ -171,17 +171,17 @@ void Signal<T>::on_message_received_from_web_socket(const std::string& message)
 template<typename T>
 void Signal<T>::NotifyClients(void* arg)
 {
-    if (logger_)
-    {
-        logger_->debug("NotifyClients.");
-    }
+    logger_->debug("NotifyClients.");
 
     if (callbacks_.empty())
     {
-        if (logger_)
-        {
-            logger_->debug("No callbacks registered.");
-        }
+        logger_->debug("No callbacks registered.");
+        return;
+    }
+
+    if (!data_)
+    {
+        logger_->error("{}: Data is not initialized.", name_);
         return;
     }
 
@@ -193,10 +193,7 @@ void Signal<T>::NotifyClients(void* arg)
         }
         else
         {
-            if (logger_)
-            {
-                logger_->warn("Found a null callback.");
-            }
+            logger_->warn("Found a null callback.");
         }
     }
 }
@@ -206,21 +203,23 @@ template<typename T>
 void Signal<T>::NotifyWebSocket()
 {
     if(!isUsingWebSocket_) return;
+    if (!data_)
+    {
+        logger_->error("{}: Data is not initialized.", name_);
+        return;
+    }
+    logger_->debug("NotifyWebSocket: {}", to_string(*data_));
+    
     if (!webSocketServer_)
     {
         logger_->error("{}: WebSocketServer is not initialized.", name_);
         return;
     }
-
+    
     if (!jsonEncoder_ && !binaryEncoder_)
     {
         logger_->error("{}: Encoder is not initialized.", name_);
         return;
-    }
-
-    if (logger_)
-    {
-        logger_->debug("NotifyWebSocket: {}", to_string(*data_));
     }
 
     if(jsonEncoder_)

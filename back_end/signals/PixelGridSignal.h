@@ -96,17 +96,24 @@ private:
 
     BinaryEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_to_binary_encoder()
     {
-        const BinaryEncoder<std::vector<std::vector<RGB>>> encoder = [this](const std::string& signal_name, const std::vector<std::vector<RGB>>& matrix) -> std::vector<uint8_t>
+        return [this](const std::string& signal_name, const std::vector<std::vector<RGB>>& matrix) -> std::vector<uint8_t>
         {
             std::vector<uint8_t> buffer;
 
+            buffer.reserve(1 + 2 + signal_name.size() + 2 + 2 + matrix.size() * (matrix.empty() ? 0 : matrix[0].size()) * 3);
+
+            // Type prefix
             buffer.push_back(static_cast<uint8_t>(BinaryEncoderType::Named_Binary_Encoder));
 
+            // Signal name length (big-endian)
             uint16_t name_len = static_cast<uint16_t>(signal_name.size());
             buffer.push_back((name_len >> 8) & 0xFF);
             buffer.push_back(name_len & 0xFF);
+
+            // Signal name bytes
             buffer.insert(buffer.end(), signal_name.begin(), signal_name.end());
 
+            // Rows and cols (big-endian)
             uint16_t rows = static_cast<uint16_t>(matrix.size());
             uint16_t cols = rows > 0 ? static_cast<uint16_t>(matrix[0].size()) : 0;
             buffer.push_back((rows >> 8) & 0xFF);
@@ -114,6 +121,7 @@ private:
             buffer.push_back((cols >> 8) & 0xFF);
             buffer.push_back(cols & 0xFF);
 
+            // Pixel data in row-major order
             for (const auto& row : matrix)
             {
                 for (const RGB& pixel : row)
@@ -123,10 +131,11 @@ private:
                     buffer.push_back(pixel.b);
                 }
             }
+
             return buffer;
         };
-        return encoder;
     }
+
 
     JsonEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_to_json_encoder()
     {

@@ -31,6 +31,13 @@ WebSocketServer::~WebSocketServer()
 
 void WebSocketServer::Run()
 {
+    std::lock_guard<std::mutex> lock(server_mutex_);
+    if (is_running_.exchange(true))
+    {
+        logger_->warn("WebSocketServer already running.");
+        return;
+    }
+
     logger_->info("Run.");
 
     if (!acceptor_.is_open())
@@ -46,30 +53,49 @@ void WebSocketServer::Run()
         logger_->error("Error starting to listen: {}", ec.message());
         return;
     }
-    logger_->info("Acceptor is listening...");
 
+    logger_->info("Acceptor is listening...");
+    ioc_.restart();
     do_accept();
 
     if (!ioc_thread_.joinable())
     {
-        ioc_thread_ = std::thread([this]()
+        ioc_thread_ = std::thread([self = this]()
         {
-            logger_->info("I/O Context thread started.");
-            ioc_.run();
+            self->logger_->info("I/O Context thread started.");
+            self->ioc_.run();
         });
     }
 }
 
 void WebSocketServer::Stop()
 {
+    std::lock_guard<std::mutex> lock(server_mutex_);
+    if (!is_running_.exchange(false))
+    {
+        logger_->warn("WebSocketServer is not running.");
+        return;
+    }
+
     logger_->info("Stop.");
+
+    boost::system::error_code ec;
     if (acceptor_.is_open())
     {
-        acceptor_.close();
-        logger_->info("acceptor is closed.");
+        acceptor_.close(ec);
+        if (ec)
+        {
+            logger_->error("Error closing acceptor: {}", ec.message());
+        }
+        else
+        {
+            logger_->info("Acceptor is closed.");
+        }
     }
+
     ioc_.stop();
-    logger_->info("I/O Context thread stopped.");
+    logger_->info("I/O Context stopped.");
+
     if (ioc_thread_.joinable())
     {
         ioc_thread_.join();
@@ -79,34 +105,56 @@ void WebSocketServer::Stop()
 
 void WebSocketServer::broadcast_message_to_websocket(const WebSocketMessage& webSocketMessage)
 {
-    std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->debug("Broadcast Message to Clients: {}.", webSocketMessage.message);
-    for (auto& [id, session] : sessions_)
+    std::vector<std::shared_ptr<WebSocketSession>> targets;
+
     {
-        if (auto shared_session = session.lock())
+        std::lock_guard<std::mutex> lock(session_mutex_);
+        for (auto it = sessions_.begin(); it != sessions_.end();)
         {
-            shared_session->send_message(webSocketMessage);
+            if (auto session = it->second.lock())
+            {
+                targets.push_back(session);
+                ++it;
+            }
+            else
+            {
+                it = sessions_.erase(it);
+            }
         }
+    }
+
+    logger_->debug("Broadcasting message to {} sessions.", targets.size());
+    for (auto& session : targets)
+    {
+        session->send_message(webSocketMessage);
     }
 }
 
 void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const WebSocketMessage& message)
 {
-    std::lock_guard<std::mutex> lock(session_mutex_);
-    for (auto it = sessions_.begin(); it != sessions_.end();)
+    std::vector<std::shared_ptr<WebSocketSession>> targets;
     {
-        if (auto session = it->second.lock())
+        std::lock_guard<std::mutex> lock(session_mutex_);
+        for (auto it = sessions_.begin(); it != sessions_.end();)
         {
-            if (session->is_subscribed_to(signal_name))
+            if (auto session = it->second.lock())
             {
-                session->send_message(message);
+                if (session->is_subscribed_to(signal_name))
+                {
+                    targets.push_back(session);
+                }
+                ++it;
             }
-            ++it;
+            else
+            {
+                it = sessions_.erase(it);
+            }
         }
-        else
-        {
-            it = sessions_.erase(it);
-        }
+    }
+
+    for (auto& session : targets)
+    {
+        session->send_message(message);
     }
 }
 
@@ -188,6 +236,11 @@ void WebSocketServer::do_accept()
             else
             {
                 self->logger_->error("Connection accept error: {}.", ec.message());
+            }
+            if (!self->acceptor_.is_open())
+            {
+                self->logger_->info("Acceptor is closed. No longer accepting connections.");
+                return;
             }
             self->do_accept();
         });

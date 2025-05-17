@@ -23,6 +23,7 @@ public:
     void deregister_backend_client(const std::string& client_name);
     void close_session(const std::string& session_id);
     void close_all_sessions();
+    boost::asio::io_context& get_io_context() { return ioc_; }
 
 private:
     boost::asio::io_context ioc_;
@@ -33,6 +34,8 @@ private:
     std::unordered_map<std::string, std::weak_ptr<WebSocketSession>> sessions_;
     std::unordered_map<std::string, std::shared_ptr<IWebSocketServer_BackendClient>> backend_clients_;
     std::shared_ptr<spdlog::logger> logger_;
+    std::atomic<bool> is_running_ = false;
+    std::mutex server_mutex_;
 
     void register_session(std::shared_ptr<WebSocketSession> session);
     void do_accept();
