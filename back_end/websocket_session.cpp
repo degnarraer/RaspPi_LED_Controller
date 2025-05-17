@@ -83,16 +83,6 @@ std::string WebSocketSession::GetSessionID() const
 
 void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
 {
-    // Only validate UTF-8 for text messages
-    if (webSocketMessage.webSocket_Message_type == WebSocketMessageType::Text)
-    {
-        if (!is_valid_utf8(webSocketMessage.message))
-        {
-            logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
-            return;
-        }
-    }
-
     auto self = shared_from_this();
     asio::post(strand_, [self, webSocketMessage]() {
         if (self->outgoing_messages_.size() >= MAX_QUEUE_SIZE)
@@ -438,46 +428,64 @@ void WebSocketSession::handle_unknown_message(const json& incoming)
 }
 
 void WebSocketSession::do_write()
-{    
+{
     if (writing_ || outgoing_messages_.empty() || backoff_enabled_)
     {
         return;
     }
 
-    auto webSocketMessage = outgoing_messages_.front();
+    WebSocketMessage webSocketMessage = std::move(outgoing_messages_.front());
     outgoing_messages_.pop_front();
     writing_ = true;
-        
+
     auto self = shared_from_this();
+
     switch (webSocketMessage.webSocket_Message_type)
     {
         case WebSocketMessageType::Text:
+        {
+            if (!is_valid_utf8(webSocketMessage.message))
+            {
+                logger_->warn("Session {}: Invalid UTF-8 message, skipping...", session_id_);
+                writing_ = false;
+                asio::post(strand_, [self]() { self->do_write(); });
+                return;
+            }
+
             ws_.text(true);
             ws_.async_write(
                 asio::buffer(webSocketMessage.message),
                 asio::bind_executor(
                     strand_,
-                    [self, webSocketMessage](beast::error_code ec, std::size_t bytes_transferred)
+                    [self, msg = std::move(webSocketMessage)](beast::error_code ec, std::size_t bytes_transferred)
                     {
-                        self->on_write(ec, bytes_transferred, webSocketMessage);
+                        self->on_write(ec, bytes_transferred, msg);
                     }));
             break;
+        }
+
         case WebSocketMessageType::Binary:
+        {
             ws_.binary(true);
             ws_.async_write(
                 asio::buffer(webSocketMessage.binary_data),
                 asio::bind_executor(
                     strand_,
-                    [self, webSocketMessage](beast::error_code ec, std::size_t bytes_transferred)
+                    [self, msg = std::move(webSocketMessage)](beast::error_code ec, std::size_t bytes_transferred)
                     {
-                        self->on_write(ec, bytes_transferred, webSocketMessage);
+                        self->on_write(ec, bytes_transferred, msg);
                     }));
             break;
+        }
+
         default:
-            logger_->warn("Session: {} Unknown message type", GetSessionID());
-            return;
+            logger_->warn("Session {}: Unknown message type", session_id_);
+            writing_ = false;
+            asio::post(strand_, [self]() { self->do_write(); });  // try next message
+            break;
     }
 }
+
 
 void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage)
 {
