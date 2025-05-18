@@ -11,7 +11,7 @@
 #include "signals/PixelGridSignal.h"
 #include "./animation/FFTAnimation.h"
 #include "./animation/RainbowAnimation.h"
-//#include "ws281x_led_controller.h"
+#include "ws281x_led_controller.h"
 
 int main()
 {

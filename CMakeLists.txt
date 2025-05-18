@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(RaspPi_LED_Controller)
+
 set(RPI_USER degnarraer)
 set(RPI_HOST ltop.local)
 set(RPI_PATH /home/degnarraer/)
@@ -75,6 +76,7 @@ if(Boost_locale_FOUND)
 else()
     message(FATAL_ERROR "Boost.locale not found. Please install libboost-locale-dev.")
 endif()
+
 ############ Manually Setup NPM ############
 message(STATUS "STEP: Setting up NPM")
 execute_process(
@@ -124,21 +126,25 @@ foreach(SOURCE_FILE ${SOURCES})
     message(STATUS "    ${SOURCE_FILE}")
 endforeach()
 
-############ Include Directories ############
-include_directories(
-    ${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x/include
-    ${CMAKE_SOURCE_DIR}/submodules/spdlog/include
-    ${CMAKE_SOURCE_DIR}/submodules/kissfft
-)
 
 ############ Define Executable ############
 message(STATUS "STEP: Defining Executable")
+add_subdirectory(${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x)
 add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
 
+############ Target Include Directories ############
+target_include_directories(RaspPi_LED_Controller PRIVATE
+    ${CMAKE_SOURCE_DIR}/submodules/kissfft
+    ${CMAKE_SOURCE_DIR}/submodules/spdlog/include
+    ${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x
+)
+
 ############ Link Libraries ############
-message(STATUS "STEP: Linking")
-target_link_libraries(RaspPi_LED_Controller PRIVATE asound)
-target_link_libraries(RaspPi_LED_Controller PRIVATE Boost::locale)
+target_link_libraries(RaspPi_LED_Controller PRIVATE
+    asound
+    Boost::locale
+    ws2811
+)
 
 ############ Build NPM ############
 message(STATUS "STEP: Building Front End")
@@ -154,8 +160,6 @@ add_custom_target(Build_All_Deploy
     DEPENDS RaspPi_LED_Controller
 )
 
-############ Deploy to Raspberry Pi ############
-message(STATUS "STEP: Deploying to Raspberry Pi")
 add_custom_target(Deploy
     COMMAND rsync -avz output/ ${RPI_USER}@${RPI_HOST}:${RPI_PATH}
     DEPENDS RaspPi_LED_Controller
