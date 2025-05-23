@@ -8,5 +8,5 @@
 	branch = master
 [submodule "submodules/rpi_ws281x"]
 	path = submodules/rpi_ws281x
-	url = https://github.com/jgarff/rpi_ws281x.git
-	branch = master
+	url = https://github.com/degnarraer/rpi_ws281x
+	branch = pi5
