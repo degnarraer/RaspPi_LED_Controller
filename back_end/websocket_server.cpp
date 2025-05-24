@@ -183,11 +183,13 @@ void WebSocketServer::close_session(const std::string& session_id)
     {
         if (auto session = it->second.lock())
         {
-            session->send_message(WebSocketMessage("Session closing...", MessagePriority::High, true));
-            session->close();
-            logger_->info("Session {}: Closed.", session_id);
+            if(session->isRunning())
+            {
+                session->close();
+            }
         }
         sessions_.erase(it);
+        logger_->info("Session {} closed.", session_id);
     }
     else
     {

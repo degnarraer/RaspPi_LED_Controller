@@ -31,13 +31,15 @@ export default class MirroredVerticalBarChart extends Component<
         };
     }
 
-    componentDidMount() {
-        this.loadChartLibrary().then(() => {
+    async componentDidMount() {
+        try {
+            await this.loadChartLibrary();
             this.createChart();
-        });
-
-        this.setupSocket();
-        this.setupResizeObserver();
+            this.setupSocket();
+            this.setupResizeObserver();
+        } catch (error) {
+            console.error('Error initializing chart:', error);
+        }
     }
 
     componentDidUpdate(_prevProps: MirroredVerticalBarChartProps, prevState: MirroredVerticalBarChartState) {
@@ -146,18 +148,31 @@ export default class MirroredVerticalBarChart extends Component<
     setupSocket() {
         const { socket, leftSignal, rightSignal } = this.props;
         if (!socket) return;
-    
-        socket.subscribe(leftSignal, this.handleSignalValue);
-        socket.subscribe(rightSignal, this.handleSignalValue);
+        const onOpen = () => {
+            console.log(`Component: Subscribing to leftSignal (via onOpen): ${leftSignal}`);
+            console.log(`Component: Subscribing to rightSignal (via onOpen): ${rightSignal}`);
+            socket.subscribe(leftSignal, this.handleSignalValue);
+            socket.subscribe(rightSignal, this.handleSignalValue);
+        };
+        (this as any)._dualSignalOnOpen = onOpen;
+        socket.onOpen(onOpen);
+        if (socket.isOpen?.()) {
+            onOpen();
+        }
     }
-    
+
     teardownSocket() {
         const { socket, leftSignal, rightSignal } = this.props;
         if (!socket) return;
-    
         socket.unsubscribe(leftSignal, this.handleSignalValue);
         socket.unsubscribe(rightSignal, this.handleSignalValue);
+        const onOpen = (this as any)._dualSignalOnOpen;
+        if (onOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(onOpen);
+        }
+        delete (this as any)._dualSignalOnOpen;
     }
+
 
     private handleSignalValue = (message: WebSocketMessage) => {
         if (message.type === 'signal') {

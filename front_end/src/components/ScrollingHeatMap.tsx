@@ -110,13 +110,28 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     setupSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
-        socket.subscribe(signal, this.handleSignalValue);
+        const onOpen = () => {
+            console.log(`Component: Resubscribing to signal (onOpen): ${signal}`);
+            socket.subscribe(signal, this.handleSignalValue);
+        };
+        (this as any)._signalOnOpen = onOpen;
+        socket.onOpen(onOpen);
+        if (socket.isOpen?.()) {
+            console.log(`Component: Subscribing to signal immediately: ${signal}`);
+            socket.subscribe(signal, this.handleSignalValue);
+        }
     }
 
     teardownSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
+        console.log(`Component: Unsubscribing from signal: ${signal}`);
         socket.unsubscribe(signal, this.handleSignalValue);
+        const onOpen = (this as any)._signalOnOpen;
+        if (onOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(onOpen);
+        }
+        delete (this as any)._signalOnOpen;
     }
 
     queueRow(newRow: number[]) {

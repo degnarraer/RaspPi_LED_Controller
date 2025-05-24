@@ -81,6 +81,7 @@ class WebSocketSession : public MessageTypeHelper, public std::enable_shared_fro
 public:
     explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
     void run();
+    bool isRunning() const { return ws_.is_open(); }
     void close();
     void send_message(const WebSocketMessage& message);
     void send_binary_message(const std::vector<uint8_t>& message);

@@ -64,6 +64,7 @@ void WebSocketSession::close()
     ws_.async_close(websocket::close_code::normal,
         [self = shared_from_this()](beast::error_code ec)
         {
+            self->send_message(WebSocketMessage("Session closing...", MessagePriority::High, true));
             if (ec)
             {
                 self->logger_->warn("Error during async_close: {}", ec.message());
@@ -203,15 +204,15 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
     {
         case ECONNREFUSED:
             logger_->error("{}: Connection refused: server may be down or rejecting connections.", sid);
-            try_schedule_backoff();
+            end_session();
             break;
         case ECONNRESET:
             logger_->error("{}: Connection reset: peer closed the connection unexpectedly.", sid);
-            try_schedule_backoff();
+            end_session();
             break;
         case ECONNABORTED:
             logger_->error("{}: Connection aborted.", sid);
-            try_schedule_backoff();
+            end_session();
             break;
         case ETIMEDOUT:
             logger_->error("{}: Operation timed out.", sid);
@@ -228,11 +229,10 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
             break;
         case EISCONN:
             logger_->error("{}: Socket already connected.", sid);
-            end_session();
             break;
         case EADDRINUSE:
             logger_->error("{}: Address in use: another process may be using this port.", sid);
-            try_schedule_backoff();
+            end_session();
             break;
         case EALREADY:
         case EINPROGRESS:
@@ -567,8 +567,8 @@ void WebSocketSession::end_session()
 {
     logger_->info("Session: {} disconnected. Cleaning up.", GetSessionID());
     {
-    std::lock_guard<std::mutex> lock(subscription_mutex_);
-    subscribed_signals_.clear();
+        std::lock_guard<std::mutex> lock(subscription_mutex_);
+        subscribed_signals_.clear();
     }
     json disconnect_msg;
     disconnect_msg["type"] = "disconnect";

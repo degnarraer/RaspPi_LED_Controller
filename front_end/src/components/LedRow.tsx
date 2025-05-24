@@ -30,25 +30,63 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
     }
 
     componentDidMount() {
-        this.props.randomMode ? this.startRandomUpdates() : this.registerSignal(this.props.signal);
+        if (this.props.randomMode) {
+            this.startRandomUpdates();
+        } else {
+            this.setupSocket(this.props.signal);
+        }
         this.setupResizeObserver();
     }
 
     componentWillUnmount() {
-        this.props.randomMode ? this.stopRandomUpdates() : this.unregisterSignal(this.props.signal);
+        if (this.props.randomMode) {
+            this.stopRandomUpdates();
+        } else {
+            this.teardownSocket(this.props.signal);
+        }
         this.teardownResizeObserver();
+    }
+
+    private setupSocket(signal: string) {
+        const { socket } = this.props;
+        if (!socket) return;
+
+        const onOpen = () => {
+            console.log(`Subscribing to signal (via onOpen): ${signal}`);
+            this.registerSignal(signal);
+        };
+        
+        (this as any)._onOpenCallback = onOpen;
+        socket.onOpen(onOpen);
+
+        if (socket.isOpen?.()) {
+            onOpen();
+        }
+    }
+
+    private teardownSocket(signal: string) {
+        const { socket } = this.props;
+        if (!socket) return;
+
+        this.unregisterSignal(signal);
+
+        const onOpen = (this as any)._onOpenCallback;
+        if (onOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(onOpen);
+        }
+        delete (this as any)._onOpenCallback;
     }
 
     private registerSignal(signal: string) {
         const { socket } = this.props;
+        console.log(`Subscribing to signal: ${signal}`);
         socket.subscribe(signal, this.handleSignalValue);
-        console.log(`Subscribed to signal: ${signal}`);
     }
 
     private unregisterSignal(signal: string) {
         const { socket } = this.props;
+        console.log(`Unsubscribing from signal: ${signal}`);
         socket.unsubscribe(signal, this.handleSignalValue);
-        console.log(`Unsubscribed from signal: ${signal}`);
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {

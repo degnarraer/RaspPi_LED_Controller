@@ -35,12 +35,16 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
         };
     }
 
-    componentDidMount() {
-        this.loadChartLibrary().then(() => {
-            this.createChart();
-        });
+    async componentDidMount() {
+        console.log('Component Did Mount');
         this.setupSocket();
         this.setupResizeObserver();
+        try {
+            await this.loadChartLibrary();
+            this.createChart();
+        } catch (error) {
+            console.error('Error initializing chart:', error);
+        }
     }
 
     componentDidUpdate(_prevProps: LiveBarChartProps, prevState: LiveBarChartState) {
@@ -53,6 +57,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     componentWillUnmount() {
+        console.log('Component Will Unmount');
         this.teardownSocket();
         this.teardownResizeObserver();
         if (this.chart) {
@@ -166,15 +171,31 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     setupSocket() {
+        console.log('Component: Setup Socket');
         const { socket, signal } = this.props;
         if (!socket) return;
-        socket.subscribe(signal, this.handleSignalValue);
+        const onOpen = () => {
+            console.log(`Component: Subscribing to signal (via onOpen): ${signal}`);
+            socket.subscribe(signal, this.handleSignalValue);
+        };
+        (this as any)._liveBarChartOnOpen = onOpen;
+        socket.onOpen(onOpen);
+        if (socket.isOpen?.()) {
+            onOpen();
+        }
     }
 
     teardownSocket() {
+        console.log('Component: Teardown Socket');
         const { socket, signal } = this.props;
         if (!socket) return;
+        console.log(`Component: Unsubscribing from signal: ${signal}`);
         socket.unsubscribe(signal, this.handleSignalValue);
+        const onOpen = (this as any)._liveBarChartOnOpen;
+        if (onOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(onOpen);
+        }
+        delete (this as any)._liveBarChartOnOpen;
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {
