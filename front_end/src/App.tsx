@@ -11,6 +11,15 @@ import LedRow from './components/LedRow';
 //import SignalValueTextBox from './components/SignalValueTextbox';
 import HorizontalGauge from './components/HorizontalGauge';
 
+import {
+  MenuOutlined,
+  HomeOutlined,
+  BarChartOutlined,
+  TableOutlined,
+  HeatMapOutlined,
+  AudioOutlined,
+} from '@ant-design/icons';
+
 const SCREENS = {
   HOME: 'home',
   TOWER_SCREEN: 'tower screen',
@@ -41,14 +50,14 @@ function App() {
     };
   }, []);
 
-  const menuItems = [
-    { key: '1', screen: SCREENS.HOME, label: 'Home' },
-    { key: '2', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen' },
-    { key: '3', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum' },
-    { key: '4', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum' },
-    { key: '5', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen' },
-    { key: '6', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map' },
-  ];
+const menuItems = [
+  { key: '1', screen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '40px' }}/> },
+  { key: '2', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen', icon: <TableOutlined style={{ fontSize: '40px' }}/> },
+  { key: '3', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px' }}/> },
+  { key: '4', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px', transform: 'scaleX(-1) rotate(-90deg)'}}/> },
+  { key: '5', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <AudioOutlined style={{ fontSize: '40px' }}/> },
+  { key: '6', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }}/> },
+];
 
   const renderScreen = () => {
     switch (screen) {
@@ -223,10 +232,10 @@ function App() {
       <Drawer title="Navigation" placement="right" onClose={closeDrawer} visible={visible}>
         <Menu style={{ zIndex: 20001 }}>
           {menuItems.map(item => (
-            <Menu.Item key={item.key} onClick={() => { 
-                console.log("Set Screen: ", item.screen);
-                setScreen(item.screen); closeDrawer();
-              }}>
+            <Menu.Item key={item.key} icon={item.icon} onClick={() => {
+              setScreen(item.screen);
+              closeDrawer();
+            }}>
               {item.label}
             </Menu.Item>
           ))}
@@ -243,7 +252,13 @@ function App() {
           top: '10px',
           right: '10px',
           zIndex: 10000,
+          opacity: 0.25,
         }}
+        icon={
+          <span style={{ padding: '4px' }}>
+            <MenuOutlined style={{ fontSize: '20px' }} />
+          </span>
+        }
       >
         Menu
       </Button>
