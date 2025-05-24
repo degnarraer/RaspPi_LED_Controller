@@ -17,7 +17,7 @@ import {
   BarChartOutlined,
   TableOutlined,
   HeatMapOutlined,
-  AudioOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons';
 
 const SCREENS = {
@@ -55,7 +55,7 @@ const menuItems = [
   { key: '2', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen', icon: <TableOutlined style={{ fontSize: '40px' }}/> },
   { key: '3', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px' }}/> },
   { key: '4', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px', transform: 'scaleX(-1) rotate(-90deg)'}}/> },
-  { key: '5', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <AudioOutlined style={{ fontSize: '40px' }}/> },
+  { key: '5', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <LineChartOutlined style={{ fontSize: '40px' }}/> },
   { key: '6', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }}/> },
 ];
 
