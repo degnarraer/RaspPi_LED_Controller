@@ -23,7 +23,7 @@ const SCREENS = {
 function App() {
   const socket = useContext(WebSocketContext);
   const [visible, setVisible] = useState(false);
-  const [screen, setScreen] = useState(SCREENS.HOME);
+  const [screen, setScreen] = useState(SCREENS.WAVE_SCREEN);
 
   const openDrawer = () => setVisible(true);
   const closeDrawer = () => setVisible(false);
@@ -223,7 +223,10 @@ function App() {
       <Drawer title="Navigation" placement="right" onClose={closeDrawer} visible={visible}>
         <Menu style={{ zIndex: 20001 }}>
           {menuItems.map(item => (
-            <Menu.Item key={item.key} onClick={() => { setScreen(item.screen); closeDrawer(); }}>
+            <Menu.Item key={item.key} onClick={() => { 
+                console.log("Set Screen: ", item.screen);
+                setScreen(item.screen); closeDrawer();
+              }}>
               {item.label}
             </Menu.Item>
           ))}
