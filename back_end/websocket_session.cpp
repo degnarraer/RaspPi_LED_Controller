@@ -30,7 +30,7 @@ WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
     , backoff_timer_(ws_.get_executor())
 {
     logger_ = InitializeLogger("Web Socket Session", spdlog::level::info);
-    rate_limited_log = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
+    rate_limited_log_ = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
     session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
     logger_->info("Created new WebSocket session: {}", session_id_);
 }
@@ -88,7 +88,7 @@ void WebSocketSession::send_message(const WebSocketMessage& webSocketMessage)
     asio::post(strand_, [self, webSocketMessage]() {
         if (self->outgoing_messages_.size() >= MAX_QUEUE_SIZE)
         {
-            self->rate_limited_log->log("queue full", spdlog::level::warn,
+            self->rate_limited_log_->log("queue full", spdlog::level::warn,
                 "Message queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
             self->try_schedule_backoff();
             return;
@@ -112,7 +112,7 @@ void WebSocketSession::send_binary_message(const std::vector<uint8_t>& message)
 
 void WebSocketSession::try_schedule_backoff()
 {
-    logger_->warn("Try enabling backoff, for session {}, queue size {}", session_id_, outgoing_messages_.size());
+    rate_limited_log_->log("try schedule backoff", spdlog::level::warn, "try_schedule_backoff for session: {}", GetSessionID());
     if (!backoff_enabled_)
     {
         backoff_enabled_ = true;
@@ -478,7 +478,7 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
         self->writing_ = false;
         if (ec)
         {
-            self->rate_limited_log->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
+            self->rate_limited_log_->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
             self->try_schedule_backoff();
             if (webSocketMessage.should_retry)
             {
@@ -487,7 +487,7 @@ void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transfer
         }
         else
         {
-            self->rate_limited_log->log("write success", spdlog::level::debug,
+            self->rate_limited_log_->log("write success", spdlog::level::debug,
                                         "Sent message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
         }
 
@@ -504,11 +504,11 @@ void WebSocketSession::retry_message(const WebSocketMessage& webSocketMessage)
     if (retry_messages_.size() < MAX_BATCH_COUNT)
     {
         retry_messages_.push_back(webSocketMessage);
-        rate_limited_log->log("Queued for retry", spdlog::level::info, "Queued message for retry: {}, for session: {}", truncate_for_log(webSocketMessage.message), GetSessionID());
+        rate_limited_log_->log("Queued for retry", spdlog::level::info, "Queued message for retry: {}, for session: {}", truncate_for_log(webSocketMessage.message), GetSessionID());
     }
     else
     {
-        rate_limited_log->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}, for session: {}", truncate_for_log(webSocketMessage.message), GetSessionID());
+        rate_limited_log_->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}, for session: {}", truncate_for_log(webSocketMessage.message), GetSessionID());
     }
 }
 

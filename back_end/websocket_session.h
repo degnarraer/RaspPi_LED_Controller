@@ -129,7 +129,7 @@ private:
     WebSocketServer& server_;
     boost::asio::io_context::strand strand_;
     std::shared_ptr<spdlog::logger> logger_;
-    std::shared_ptr<RateLimitedLogger> rate_limited_log;
+    std::shared_ptr<RateLimitedLogger> rate_limited_log_;
     beast::flat_buffer buffer_;
     std::string session_id_;
 
