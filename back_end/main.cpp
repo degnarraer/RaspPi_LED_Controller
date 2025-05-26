@@ -24,7 +24,7 @@ int main()
     std::shared_ptr<FFTComputer> fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
     std::shared_ptr<DeploymentManager> deploymentManger = std::make_shared<DeploymentManager>();
     std::shared_ptr<SystemStatusMonitor> systemStatusMonitor = std::make_shared<SystemStatusMonitor>(webSocketServer);
-    std::shared_ptr<LED_Controller> ledController = std::make_shared<LED_Controller>(60, 12);
+    //std::shared_ptr<LED_Controller> ledController = std::make_shared<LED_Controller>(60, 13);
 
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");
     deploymentManger->copyFolderContentsWithSudo("./www", "/var/www/html");
@@ -35,10 +35,11 @@ int main()
     PixelGridSignal grid("Pixel Grid", 32, 64, webSocketServer);
     RainbowAnimation animation(grid);
     animation.Start();
-    ledController->Run();
+    //ledController->Run();
+    //ledController->SetColor(0xFF0000);
     std::cin.get();
-    
     animation.Stop();
+    //ledController->Stop();
     webSocketServer->close_all_sessions();
     return 0;
 }

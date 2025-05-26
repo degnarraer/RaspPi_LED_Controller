@@ -5,8 +5,8 @@ LED_Controller::LED_Controller(int ledCount, int gpioPin)
     : ledCount_(ledCount), gpioPin_(gpioPin)
 {
     logger_ = InitializeLogger("LED Logger", spdlog::level::info);
-    InitializeLEDString();
     rate_limited_log_ = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
+    InitializeLEDString();
 }
 
 LED_Controller::~LED_Controller()
@@ -22,22 +22,21 @@ void LED_Controller::InitializeLEDString()
         .freq = WS2811_TARGET_FREQ,
         .dmanum = 10,
         .channel = {
-            [0] = {
+            [0] = {0},
+            [1] = {
                 .gpionum = gpioPin_,
                 .invert = 0,
                 .count = ledCount_,
-                .strip_type = WS2811_STRIP_RGB,
+                .strip_type = WS2812_STRIP,
                 .brightness = 255
-            },
-            [1] = {0}
+            }
         }
     };
 }
 
 void LED_Controller::RenderLoop()
 {
-    logger_->info("LED render thread started.");
-
+    logger_->info("LED Render thread started.");
     while (running_)
     {
         if (render_in_progress_)
@@ -49,19 +48,15 @@ void LED_Controller::RenderLoop()
             }
             continue;
         }
-
         render_in_progress_ = true;
-
         {
             std::lock_guard<std::mutex> lock(led_mutex_);
-
             ws2811_return_t ret = ws2811_render(&ledstring_);
             if (ret != WS2811_SUCCESS)
             {
                 logger_->error("Render failed: {}", ws2811_get_return_t_str(ret));
             }
         }
-
         render_in_progress_ = false;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -72,10 +67,9 @@ void LED_Controller::RenderLoop()
 void LED_Controller::SetColor(uint32_t color)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
-
     for (int i = 0; i < ledCount_; ++i)
     {
-        ledstring_.channel[0].leds[i] = color;
+        ledstring_.channel[1].leds[i] = color;
     }
 
     logger_->info("All LEDs set to color: #{:06X}", color & 0xFFFFFF);
@@ -83,6 +77,7 @@ void LED_Controller::SetColor(uint32_t color)
 
 void LED_Controller::Run()
 {
+    logger_->info("Starting LED Renderer thread.");
     std::lock_guard<std::mutex> lock(led_mutex_);
     if (running_)
     {
@@ -96,10 +91,9 @@ void LED_Controller::Run()
         logger_->error("WS2811 initialization failed: {}", ws2811_get_return_t_str(ret));
         return;
     }
-
     logger_->info("WS2811 initialized successfully.");
-    running_ = true;
     ledRenderThread_ = std::thread(&LED_Controller::RenderLoop, this);
+    running_ = true;
 }
 
 void LED_Controller::Stop()
@@ -120,7 +114,7 @@ void LED_Controller::Clear()
     std::lock_guard<std::mutex> lock(led_mutex_);
     for (int i = 0; i < ledCount_; i++)
     {
-        ledstring_.channel[0].leds[i] = 0x000000;
+        ledstring_.channel[1].leds[i] = 0x000000;
     }
 
     ws2811_return_t ret = ws2811_render(&ledstring_);
@@ -141,7 +135,7 @@ void LED_Controller::CalculateCurrent()
 
     for (int i = 0; i < ledCount_; i++)
     {
-        uint32_t color = ledstring_.channel[0].leds[i];
+        uint32_t color = ledstring_.channel[1].leds[i];
         uint8_t r = (color >> 16) & 0xFF;
         uint8_t g = (color >> 8) & 0xFF;
         uint8_t b = color & 0xFF;

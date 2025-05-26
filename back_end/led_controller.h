@@ -27,7 +27,7 @@ private:
     std::atomic<bool> render_in_progress_ = false;
     int ledCount_;
     int gpioPin_;
-    bool running_;
+    bool running_ = false;
 
     void InitializeLEDString();
     void RenderLoop();
