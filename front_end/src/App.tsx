@@ -202,9 +202,7 @@ const menuItems = [
               min={0}
               max={10}
               flipX={true}
-              minColor={'#000000'}
-              midColor={'#0000ff'}
-              maxColor={'#00ffff'}
+              mode={'Rainbow'}
               socket={socket}
             />
           </div>

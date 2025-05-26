@@ -1,11 +1,11 @@
-import React, { Component, createRef } from 'react';
+import { Component, createRef } from 'react';
 import { WebSocketContextType, WebSocketMessage } from './WebSocketContext';
-import { RenderTickContext } from './RenderingTick';
 
 interface ScrollingHeatmapProps {
     signal: string;
     min: number;
     max: number;
+    mode?: 'Normal' | 'Rainbow';
     minColor?: string;
     midColor?: string;
     maxColor?: string;
@@ -13,66 +13,84 @@ interface ScrollingHeatmapProps {
     dataHeight?: number;
     flipX?: boolean;
     flipY?: boolean;
-    frameRate?: number;
+    frameRate?: number;    
     socket: WebSocketContextType;
 }
 
 interface ScrollingHeatmapState {
-    buffer: number[][]; 
     renderWidth: number;
     renderHeight: number;
-    dataQueue: number[][];
 }
 
 export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, ScrollingHeatmapState> {
-    static contextType = RenderTickContext;
-    declare context: React.ContextType<typeof RenderTickContext>;
-
     private canvasRef = createRef<HTMLCanvasElement>();
     private containerRef = createRef<HTMLDivElement>();
     private resizeObserver: ResizeObserver | null = null;
+
     private maxCols: number;
     private maxRows: number;
 
-    private messageTimestamps: number[] = [];
+    private buffer: number[][]; // Instance buffer - rows of columns
+    private dataQueue: number[][] = []; // Incoming rows queued for buffer flush
+
+    private animationFrameId: number | null = null;
     private lastFlushTime: number = 0;
-    private targetFrameInterval: number = 1000 / (this.props.frameRate || 30);
+    private targetFrameInterval: number;
+
+    private messageTimestamps: number[] = [];
+
+    private cachedMinRGB = { r: 0, g: 0, b: 0 };
+    private cachedMidRGB = { r: 0, g: 0, b: 0 };
+    private cachedMaxRGB = { r: 0, g: 0, b: 0 };
 
     constructor(props: ScrollingHeatmapProps) {
         super(props);
         this.maxCols = props.dataWidth || 1000;
         this.maxRows = props.dataHeight || 64;
 
+        this.buffer = Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0));
+        this.targetFrameInterval = 1000 / (props.frameRate || 30);
+
         this.state = {
-            buffer: Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0)),
             renderWidth: 300,
             renderHeight: 150,
-            dataQueue: [],
         };
     }
 
     componentDidMount() {
         this.setupResizeObserver();
-        if (this.context) {
-            this.context(this.startRenderLoop);
-        }
         this.setupSocket();
+        this.cacheColors();
+        this.animationFrameId = requestAnimationFrame(this.renderLoop);
     }
 
     componentWillUnmount() {
         this.teardownResizeObserver();
         this.teardownSocket();
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
     }
 
     componentDidUpdate(prevProps: ScrollingHeatmapProps) {
         if (prevProps.signal !== this.props.signal) {
             this.teardownSocket();
             this.setupSocket();
-            this.setState({
-                buffer: Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0)),
-                dataQueue: [],
-            });
+            this.resetBuffer();
         }
+        if (
+            prevProps.minColor !== this.props.minColor ||
+            prevProps.midColor !== this.props.midColor ||
+            prevProps.maxColor !== this.props.maxColor
+        ) {
+            this.cacheColors();
+        }
+    }
+
+    resetBuffer() {
+        this.buffer = Array(this.maxRows).fill(0).map(() => Array(this.maxCols).fill(0));
+        this.dataQueue = [];
     }
 
     setupResizeObserver() {
@@ -95,29 +113,27 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         }
     }
 
-    private readonly handleSignalValue = (message: WebSocketMessage) => {
+    private handleSignalValue = (message: WebSocketMessage) => {
         if (message.type === 'signal') {
             if (Array.isArray(message.value?.values)) {
                 this.queueRow(message.value.values);
             } else {
                 console.error('Invalid data format:', message.value);
             }  
-        } else if (message.type === 'binary') {
-            console.log('Received unsupported binary data.');
         }
     };
 
     setupSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
+
         const onOpen = () => {
-            console.log(`Component: Resubscribing to signal (onOpen): ${signal}`);
             socket.subscribe(signal, this.handleSignalValue);
         };
         (this as any)._signalOnOpen = onOpen;
         socket.onOpen(onOpen);
+
         if (socket.isOpen?.()) {
-            console.log(`Component: Subscribing to signal immediately: ${signal}`);
             socket.subscribe(signal, this.handleSignalValue);
         }
     }
@@ -125,7 +141,6 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     teardownSocket() {
         const { socket, signal } = this.props;
         if (!socket) return;
-        console.log(`Component: Unsubscribing from signal: ${signal}`);
         socket.unsubscribe(signal, this.handleSignalValue);
         const onOpen = (this as any)._signalOnOpen;
         if (onOpen && socket.removeOnOpen) {
@@ -146,20 +161,12 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             this.messageTimestamps.shift();
         }
 
-        this.setState(prevState => ({
-            dataQueue: [...prevState.dataQueue, paddedRow]
-        }));
+        this.dataQueue.push(paddedRow);
     }
 
     getDataRate(): number {
         const now = Date.now();
-        this.messageTimestamps.push(now);
-
         this.messageTimestamps = this.messageTimestamps.filter(ts => now - ts <= 1000);
-
-        if (this.messageTimestamps.length > 100) {
-            this.messageTimestamps = this.messageTimestamps.slice(-100);
-        }
 
         if (this.messageTimestamps.length < 2) {
             return 0;
@@ -176,26 +183,16 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
     }
 
     flushDataToBuffer() {
-        this.setState(prevState => {
-            const updatedBuffer = [...prevState.buffer];
-            const updatedQueue = [...prevState.dataQueue];
-
-            while (updatedQueue.length > 0) {
-                const row = updatedQueue.shift()!;
-                updatedBuffer.push(row);
-                if (updatedBuffer.length > this.maxRows) {
-                    updatedBuffer.shift();
-                }
+        while (this.dataQueue.length > 0) {
+            const row = this.dataQueue.shift()!;
+            this.buffer.push(row);
+            if (this.buffer.length > this.maxRows) {
+                this.buffer.shift();
             }
-
-            return {
-                buffer: updatedBuffer,
-                dataQueue: updatedQueue,
-            };
-        });
+        }
     }
 
-    startRenderLoop = () => {
+    renderLoop = () => {
         const now = Date.now();
         const dataRate = this.getDataRate();
         const frameInterval = dataRate > 0 ? 1000 / dataRate : this.targetFrameInterval;
@@ -207,33 +204,58 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
         }
 
         this.drawHeatmap();
+        this.animationFrameId = requestAnimationFrame(this.renderLoop);
     };
 
-    drawHeatmap = () => {
+    drawHeatmap() {
         const canvas = this.canvasRef.current;
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const { buffer, renderWidth, renderHeight } = this.state;
-        const { minColor, midColor, maxColor, min, max, flipX, flipY } = this.props;
+        const { renderWidth, renderHeight } = this.state;
+        const { flipX, flipY, mode } = this.props;
+
+        if (canvas.width !== renderWidth) canvas.width = renderWidth;
+        if (canvas.height !== renderHeight) canvas.height = renderHeight;
 
         const imageData = ctx.createImageData(renderWidth, renderHeight);
-        const minRGB = this.hexToRgb(minColor || '#000000');
-        const midRGB = this.hexToRgb(midColor || '#ff0000');
-        const maxRGB = this.hexToRgb(maxColor || '#ffff00');
 
         for (let y = 0; y < renderHeight; y++) {
             const srcRowIndex = Math.floor((y / renderHeight) * this.maxRows);
             const rowIndex = flipY ? this.maxRows - 1 - srcRowIndex : srcRowIndex;
-            const row = buffer[rowIndex] || [];
+            const row = this.buffer[rowIndex] || [];
+
+            /*
+            let maxCol = -1;
+            if (mode === 'Rainbow') {
+                let maxVal = -Infinity;
+                for (let i = 0; i < this.maxCols; i++) {
+                    const v = row[i] ?? 0;
+                    if (v > maxVal) {
+                        maxVal = v;
+                        maxCol = i;
+                    }
+                }
+            }
+            */
 
             for (let x = 0; x < renderWidth; x++) {
                 const srcColIndex = Math.floor((x / renderWidth) * this.maxCols);
                 const colIndex = flipX ? this.maxCols - 1 - srcColIndex : srcColIndex;
                 const val = row[colIndex] ?? 0;
-                const color = this.defaultColorScale(val, min, max, minRGB, midRGB, maxRGB);
+
+                let color;
+                if (mode === 'Rainbow') {
+                    color = this.getRainbowColor(val, colIndex);
+                    //color = colIndex === maxCol
+                    //    ? this.getRainbowColor(val, colIndex)
+                    //    : this.getGrayscaleColor(val);
+                } else {
+                    color = this.defaultColorScale(val);
+                }
+
                 const idx = (y * renderWidth + x) * 4;
                 imageData.data[idx + 0] = color.r;
                 imageData.data[idx + 1] = color.g;
@@ -242,20 +264,63 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             }
         }
 
-        canvas.width = renderWidth;
-        canvas.height = renderHeight;
         ctx.putImageData(imageData, 0, 0);
-    };
+    }
 
-    defaultColorScale(
-        value: number,
-        min: number,
-        max: number,
-        minRGB: { r: number; g: number; b: number },
-        midRGB: { r: number; g: number; b: number },
-        maxRGB: { r: number; g: number; b: number }
-    ): { r: number; g: number; b: number } {
+    getRainbowColor(value: number, index: number): { r: number; g: number; b: number } {
+        const { min, max } = this.props;
+
+        const roygbiv = [
+            { r: 255, g: 0,   b: 0 },     // Red
+            { r: 255, g: 127, b: 0 },     // Orange
+            { r: 255, g: 255, b: 0 },     // Yellow
+            { r: 0,   g: 255, b: 0 },     // Green
+            { r: 0,   g: 0,   b: 255 },   // Blue
+            { r: 75,  g: 0,   b: 130 },   // Indigo
+            { r: 148, g: 0,   b: 211 },   // Violet
+        ];
+
+        // Clamp and normalize index to pick hue
+        const t = Math.max(0, Math.min(1, index / (this.maxCols - 1)));
+        const scaled = t * (roygbiv.length - 1);
+        const i = Math.floor(scaled);
+        const frac = scaled - i;
+
+        // Normalize value for brightness scaling
         const normalized = max !== min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
+
+        const c1 = roygbiv[i];
+        const c2 = roygbiv[i + 1] || roygbiv[i]; // handle edge case
+
+        // Interpolated color
+        const r = c1.r + (c2.r - c1.r) * frac;
+        const g = c1.g + (c2.g - c1.g) * frac;
+        const b = c1.b + (c2.b - c1.b) * frac;
+
+        // Apply brightness based on normalized value
+        return {
+            r: Math.round(r * normalized),
+            g: Math.round(g * normalized),
+            b: Math.round(b * normalized),
+        };
+    }
+
+    getGrayscaleColor(value: number): { r: number; g: number; b: number } {
+        const { min, max } = this.props;
+        const clamped = Math.min(Math.max(value, min), max);
+        const norm = (clamped - min) / (max - min);
+        const gray = Math.floor(norm * 255);
+        return { r: gray, g: gray, b: gray };
+    }
+
+    defaultColorScale(value: number): { r: number; g: number; b: number } {
+        const { min, max } = this.props;
+        const minRGB = this.cachedMinRGB;
+        const midRGB = this.cachedMidRGB;
+        const maxRGB = this.cachedMaxRGB;
+
+        const normalized = max !== min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
+
         if (normalized < 0.5) {
             const norm = normalized * 2;
             return {
@@ -271,6 +336,12 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
                 b: Math.round(midRGB.b + (maxRGB.b - midRGB.b) * norm),
             };
         }
+    }
+
+    cacheColors() {
+        this.cachedMinRGB = this.hexToRgb(this.props.minColor || '#000000');
+        this.cachedMidRGB = this.hexToRgb(this.props.midColor || '#ff0000');
+        this.cachedMaxRGB = this.hexToRgb(this.props.maxColor || '#ffff00');
     }
 
     hexToRgb(color: string): { r: number; g: number; b: number } {
@@ -299,14 +370,13 @@ export default class ScrollingHeatmap extends Component<ScrollingHeatmapProps, S
             <div
                 ref={this.containerRef}
                 style={{ width: '100%', height: '100%', position: 'relative' }}
+                aria-label={`Heatmap for signal ${this.props.signal}`}
             >
                 <canvas
                     ref={this.canvasRef}
-                    style={{
-                        width: '100%',
-                        height: '100%',
-                        display: 'block',
-                    }}
+                    style={{ width: '100%', height: '100%', display: 'block' }}
+                    width={this.state.renderWidth}
+                    height={this.state.renderHeight}
                 />
             </div>
         );
