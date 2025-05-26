@@ -13,11 +13,14 @@ import HorizontalGauge from './components/HorizontalGauge';
 
 import {
   MenuOutlined,
+  SettingOutlined,
   HomeOutlined,
   BarChartOutlined,
   TableOutlined,
   HeatMapOutlined,
   LineChartOutlined,
+  BulbOutlined,
+  ArrowLeftOutlined,
 } from '@ant-design/icons';
 
 const SCREENS = {
@@ -27,12 +30,33 @@ const SCREENS = {
   VERTICAL_STEREO_SPECTRUM: 'vertical stereo spectrum',
   WAVE_SCREEN: 'wave screen',
   SCROLLING_HEAT_MAP: 'scrolling heat map screen',
+  SETTING_BRIGHTNESS: 'setting brightness',
 };
+
+const MENU_ITEMS = {
+  SETTINGS: 'settings',
+}
+
+const menuItems = [
+  { key: 'home', screen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '40px' }}/> },
+  { key: 'settings', menu: MENU_ITEMS.SETTINGS, label: 'Settings', icon: <SettingOutlined style={{ fontSize: '40px' }}/> },
+  { key: 'tower screen', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen', icon: <TableOutlined style={{ fontSize: '40px' }}/> },
+  { key: 'horrizontal stereo spectrum', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px' }}/> },
+  { key: 'vertical stereo spectrum', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px', transform: 'scaleX(-1) rotate(-90deg)'}}/> },
+  { key: 'wave screen', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <LineChartOutlined style={{ fontSize: '40px' }}/> },
+  { key: 'scrolling heat map screen', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }}/> },
+];
+
+const settingsMenuItems = [
+  { key: 'brightness', screen: SCREENS.SETTING_BRIGHTNESS, label: 'Brightness', icon: <BulbOutlined style={{ fontSize: '40px' }}/> },
+  { key: 'back', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }}/> },
+];
 
 function App() {
   const socket = useContext(WebSocketContext);
   const [visible, setVisible] = useState(false);
   const [screen, setScreen] = useState(SCREENS.WAVE_SCREEN);
+  const [menuMode, setMenuMode] = useState<'main' | 'settings'>('main');
 
   const openDrawer = () => setVisible(true);
   const closeDrawer = () => setVisible(false);
@@ -49,15 +73,6 @@ function App() {
       window.removeEventListener('keydown', handleEsc);
     };
   }, []);
-
-const menuItems = [
-  { key: '1', screen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '40px' }}/> },
-  { key: '2', screen: SCREENS.TOWER_SCREEN, label: 'Tower Screen', icon: <TableOutlined style={{ fontSize: '40px' }}/> },
-  { key: '3', screen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px' }}/> },
-  { key: '4', screen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px', transform: 'scaleX(-1) rotate(-90deg)'}}/> },
-  { key: '5', screen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <LineChartOutlined style={{ fontSize: '40px' }}/> },
-  { key: '6', screen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }}/> },
-];
 
   const renderScreen = () => {
     switch (screen) {
@@ -77,7 +92,6 @@ const menuItems = [
         return <HomeScreen />;
     }
   };
-
 
   function HomeScreen() {
     return(<div style={{ width: '100%', height: '100%' }}/>)
@@ -225,15 +239,30 @@ const menuItems = [
     );
   }
 
+  const handleMenuClick = ( key: string ) => {
+    if (menuMode === 'main' && key === 'settings') {
+      setMenuMode('settings');
+      return;
+    }
+    if (menuMode === 'settings' && key === 'back') {
+      setMenuMode('main');
+      return;
+    }
+    setScreen(key);
+    openDrawer();
+  };
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
-      <Drawer title="Navigation" placement="right" onClose={closeDrawer} visible={visible}>
+      <Drawer
+        title={menuMode === 'main' ? 'Navigation' : 'Settings'}
+        placement="right"
+        onClose={closeDrawer}
+        open={visible}
+      >
         <Menu style={{ zIndex: 20001 }}>
-          {menuItems.map(item => (
-            <Menu.Item key={item.key} icon={item.icon} onClick={() => {
-              setScreen(item.screen);
-              closeDrawer();
-            }}>
+          {(menuMode === 'main' ? menuItems : settingsMenuItems).map(item => (
+            <Menu.Item key={item.key} icon={item.icon} onClick={() => handleMenuClick(item.key)}>
               {item.label}
             </Menu.Item>
           ))}
