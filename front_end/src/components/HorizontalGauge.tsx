@@ -31,11 +31,39 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
     }
 
     componentDidMount() {
-        this.props.socket.subscribe(this.props.signal, this.handleSignalUpdate);
+        this.setupSocket();
     }
 
     componentWillUnmount() {
-        this.props.socket.unsubscribe(this.props.signal, this.handleSignalUpdate);
+        this.teardownSocket();
+    }
+    
+    setupSocket() {
+        console.log('Component: Setup Socket');
+        const { socket, signal } = this.props;
+        if (!socket) return;
+        const onOpen = () => {
+            console.log(`Component: Subscribing to signal (via onOpen): ${signal}`);
+            socket.subscribe(signal, this.handleSignalUpdate);
+        };
+        (this as any)._liveBarChartOnOpen = onOpen;
+        socket.onOpen(onOpen);
+        if (socket.isOpen?.()) {
+            onOpen();
+        }
+    }
+
+    teardownSocket() {
+        console.log('Component: Teardown Socket');
+        const { socket, signal } = this.props;
+        if (!socket) return;
+        console.log(`Component: Unsubscribing from signal: ${signal}`);
+        socket.unsubscribe(signal, this.handleSignalUpdate);
+        const onOpen = (this as any)._liveBarChartOnOpen;
+        if (onOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(onOpen);
+        }
+        delete (this as any)._liveBarChartOnOpen;
     }
 
     handleSignalUpdate = (message: WebSocketMessage) => {

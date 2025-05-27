@@ -29,9 +29,13 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
     }
 
     async componentDidMount() {
-        await this.loadChartLibrary();
-        this.createChart();
-        this.setupSocket();
+        try {
+            await this.loadChartLibrary();
+            this.createChart();
+            this.setupSocket();
+        } catch (error) {
+            console.error('Error initializing chart:', error);
+        }
     }
 
     componentWillUnmount() {
@@ -101,14 +105,34 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
 
     setupSocket() {
         const { socket, signal1, signal2 } = this.props;
-        socket.subscribe(signal1, this.handleSignal1);
-        socket.subscribe(signal2, this.handleSignal2);
+        if (!socket) return;
+
+        const onOpen = () => {
+            console.log(`Subscribing to signals on socket open: ${signal1}, ${signal2}`);
+            socket.subscribe(signal1, this.handleSignal1);
+            socket.subscribe(signal2, this.handleSignal2);
+        };
+
+        (this as any)._onOpen = onOpen;
+        socket.onOpen(onOpen);
+
+        if (socket.isOpen?.()) {
+            onOpen();
+        }
     }
 
     teardownSocket() {
         const { socket, signal1, signal2 } = this.props;
+        if (!socket) return;
+
         socket.unsubscribe(signal1, this.handleSignal1);
         socket.unsubscribe(signal2, this.handleSignal2);
+
+        const onOpen = (this as any)._onOpen;
+        if (onOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(onOpen);
+        }
+        delete (this as any)._onOpen;
     }
 
     handleSignal1 = (msg: WebSocketMessage) => this.handleSignal(msg, 'values1');

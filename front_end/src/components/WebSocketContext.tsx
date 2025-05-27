@@ -32,6 +32,9 @@ export type WebSocketContextType = {
   sendMessage: (message: WebSocketMessage) => void;
   subscribe: (signal: string, callback: (message: WebSocketMessage) => void) => void;
   unsubscribe: (signal: string, callback: (message: WebSocketMessage) => void) => void;
+  onOpen: (callback: () => void) => void;
+  removeOnOpen: (callback: () => void) => void;
+  isOpen: () => boolean;
 };
 
 export const WebSocketContext = createContext<WebSocketContextType>(null as any);
@@ -50,6 +53,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   const wsRef = useRef<WebSocket | null>(null);
   const messageQueue = useRef<WebSocketMessage[]>([]);
   const subscribers = useRef<Map<string, Set<(message: WebSocketMessage) => void>>>(new Map());
+  const onOpenCallbacks = useRef<Set<() => void>>(new Set());
 
   const scheduleReconnect = () => {
     if (retryTimeoutRef.current) return;
@@ -90,6 +94,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
           const msg = messageQueue.current.shift();
           if (msg) newWs.send(JSON.stringify(msg));
         }
+
+        onOpenCallbacks.current.forEach(cb => cb());
       };
 
       newWs.onclose = () => {
@@ -110,6 +116,23 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
       wsRef.current = null;
       scheduleReconnect();
     }
+  };
+
+  const onOpen = (callback: () => void) => {
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      callback();
+    } else {
+      onOpenCallbacks.current.add(callback);
+    }
+  };
+
+  const removeOnOpen = (callback: () => void) => {
+    onOpenCallbacks.current.delete(callback);
+  };
+  
+  const isOpen = () => {
+    return wsRef.current?.readyState === WebSocket.OPEN;
   };
 
   const isWebSocketMessage = (msg: unknown): msg is WebSocketMessage => {
@@ -259,7 +282,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
       subscribers.current.set(signal, signalSubscribers);
 
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        console.log(`Subscribing to signal: ${signal}`);
+        console.log(`Web Socket: Subscribing to signal: ${signal}`);
         sendMessage({ type: 'subscribe', signal });
       }
     }
@@ -276,7 +299,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         subscribers.current.delete(signal);
         
         if (wsRef.current?.readyState === WebSocket.OPEN) {
-          console.log(`Unsubscribing from signal: ${signal}`);
+          console.log(`Web Socket: Unsubscribing from signal: ${signal}`);
           sendMessage({ type: 'unsubscribe', signal });
         }
       }
@@ -297,7 +320,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
   }, [url]);
 
   return (
-    <WebSocketContext.Provider value={{ socket, sendMessage, subscribe, unsubscribe }}>
+    <WebSocketContext.Provider value={{ socket, sendMessage, subscribe, unsubscribe, onOpen, removeOnOpen, isOpen }}>
       {children}
     </WebSocketContext.Provider>
   );

@@ -81,6 +81,7 @@ class WebSocketSession : public MessageTypeHelper, public std::enable_shared_fro
 public:
     explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
     void run();
+    bool isRunning() const { return ws_.is_open(); }
     void close();
     void send_message(const WebSocketMessage& message);
     void send_binary_message(const std::vector<uint8_t>& message);
@@ -128,7 +129,7 @@ private:
     WebSocketServer& server_;
     boost::asio::io_context::strand strand_;
     std::shared_ptr<spdlog::logger> logger_;
-    std::shared_ptr<RateLimitedLogger> rate_limited_log;
+    std::shared_ptr<RateLimitedLogger> rate_limited_log_;
     beast::flat_buffer buffer_;
     std::string session_id_;
 

@@ -123,7 +123,7 @@ void WebSocketServer::broadcast_message_to_websocket(const WebSocketMessage& web
         }
     }
 
-    logger_->debug("Broadcasting message to {} sessions.", targets.size());
+    logger_->debug("Broadcasting message to sessions: {}", targets.size());
     for (auto& session : targets)
     {
         session->send_message(webSocketMessage);
@@ -161,9 +161,9 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
 void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->info("Registering Session {}.", session->GetSessionID());
+    logger_->info("Registering session: {}.", session->GetSessionID());
     sessions_[session->GetSessionID()] = session;
-    logger_->info("Session {}: Registered.", session->GetSessionID());
+    logger_->info("Session registered: {}", session->GetSessionID());
 }
 
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
@@ -177,21 +177,48 @@ void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_B
 void WebSocketServer::close_session(const std::string& session_id)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->info("Closing session.");
+    logger_->info("Closing session: {}", session_id);
     auto it = sessions_.find(session_id);
     if (it != sessions_.end())
     {
         if (auto session = it->second.lock())
         {
-            session->send_message(WebSocketMessage("Session closing...", MessagePriority::High, true));
-            session->close();
-            logger_->info("Session {}: Closed.", session_id);
+            if(session->isRunning())
+            {
+                session->close();
+            }
+            else
+            {
+                logger_->warn("Session is not running: {}", session_id);
+            }
         }
-        sessions_.erase(it);
     }
     else
     {
         logger_->warn("Attempted to close unknown session: {}.", session_id);
+    }
+}
+
+void WebSocketServer::end_session(const std::string& session_id)
+{
+    std::lock_guard<std::mutex> lock(session_mutex_);
+    logger_->info("Ending session: {}", session_id);
+    auto it = sessions_.find(session_id);
+    if (it != sessions_.end())
+    {
+        if (auto session = it->second.lock())
+        {
+            if(session->isRunning())
+            {
+                session->close();
+            }
+        }
+        sessions_.erase(it);
+        logger_->info("Session ended: {}", session_id);
+    }
+    else
+    {
+        logger_->warn("Attempted to end unknown session: {}.", session_id);
     }
 }
 
