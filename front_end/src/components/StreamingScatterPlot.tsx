@@ -7,12 +7,16 @@ interface StreamingScatterPlotProps {
     signal1: string;
     signal2: string;
     socket: WebSocketContextType;
-    color?: string; // Second signal color
+    color?: string;
+    horizontalMinSignal?: string;
+    horizontalMaxSignal?: string;
 }
 
 interface StreamingScatterPlotState {
     values1: number[];
     values2: number[];
+    horizontalMin?: number;
+    horizontalMax?: number;
 }
 
 export default class StreamingScatterPlot extends Component<StreamingScatterPlotProps, StreamingScatterPlotState> {
@@ -25,6 +29,8 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         this.state = {
             values1: Array(pointsCount).fill(0),
             values2: Array(pointsCount).fill(0),
+            horizontalMin: undefined,
+            horizontalMax: undefined,
         };
     }
 
@@ -73,6 +79,24 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
                         pointRadius: 0,
                         tension: 0,
                     },
+                    {
+                        label: 'Min Line',
+                        data: [],
+                        borderColor: 'lime',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        borderDash: [5, 5],
+                        tension: 0,
+                    },
+                    {
+                        label: 'Max Line',
+                        data: [],
+                        borderColor: 'yellow',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        borderDash: [5, 5],
+                        tension: 0,
+                    },
                 ],
             },
             options: {
@@ -104,13 +128,15 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
     }
 
     setupSocket() {
-        const { socket, signal1, signal2 } = this.props;
+        const { socket, signal1, signal2, horizontalMinSignal, horizontalMaxSignal } = this.props;
         if (!socket) return;
 
         const onOpen = () => {
             console.log(`Subscribing to signals on socket open: ${signal1}, ${signal2}`);
             socket.subscribe(signal1, this.handleSignal1);
             socket.subscribe(signal2, this.handleSignal2);
+            if (horizontalMinSignal) socket.subscribe(horizontalMinSignal, this.handleMinSignal);
+            if (horizontalMaxSignal) socket.subscribe(horizontalMaxSignal, this.handleMaxSignal);
         };
 
         (this as any)._onOpen = onOpen;
@@ -121,12 +147,15 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         }
     }
 
+
     teardownSocket() {
-        const { socket, signal1, signal2 } = this.props;
+        const { socket, signal1, signal2, horizontalMinSignal, horizontalMaxSignal } = this.props;
         if (!socket) return;
 
         socket.unsubscribe(signal1, this.handleSignal1);
         socket.unsubscribe(signal2, this.handleSignal2);
+        if (horizontalMinSignal) socket.unsubscribe(horizontalMinSignal, this.handleMinSignal);
+        if (horizontalMaxSignal) socket.unsubscribe(horizontalMaxSignal, this.handleMaxSignal);
 
         const onOpen = (this as any)._onOpen;
         if (onOpen && socket.removeOnOpen) {
@@ -134,6 +163,7 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         }
         delete (this as any)._onOpen;
     }
+
 
     handleSignal1 = (msg: WebSocketMessage) => this.handleSignal(msg, 'values1');
     handleSignal2 = (msg: WebSocketMessage) => this.handleSignal(msg, 'values2');
@@ -166,13 +196,50 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         }
     }
 
+    handleMinSignal = (msg: WebSocketMessage) => {
+        const val = this.extractJsonValue(msg);
+        if (val !== undefined) {
+            this.setState({ horizontalMin: val }, this.updateChart);
+        }
+    };
+
+    handleMaxSignal = (msg: WebSocketMessage) => {
+        const val = this.extractJsonValue(msg);
+        if (val !== undefined) {
+            this.setState({ horizontalMax: val }, this.updateChart);
+        }
+    };
+
+    extractJsonValue(message: WebSocketMessage): number | undefined {
+        try {
+            if (message.type === 'text') {
+                const obj = JSON.parse(message.value);
+                if (typeof obj.value === 'number') {
+                    return obj.value;
+                }
+            } else if (message.type === 'binary' && message.payloadType === 1) {
+                console.log('Received binary data, but expected JSON text.');
+            }
+        } catch (err) {
+            console.warn('Failed to parse JSON from signal:', err);
+        }
+        return undefined;
+    }
+
     updateChart = () => {
         if (!this.chart) return;
 
-        const { values1, values2 } = this.state;
+        const { values1, values2, horizontalMin, horizontalMax } = this.state;
 
         this.chart.data.datasets[0].data = values1.map((y, x) => ({ x, y }));
         this.chart.data.datasets[1].data = values2.map((y, x) => ({ x, y }));
+        this.chart.data.datasets[2].data = horizontalMin !== undefined
+            ? Array(pointsCount).fill(0).map((_, x) => ({ x, y: horizontalMin }))
+            : [];
+        this.chart.data.datasets[3].data = horizontalMax !== undefined
+            ? Array(pointsCount).fill(0).map((_, x) => ({ x, y: horizontalMax }))
+            : [];
+
         this.chart.update('none');
     };
 

@@ -17,6 +17,11 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     , numFrames_(numFrames)
     , webSocketServer_(webSocketServer)
     , stopReading_(false)
+    , inputSignal_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::GetInstance().GetSharedSignalByName("Microphone")))
+    , inputSignalLeftChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::GetInstance().GetSharedSignalByName("Microphone Left Channel")))
+    , inputSignalRightChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::GetInstance().GetSharedSignalByName("Microphone Right Channel")))
+    , minMicrophoneSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Min Microphone Limit")))
+    , maxMicrophoneSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Max Microphone Limit")))
 {
     // Retrieve existing logger or create a new one
     logger_ = InitializeLogger("I2s Microphone", spdlog::level::info);
@@ -47,7 +52,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
         }
     };
-    inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone"));
+    
     if (inputSignal_)
     {
         inputSignal_->RegisterCallback(microphoneSignalCallback_, this);
@@ -62,7 +67,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
         }
     };
-    inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone Left Channel"));
+    
     if (inputSignalLeftChannel_)
     {
         inputSignalLeftChannel_->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
@@ -77,11 +82,36 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
         }
     };
-    inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName("Microphone Right Channel"));
+    
     if (inputSignalRightChannel_)
     {
         inputSignalRightChannel_->RegisterCallback(microphoneRightChannelSignalCallback_, this);
     }
+
+    
+    minMicrophoneSignalCallback_ = [](const std::string& value, void* arg)
+    {
+        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+        self->logger_->debug("Device {}: Received new Min Microphone Limit values:", self->targetDevice_);
+    };
+
+    if (minMicrophoneSignal_)
+    {
+        minMicrophoneSignal_->RegisterCallback(minMicrophoneSignalCallback_, this);
+    }
+
+    maxMicrophoneSignalCallback_ = [](const std::string& value, void* arg)
+    {
+        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+        self->logger_->debug("Device {}: Received new Max Microphone Limit values:", self->targetDevice_);
+    };
+
+    if (maxMicrophoneSignal_)
+    {
+        maxMicrophoneSignal_->RegisterCallback(maxMicrophoneSignalCallback_, this);
+    }
+    minMicrophoneSignal_->SetValue("-400000");
+    minMicrophoneSignal_->SetValue("400000");
 }
 
 I2SMicrophone::~I2SMicrophone()

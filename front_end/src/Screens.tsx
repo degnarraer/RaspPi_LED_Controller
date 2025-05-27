@@ -157,9 +157,11 @@ export function TowerScreen({ socket }: ScreenProps) {
     return (
       <div style={{ width: '100%', height: '100%' }}>
         <StreamingScatterPlot 
-          signal1="Microphone Right Channel"
-          signal2="Microphone Left Channel"
-          socket={socket} />
+            signal1="Microphone Right Channel"
+            signal2="Microphone Left Channel"
+            horizontalMinSignal="Min Microphone Limit"
+            horizontalMaxSignal="Max Microphone Limit"
+            socket={socket} />
       </div>
     );
   }

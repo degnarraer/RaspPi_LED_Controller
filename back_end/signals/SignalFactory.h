@@ -29,5 +29,8 @@ public:
         SignalManager::GetInstance().CreateSignal<std::string>("Disk Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
         SignalManager::GetInstance().CreateSignal<std::string>("Load Avg", webSocketServer, get_signal_and_value_encoder<std::string>());
         SignalManager::GetInstance().CreateSignal<std::string>("Uptime", webSocketServer, get_signal_and_value_encoder<std::string>());
+
+        SignalManager::GetInstance().CreateSignal<std::string>("Min Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::GetInstance().CreateSignal<std::string>("Max Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
     }
 };

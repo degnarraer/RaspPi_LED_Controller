@@ -46,10 +46,14 @@ class I2SMicrophone
         std::atomic<bool> stopReading_;
         std::thread readingThread_;
         std::thread sineWaveThread_;
-        Signal<std::vector<int32_t>>* inputSignal_;
-        Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
-        Signal<std::vector<int32_t>>* inputSignalRightChannel_;
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignal_;
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalLeftChannel_;
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalRightChannel_;
+        std::shared_ptr<Signal<std::string>> minMicrophoneSignal_;
+        std::shared_ptr<Signal<std::string>> maxMicrophoneSignal_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneLeftChannelSignalCallback_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneRightChannelSignalCallback_;
+        std::function<void(const std::string&, void*)> minMicrophoneSignalCallback_;
+        std::function<void(const std::string&, void*)> maxMicrophoneSignalCallback_;
 };

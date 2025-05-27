@@ -137,6 +137,7 @@ void Signal<T>::RegisterCallback(Callback cb, void* arg)
             logger_->debug("New Callback Registered.");
         }
         callbacks_.emplace_back(typename ISignalValue<T>::CallbackData{std::move(cb), arg});
+        cb(*data_, arg);
     }
 }
 
