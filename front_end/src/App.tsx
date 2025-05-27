@@ -19,7 +19,7 @@ import {
 interface MenuItem {
   key: string;
   targetScreen?: ScreenType;
-  targetMenu?: 'main' | 'settings' | 'animations';
+  targetMenu?: 'main' | 'settings' | 'animations' | 'heatmap';
   label: string;
   icon: React.ReactNode;
 }
@@ -47,8 +47,16 @@ const MENU_STRUCTURE = {
       { key: 'horizontal stereo spectrum', targetScreen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px' }} /> },
       { key: 'vertical stereo spectrum', targetScreen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px', transform: 'scaleX(-1) rotate(-90deg)' }} /> },
       { key: 'wave screen', targetScreen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <LineChartOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'scrolling heat map screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP, label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'heat map', targetMenu: 'heatmap', label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
       { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }} /> },
+    ],
+  },
+  heatmap: {
+    label: 'Heat Map',
+    items: [
+      { key: 'scrolling heat map screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP, label: 'Normal', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'scrolling heat map rainbow screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP_RAINBOW, label: 'Rainbow', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'back', targetMenu: 'animations', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }} /> },
     ],
   },
 } as const;

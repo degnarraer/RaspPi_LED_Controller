@@ -28,6 +28,7 @@ export const SCREENS = {
   VERTICAL_STEREO_SPECTRUM: 'vertical stereo spectrum',
   WAVE_SCREEN: 'wave screen',
   SCROLLING_HEAT_MAP: 'scrolling heat map screen',
+  SCROLLING_HEAT_MAP_RAINBOW: 'scrolling heat map rainbow',
   SETTING_BRIGHTNESS: 'setting brightness',
 } as const;
 
@@ -43,6 +44,8 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
         return <VerticalStereoSpectrumScreen socket={socket} />;
         case SCREENS.WAVE_SCREEN:
         return <WaveScreen socket={socket}  />;
+        case SCREENS.SCROLLING_HEAT_MAP_RAINBOW:
+        return <ScrollingHeatMapRainbowScreen socket={socket} />;
         case SCREENS.SCROLLING_HEAT_MAP:
         return <ScrollingHeatMapScreen socket={socket} />;
         default:
@@ -161,7 +164,7 @@ export function TowerScreen({ socket }: ScreenProps) {
     );
   }
 
-  export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
+export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
     return (
       <RenderTickProvider>
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
@@ -185,6 +188,41 @@ export function TowerScreen({ socket }: ScreenProps) {
               min={0}
               max={10}
               flipX={false}
+              mode={'Rainbow'}
+              socket={socket}
+            />
+          </div>
+        </div>
+      </RenderTickProvider>
+    );
+}
+
+export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
+    return (
+      <RenderTickProvider>
+        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+          <div style={{ width: '50%', height: '100%' }}>
+            <ScrollingHeatmap
+              signal="FFT Bands Left Channel"
+              dataWidth={32}
+              dataHeight={240}
+              min={0}
+              max={10}
+              flipX={true}
+              minColor={'#000000'}
+              midColor={'#0000ff'}
+              maxColor={'#ffff00'}
+              socket={socket}
+            />
+          </div>
+          <div style={{ width: '50%', height: '100%' }}>
+            <ScrollingHeatmap
+              signal="FFT Bands Right Channel"
+              dataWidth={32}
+              dataHeight={240}
+              min={0}
+              max={10}
+              flipX={false}
               minColor={'#000000'}
               midColor={'#ff0000'}
               maxColor={'#ffff00'}
@@ -194,4 +232,4 @@ export function TowerScreen({ socket }: ScreenProps) {
         </div>
       </RenderTickProvider>
     );
-  }
+}
