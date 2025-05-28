@@ -23,16 +23,17 @@ const std::unordered_map<MessageTypeHelper::MessageType, std::string> MessageTyp
     {MessageTypeHelper::MessageType::Unknown, "unknown"},
 };
 
-WebSocketSession::WebSocketSession(tcp::socket socket, WebSocketServer& server)
-    : ws_(std::move(socket))
-    , server_(server)
-    , strand_(server_.get_io_context())
-    , backoff_timer_(ws_.get_executor())
+WebSocketSession::WebSocketSession( tcp::socket socket, WebSocketServer& server )
+                                  : ws_(std::move(socket))
+                                  , server_(server)
+                                  , strand_(server_.get_io_context())
+                                  , backoff_timer_(ws_.get_executor())
+                                  , session_id_(boost::uuids::to_string(boost::uuids::random_generator()()))
+                                  , message_manager_(*this)
+                                  , logger_(InitializeLogger("WebSocketSession " + session_id_, spdlog::level::info))
+                                  , rate_limited_log_(std::make_shared<RateLimitedLogger>(logger_, std::chrono::seconds(10)))
 {
-    logger_ = InitializeLogger("Web Socket Session", spdlog::level::info);
-    rate_limited_log_ = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
-    session_id_ = boost::uuids::to_string(boost::uuids::random_generator()());
-    logger_->info("Created new WebSocket session: {}", session_id_);
+    logger_->info("Created new WebSocket session");
 }
 
 void WebSocketSession::run()
@@ -57,10 +58,10 @@ void WebSocketSession::close()
 {
     if (!ws_.is_open())
     {
-        logger_->info("Session {} already closed.", GetSessionID());
+        logger_->info("Already closed.");
         return;
     }
-    logger_->debug("Session: {} Async Close.", GetSessionID());
+    logger_->debug("Async Close.");
     ws_.async_close(websocket::close_code::normal,
         [self = shared_from_this()](beast::error_code ec)
         {
@@ -71,7 +72,7 @@ void WebSocketSession::close()
             }
             else
             {
-                self->logger_->info("Session {} closed cleanly.", self->GetSessionID());
+                self->logger_->info("closed cleanly.");
                 self->end_session();
             }
         });
@@ -112,7 +113,7 @@ void WebSocketSession::send_binary_message(const std::vector<uint8_t>& message)
 
 void WebSocketSession::try_schedule_backoff()
 {
-    rate_limited_log_->log("try schedule backoff", spdlog::level::warn, "try_schedule_backoff for session: {}", GetSessionID());
+    rate_limited_log_->log("try schedule backoff", spdlog::level::warn, "try_schedule_backoff");
     if (!backoff_enabled_)
     {
         backoff_enabled_ = true;
@@ -134,11 +135,11 @@ void WebSocketSession::schedule_backoff()
         {
             if (ec == asio::error::operation_aborted)
             {
-                self->logger_->debug("Backoff timer cancelled for session {}", self->session_id_);
+                self->logger_->debug("Backoff timer cancelled.");
             }
             else
             {
-                self->logger_->error("Backoff timer error for session {}: {}", self->session_id_, ec.message());
+                self->logger_->error("Backoff timer error: {}", ec.message());
             }
             return;
         }
@@ -189,23 +190,28 @@ bool WebSocketSession::is_valid_utf8(const std::string& str)
     }
 }
 
-
 void WebSocketSession::do_read()
 {
-    logger_->debug("Session: {} Do Read.", GetSessionID());
-    std::lock_guard<std::mutex> lock(read_mutex_);
-    ws_.async_read(buffer_,
-        [self = shared_from_this()](beast::error_code ec, std::size_t bytes_transferred)
-        {
-            if (ec)
+    logger_->debug("Do Read.");
+
+    ws_.async_read(
+        buffer_,
+        asio::bind_executor(
+            strand_,
+            [self = shared_from_this()](beast::error_code ec, std::size_t bytes_transferred)
             {
-                self->logger_->error("Read error!");
-                self->handleWebSocketError(ec);
-                return;
+                if (ec)
+                {
+                    self->logger_->error("Read error: {}", ec.message());
+                    self->handleWebSocketError(ec);
+                    return;
+                }
+
+                self->on_read(bytes_transferred);
+                self->do_read();
             }
-            self->on_read(bytes_transferred);
-            self->do_read();
-        });
+        )
+    );
 }
 
 void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std::string& context)
@@ -219,15 +225,15 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
     switch (code)
     {
         case ECONNREFUSED:
-            logger_->error("Connection refused{} (code {}): server may be down or rejecting connections for session: {}", ctx, code, sid);
+            logger_->error("Connection refused{} (code {}): server may be down or rejecting connections.", ctx, code);
             end_session();
             break;
         case ECONNRESET:
-            logger_->error("Connection reset{} (code {}): peer closed the connection unexpectedly for session: {}", ctx, code, sid);
+            logger_->error("Connection reset{} (code {}): peer closed the connection unexpectedly.", ctx, code);
             end_session();
             break;
         case ECONNABORTED:
-            logger_->error("Connection aborted{} (code {}) for session: {}", ctx, code, sid);
+            logger_->error("Connection aborted{} (code {})", ctx, code);
             end_session();
             break;
         case ETIMEDOUT:
@@ -255,62 +261,30 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
             break;
         case EISCONN:
         case EAGAIN:
-            logger_->error("Socket state warning{} (code {}) for session {}: {}", ctx, code, sid, ec.message());
+            logger_->error("Socket state warning{} (code {}): {}", ctx, code, ec.message());
             break;
         case EADDRINUSE:
-            logger_->error("Address already in use{} (code {}) for session {}: {}", ctx, code, sid, ec.message());
+            logger_->error("Address already in use{} (code {}): {}", ctx, code, ec.message());
             end_session();
             break;
         default:
-            logger_->error("Unhandled WebSocket error{} (code {}) for session {}: {}", ctx, code, sid, ec.message());
+            logger_->error("Unhandled WebSocket error{} (code {}): {}", ctx, code, ec.message());
             end_session();
             break;
     }
 }
 
-bool WebSocketSession::is_subscribed_to(const std::string& signal_name) const
-{
-    return subscribed_signals_.find(signal_name) != subscribed_signals_.end();
-}
-
 void WebSocketSession::on_read(std::size_t)
 {
-    logger_->debug("On Read for session: {}", GetSessionID());
-    
-    std::lock_guard<std::mutex> lock(read_mutex_);
-    auto message = beast::buffers_to_string(buffer_.data());
-    logger_->info("Received: {}", message);
-    buffer_.consume(buffer_.size());
     try
     {
-        json incoming = json::parse(message);
+        logger_->debug("On Read.");
 
-        if (incoming.contains("type"))
-        {
-            logger_->trace("Message type: {}", incoming["type"].get<std::string>());
+        auto message = beast::buffers_to_string(buffer_.data());
+        logger_->info("Received: {}", message);
 
-            switch (string_to_type_.at(incoming["type"]))
-            {
-                case MessageType::Subscribe:
-                    handle_subscribe(incoming);
-                    break;
-                case MessageType::Unsubscribe:
-                    handle_unsubscribe(incoming);
-                    break;
-                case MessageType::Text:
-                    handle_text_message(incoming);
-                    break;
-                case MessageType::Signal:
-                    handle_signal_message(incoming);
-                    break;
-                default:
-                    logger_->warn("Unknown message type: {}", incoming["type"].get<std::string>());
-            }
-        }
-        else
-        {
-            logger_->warn("Message does not contain a valid type: {}", message);
-        }
+        buffer_.consume(buffer_.size());
+        message_manager_.handle_string_message(message);
     }
     catch (const std::exception& e)
     {
@@ -318,183 +292,89 @@ void WebSocketSession::on_read(std::size_t)
     }
 }
 
-void WebSocketSession::handle_subscribe(const json& incoming)
-{
-    logger_->info("Handle subscribe message for session: {}", GetSessionID());
-    if(incoming.contains("signal"))
-    {
-        if(subscribe_to_signal(incoming["signal"]))
-        {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Successfully Subscribed to " + incoming["signal"].get<std::string>();
-            send_message(response.dump());
-        }
-        else
-        {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Already subscribed to " + incoming["signal"].get<std::string>();
-            send_message(response.dump());
-        }
-    }
-    else
-    {
-        logger_->warn("Subscribe message without signal for session: {}", GetSessionID());
-        json response;
-        response["type"] = type_to_string_.at(MessageType::Echo);
-        response["message"] = "Subscribe message missing signal";
-        send_message(response.dump());
-    }
-}
-void WebSocketSession::handle_unsubscribe(const json& incoming)
-{
-    logger_->info("Handle unsubscribe message for session: {}", GetSessionID());
-    if(incoming.contains("signal"))
-    {
-        if(unsubscribe_from_signal(incoming["signal"]))
-        {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
-            send_message(response.dump());
-        }
-        else
-        {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Already unsubscribed from " + incoming["signal"].get<std::string>();
-            send_message(response.dump());
-        }
-    }
-    else
-    {
-        logger_->warn("Unsubscribe message without signal for session: {}", GetSessionID());
-        json response;
-        response["type"] = type_to_string_.at(MessageType::Echo);
-        response["message"] = "Unsubscribe message missing signal";
-        send_message(response.dump());
-    }
-    
-}
-
-void WebSocketSession::handle_text_message(const json& incoming)
-{
-    logger_->warn("Received text message: {} Not Yet Handled for session: {}", incoming.dump(), GetSessionID());
-}
-
-void WebSocketSession::handle_signal_message(const json& incoming)
-{
-    if(incoming.contains("signal"))
-    {
-        std::string signal_data = incoming["signal"].get<std::string>();
-        logger_->warn("Received signal data: {}, not yet handled for session: {}", signal_data, GetSessionID());
-        // Handle signal data processing
-    }
-    else
-    {
-        logger_->warn("Unsubscribe message without signal for session: {}", GetSessionID());
-        json response;
-        response["type"] = type_to_string_.at(MessageType::Echo);
-        response["message"] = "Unsubscribe message missing signal";
-        send_message(response.dump());
-    }
-}
-
-void WebSocketSession::handle_echo_message(const json& incoming)
-{
-    logger_->warn("Received echo message: {} Not Yet Handled for session: {}", incoming.dump(), GetSessionID());
-}
-
-void WebSocketSession::handle_unknown_message(const json& incoming)
-{
-    logger_->warn("Received unknown message: {}", incoming.dump()); 
-}
-
 void WebSocketSession::do_write()
 {
-    if (writing_ || outgoing_messages_.empty() || backoff_enabled_)
+    asio::post(strand_, [self = shared_from_this()]()
     {
-        return;
-    }
-
-    WebSocketMessage webSocketMessage = std::move(outgoing_messages_.front());
-    outgoing_messages_.pop_front();
-    writing_ = true;
-
-    auto self = shared_from_this();
-
-    switch (webSocketMessage.webSocket_Message_type)
-    {
-        case WebSocketMessageType::Text:
+        if (self->writing_ || self->outgoing_messages_.empty() || self->backoff_enabled_)
         {
-            if (!is_valid_utf8(webSocketMessage.message))
+            return;
+        }
+
+        WebSocketMessage webSocketMessage = std::move(self->outgoing_messages_.front());
+        self->outgoing_messages_.pop_front();
+        self->writing_ = true;
+
+        auto write_failed = [self]()
+        {
+            self->writing_ = false;
+            asio::post(self->strand_, [self]() { self->do_write(); });
+        };
+
+        switch (webSocketMessage.webSocket_Message_type)
+        {
+            case WebSocketMessageType::Text:
             {
-                logger_->warn("Invalid UTF-8 message, skipping... for session: {}", session_id_);
-                writing_ = false;
-                asio::post(strand_, [self]() { self->do_write(); });
-                return;
+                if (!self->is_valid_utf8(webSocketMessage.message))
+                {
+                    self->logger_->warn("Invalid UTF-8 message, skipping...");
+                    write_failed();
+                    return;
+                }
+
+                self->ws_.text(true);
+                self->ws_.async_write(
+                    asio::buffer(webSocketMessage.message),
+                    asio::bind_executor(
+                        self->strand_,
+                        [self, msg = std::move(webSocketMessage)](beast::error_code ec, std::size_t bytes_transferred)
+                        {
+                            self->on_write(ec, bytes_transferred, msg);
+                        }));
+                break;
             }
 
-            ws_.text(true);
-            ws_.async_write(
-                asio::buffer(webSocketMessage.message),
-                asio::bind_executor(
-                    strand_,
-                    [self, msg = std::move(webSocketMessage)](beast::error_code ec, std::size_t bytes_transferred)
-                    {
-                        self->on_write(ec, bytes_transferred, msg);
-                    }));
-            break;
-        }
+            case WebSocketMessageType::Binary:
+            {
+                self->ws_.binary(true);
+                self->ws_.async_write(
+                    asio::buffer(webSocketMessage.binary_data),
+                    asio::bind_executor(
+                        self->strand_,
+                        [self, msg = std::move(webSocketMessage)](beast::error_code ec, std::size_t bytes_transferred)
+                        {
+                            self->on_write(ec, bytes_transferred, msg);
+                        }));
+                break;
+            }
 
-        case WebSocketMessageType::Binary:
-        {
-            ws_.binary(true);
-            ws_.async_write(
-                asio::buffer(webSocketMessage.binary_data),
-                asio::bind_executor(
-                    strand_,
-                    [self, msg = std::move(webSocketMessage)](beast::error_code ec, std::size_t bytes_transferred)
-                    {
-                        self->on_write(ec, bytes_transferred, msg);
-                    }));
-            break;
+            default:
+                self->logger_->warn("Unknown message type.");
+                write_failed();
+                break;
         }
-
-        default:
-            logger_->warn("Unknown message type for session: {}", session_id_);
-            writing_ = false;
-            asio::post(strand_, [self]() { self->do_write(); });  // try next message
-            break;
-    }
+    });
 }
-
 
 void WebSocketSession::on_write(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage)
 {
-    auto self = shared_from_this();
-    asio::post(strand_, [self, ec, bytes_transferred, webSocketMessage]() mutable {
-        self->writing_ = false;
-        if (ec)
+    writing_ = false;
+    if (ec)
+    {
+        rate_limited_log_->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
+        try_schedule_backoff();
+        if (webSocketMessage.should_retry)
         {
-            self->rate_limited_log_->log("write error", spdlog::level::warn, "Write error: {}", ec.message());
-            self->try_schedule_backoff();
-            if (webSocketMessage.should_retry)
-            {
-                self->retry_message(webSocketMessage);
-            }
+            retry_message(webSocketMessage);
         }
-        else
-        {
-            self->rate_limited_log_->log("write success", spdlog::level::debug,
-                                        "Sent message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
-        }
-
-        if (!self->outgoing_messages_.empty() && !self->backoff_enabled_)
-        {
-            self->do_write();
-        }
+    }
+    else
+    {
+        rate_limited_log_->log("write success", spdlog::level::debug,
+                                    "Sent message: {}, bytes: {}", webSocketMessage.message, bytes_transferred);
+    }
+    asio::post(strand_, [self = shared_from_this()]() {
+        self->do_write();
     });
 }
 
@@ -504,37 +384,12 @@ void WebSocketSession::retry_message(const WebSocketMessage& webSocketMessage)
     if (retry_messages_.size() < MAX_BATCH_COUNT)
     {
         retry_messages_.push_back(webSocketMessage);
-        rate_limited_log_->log("Queued for retry", spdlog::level::info, "Queued message for retry: {}, for session: {}", truncate_for_log(webSocketMessage.message), GetSessionID());
+        rate_limited_log_->log("Queued for retry", spdlog::level::info, "Queued message for retry: {}", truncate_for_log(webSocketMessage.message));
     }
     else
     {
-        rate_limited_log_->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}, for session: {}", truncate_for_log(webSocketMessage.message), GetSessionID());
+        rate_limited_log_->log("retry queue full", spdlog::level::warn, "Retry queue full, dropping message: {}", truncate_for_log(webSocketMessage.message));
     }
-}
-
-bool WebSocketSession::subscribe_to_signal(const std::string& signal_name)
-{
-    std::lock_guard<std::mutex> lock(subscription_mutex_);
-    if (subscribed_signals_.find(signal_name) == subscribed_signals_.end())
-    {
-        subscribed_signals_.emplace(signal_name);
-        logger_->info("Subscribed to signal: {}, for session: {}", signal_name, GetSessionID());
-        return true;
-    }
-    return false;
-}
-
-bool WebSocketSession::unsubscribe_from_signal(const std::string& signal_name)
-{
-    std::lock_guard<std::mutex> lock(subscription_mutex_);
-    auto it = subscribed_signals_.find(signal_name);
-    if (it != subscribed_signals_.end())
-    {
-        subscribed_signals_.erase(it);
-        logger_->info("Unsubscribed from signal: {} for session: {}", signal_name, GetSessionID());
-        return true;
-    }
-    return false;
 }
 
 void WebSocketSession::send_signal_update(const std::string& signal_name, const std::string& data)
@@ -549,19 +404,14 @@ void WebSocketSession::send_signal_update(const std::string& signal_name, const 
 
 void WebSocketSession::end_session()
 {
-    logger_->info("Disconnected and cleaning up for session: {}", GetSessionID());
+    logger_->info("Disconnected and cleaning up.");
 
     // Cancel any pending backoff timer to avoid triggering resume_sending after cleanup
     beast::error_code ec;
     backoff_timer_.cancel(ec);
     if (ec)
     {
-        logger_->warn("Failed to cancel backoff timer for session {}: {}", GetSessionID(), ec.message());
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(subscription_mutex_);
-        subscribed_signals_.clear();
+        logger_->warn("Failed to cancel backoff timer: {}", ec.message());
     }
 
     json disconnect_msg;
@@ -574,7 +424,167 @@ void WebSocketSession::end_session()
 
 void WebSocketSession::on_disconnect()
 {
-    logger_->info("Handling disconnection for session: {}", GetSessionID());
+    logger_->info("Handling disconnection");
     end_session();
 }
 
+WebSocketSessionMessageManager::WebSocketSessionMessageManager( WebSocketSession& session )
+                                                              : session_(session)
+                                                              , logger_(InitializeLogger(session_.GetSessionID() + " Message Mananger", spdlog::level::info))
+{
+}
+
+bool WebSocketSessionMessageManager::subscribe_to_signal(const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    if (subscribed_signals_.find(signal_name) == subscribed_signals_.end())
+    {
+        subscribed_signals_.emplace(signal_name);
+        logger_->info("Subscribed to signal: {}", signal_name);
+        return true;
+    }
+    return false;
+}
+
+bool WebSocketSessionMessageManager::unsubscribe_from_signal(const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    auto it = subscribed_signals_.find(signal_name);
+    if (it != subscribed_signals_.end())
+    {
+        subscribed_signals_.erase(it);
+        logger_->info("Unsubscribed from signal: {}", signal_name);
+        return true;
+    }
+    return false;
+}
+                                                              
+void WebSocketSessionMessageManager::handle_string_message(const std::string& message)
+{
+    json incoming = json::parse(message);
+    if (incoming.contains("type"))
+    {
+        logger_->trace("Message type: {}", incoming["type"].get<std::string>());
+
+        switch (string_to_type_.at(incoming["type"]))
+        {
+            case MessageType::Subscribe:
+                handle_subscribe(incoming);
+                break;
+            case MessageType::Unsubscribe:
+                handle_unsubscribe(incoming);
+                break;
+            case MessageType::Text:
+                handle_text_message(incoming);
+                break;
+            case MessageType::Signal:
+                handle_signal_message(incoming);
+                break;
+            default:
+                logger_->warn("Unknown message type: {}", incoming["type"].get<std::string>());
+        }
+    }
+    else
+    {
+        logger_->warn("Message does not contain a valid type: {}", message);
+    }
+}
+
+void WebSocketSessionMessageManager::handle_subscribe(const json& incoming)
+{
+    logger_->info("Handle subscribe message.");
+    if(incoming.contains("signal"))
+    {
+        if(subscribe_to_signal(incoming["signal"]))
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Successfully Subscribed to " + incoming["signal"].get<std::string>();
+            session_.send_message(response.dump());
+        }
+        else
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Already subscribed to " + incoming["signal"].get<std::string>();
+            session_.send_message(response.dump());
+        }
+    }
+    else
+    {
+        logger_->warn("Subscribe message without signal.");
+        json response;
+        response["type"] = type_to_string_.at(MessageType::Echo);
+        response["message"] = "Subscribe message missing signal";
+        session_.send_message(response.dump());
+    }
+}
+void WebSocketSessionMessageManager::handle_unsubscribe(const json& incoming)
+{
+    logger_->info("Handle unsubscribe message.");
+    if(incoming.contains("signal"))
+    {
+        if(unsubscribe_from_signal(incoming["signal"]))
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
+            session_.send_message(response.dump());
+        }
+        else
+        {
+            json response;
+            response["type"] = type_to_string_.at(MessageType::Echo);
+            response["message"] = "Already unsubscribed from " + incoming["signal"].get<std::string>();
+            session_.send_message(response.dump());
+        }
+    }
+    else
+    {
+        logger_->warn("Unsubscribe message without signal.");
+        json response;
+        response["type"] = type_to_string_.at(MessageType::Echo);
+        response["message"] = "Unsubscribe message missing signal";
+        session_.send_message(response.dump());
+    }
+    
+}
+
+bool WebSocketSessionMessageManager::is_subscribed_to(const std::string& signal_name) const
+{
+    std::lock_guard<std::mutex> lock(subscription_mutex_);
+    return subscribed_signals_.find(signal_name) != subscribed_signals_.end();
+}
+
+void WebSocketSessionMessageManager::handle_text_message(const json& incoming)
+{
+    logger_->warn("Received text message: {} Not Yet Handled.", incoming.dump());
+}
+
+void WebSocketSessionMessageManager::handle_signal_message(const json& incoming)
+{
+    if(incoming.contains("signal"))
+    {
+        std::string signal_data = incoming["signal"].get<std::string>();
+        logger_->warn("Received signal data: {}, not yet handled.");
+        // Handle signal data processing
+    }
+    else
+    {
+        logger_->warn("Unsubscribe message without signal.");
+        json response;
+        response["type"] = type_to_string_.at(MessageType::Echo);
+        response["message"] = "Unsubscribe message missing signal";
+        session_.send_message(response.dump());
+    }
+}
+
+void WebSocketSessionMessageManager::handle_echo_message(const json& incoming)
+{
+    logger_->warn("Received echo message: {} Not Yet Handled", incoming.dump());
+}
+
+void WebSocketSessionMessageManager::handle_unknown_message(const json& incoming)
+{
+    logger_->warn("Received unknown message: {}", incoming.dump()); 
+}

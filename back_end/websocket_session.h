@@ -70,13 +70,49 @@ struct WebSocketMessage
     int retry_count = 0;
     bool should_retry = false;
     WebSocketMessage() = default;
-    WebSocketMessage(const std::string& msg, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
-        : message(msg), priority(p), should_retry(retry_flag) {}
-    WebSocketMessage(const std::vector<uint8_t>& data, MessagePriority p = MessagePriority::Low, bool retry_flag = false)
-    : binary_data(data), webSocket_Message_type(WebSocketMessageType::Binary), priority(p), should_retry(retry_flag) {}
+    WebSocketMessage( const std::string& msg, MessagePriority p = MessagePriority::Low, bool retry_flag = false )
+                    : message(msg), priority(p), should_retry(retry_flag) {}
+    WebSocketMessage( const std::vector<uint8_t>& data, MessagePriority p = MessagePriority::Low, bool retry_flag = false )
+                    : binary_data(data), webSocket_Message_type(WebSocketMessageType::Binary), priority(p), should_retry(retry_flag) {}
 };
 
-class WebSocketSession : public MessageTypeHelper, public std::enable_shared_from_this<WebSocketSession>
+class WebSocketSession;
+
+class WebSocketSessionMessageManager : public MessageTypeHelper
+{
+    public:
+        using WebSocketSignalValueCallback = std::function<void(const std::string&, void*)>;
+        struct WebSocketSignalValueCallbackData
+        {
+            WebSocketSignalValueCallback callback;
+            void* arg;
+        };
+        WebSocketSessionMessageManager( WebSocketSession& session );
+        virtual ~WebSocketSessionMessageManager() = default;
+        
+        bool subscribe_to_signal(const std::string& signal_name);
+        bool unsubscribe_from_signal(const std::string& signal_name);
+        bool is_subscribed_to(const std::string& signal_name) const;
+
+        void handle_string_message(const std::string& message);
+        void handle_subscribe(const json& incoming);
+        void handle_unsubscribe(const json& incoming);
+        void handle_text_message(const json& incoming);
+        void handle_signal_message(const json& incoming);
+        void handle_echo_message(const json& incoming);
+        void handle_unknown_message(const json& incoming);
+    protected:
+        WebSocketSession& session_;
+        std::vector<WebSocketSignalValueCallbackData> signal_value_callbacks_;
+        mutable std::mutex signal_value_callbacks_mutex_;
+        
+        std::unordered_set<std::string> subscribed_signals_;
+        mutable std::mutex subscription_mutex_;
+        
+        std::shared_ptr<spdlog::logger> logger_;
+};
+
+class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
 public:
     explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
@@ -87,19 +123,9 @@ public:
     void send_binary_message(const std::vector<uint8_t>& message);
     std::string GetSessionID() const;
 
-    bool subscribe_to_signal(const std::string& signal_name);
-    bool unsubscribe_from_signal(const std::string& signal_name);
-    bool is_subscribed_to(const std::string& signal_name) const;
-
 private:
     void do_read();
     void on_read(std::size_t bytes_transferred);
-    void handle_subscribe(const json& incoming);
-    void handle_unsubscribe(const json& incoming);
-    void handle_text_message(const json& incoming);
-    void handle_signal_message(const json& incoming);
-    void handle_echo_message(const json& incoming);
-    void handle_unknown_message(const json& incoming);
     void handleWebSocketError(const std::error_code& ec, const std::string& context = "");
     void do_write();
     void on_write(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
@@ -128,27 +154,23 @@ private:
     websocket::stream<beast::tcp_stream> ws_;
     WebSocketServer& server_;
     boost::asio::io_context::strand strand_;
+    asio::steady_timer backoff_timer_;
+    const std::string session_id_;
+    WebSocketSessionMessageManager message_manager_;
     std::shared_ptr<spdlog::logger> logger_;
     std::shared_ptr<RateLimitedLogger> rate_limited_log_;
-    beast::flat_buffer buffer_;
-    std::string session_id_;
 
     std::deque<WebSocketMessage> outgoing_messages_;
-    mutable std::mutex read_mutex_;
+    beast::flat_buffer buffer_;
     bool writing_ = false;
 
     std::deque<WebSocketMessage> retry_messages_;
-    std::mutex retry_mutex_;
+    mutable std::mutex retry_mutex_;
 
     const int MAX_RETRY_COUNT = 5;
     const std::chrono::seconds MAX_RETRY_AGE = std::chrono::seconds(5);
-
-    std::unordered_set<std::string> subscribed_signals_;
-    mutable std::mutex subscription_mutex_;
-
     static constexpr size_t MAX_QUEUE_SIZE = 500;
     static constexpr int BASE_BACKOFF_MS = 50;
     int backoff_attempts_ = 0;
     std::atomic<bool> backoff_enabled_{false};
-    asio::steady_timer backoff_timer_;
 };

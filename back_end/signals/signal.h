@@ -142,37 +142,55 @@ JsonEncoder<T> get_signal_and_value_encoder()
     return encoder;
 }
 
-class ISignalName
+class SignalName
 {
     public:
-        virtual ~ISignalName() = default;
-        virtual const std::string& GetName() const = 0;
+        SignalName(const std::string name) : name_(name)
+                                           , logger_(InitializeLogger("Signal " + name + "Logger", spdlog::level::info)) {}
+
+        virtual ~SignalName() = default;
+        const std::string& GetName() const
+        {
+            return name_;
+        }
+    protected:
+        const std::string name_;
+        std::shared_ptr<spdlog::logger> logger_;
 };
 
 template<typename T>
-class ISignalValue : public ISignalName
+class SignalValue : public SignalName
 {
     public:
-        using Callback = std::function<void(const T&, void*)>;
-        struct CallbackData
+        SignalValue(const std::string& name) : SignalName(name)
+                                             , data_(std::make_shared<T>()) {}
+        using SignalValueCallback = std::function<void(const T&, void*)>;
+        struct SignalValueCallbackData
         {
-            Callback callback;
+            SignalValueCallback callback;
             void* arg;
         };
-        virtual void SetValue(const T& value, void* arg = nullptr) = 0;
-        virtual T GetValue() const = 0;
-        virtual std::shared_ptr<T> GetData() const = 0;
-        virtual void RegisterCallback(Callback cb, void* arg = nullptr) = 0;
-        virtual void UnregisterCallbackByArg(void* arg) = 0;
+        virtual void SetValue(const T& value, void* arg = nullptr);
+        virtual T GetValue() const;
+        virtual std::shared_ptr<T> GetData() const
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return data_;
+        }
+        void RegisterSignalValueCallback(SignalValueCallback cb, void* arg = nullptr);
+        void UnregisterSignalValueCallbackByArg(void* arg);
+    protected:
+        std::shared_ptr<T> data_;
+        mutable std::mutex mutex_;
+        std::vector<typename SignalValue<T>::SignalValueCallbackData> callbacks_;
 };
 
 template<typename T>
-class Signal : public ISignalValue<T>
-             , public IWebSocketServer_BackendClient
+class Signal : public SignalValue<T>
              , public std::enable_shared_from_this<Signal<T>>
 {
     public:
-        using Callback = typename ISignalValue<T>::Callback;
+        using SignalValueCallback = typename SignalValue<T>::SignalValueCallback;
 
         explicit Signal(const std::string& name);
         Signal( const std::string& name
@@ -188,39 +206,22 @@ class Signal : public ISignalValue<T>
 
         void Setup();
         void SetValue(const T& value, void* arg = nullptr) override;
-        T GetValue() const override;
-        std::shared_ptr<T> GetData() const override
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            return data_;
-        }
         void Notify()
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::lock_guard<std::mutex> lock(this->mutex_);
             NotifyClients(nullptr);
             if (isUsingWebSocket_)
             {
                 NotifyWebSocket();
             }
         }
-        void RegisterCallback(Callback cb, void* arg = nullptr) override;
-        void UnregisterCallbackByArg(void* arg) override;
-        const std::string& GetName() const override;
-        void on_message_received_from_web_socket(const std::string& message) override;
-
     private:
-        const std::string name_;
-        std::shared_ptr<T> data_;
-        mutable std::mutex mutex_;
-        std::vector<typename ISignalValue<T>::CallbackData> callbacks_;
         std::shared_ptr<WebSocketServer> webSocketServer_;
-        std::shared_ptr<spdlog::logger> logger_;
         JsonEncoder<T> jsonEncoder_;
         BinaryEncoder<T> binaryEncoder_;
         MessagePriority priority_;
         bool should_retry_;
         bool isUsingWebSocket_;
-
         void NotifyClients(void* arg);
         void NotifyWebSocket();
 };
@@ -239,7 +240,7 @@ public:
     template<typename T>
     std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder = nullptr);
 
-    ISignalName* GetSignalByName(const std::string& name)
+    SignalName* GetSignalByName(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = signals_.find(name);
@@ -249,7 +250,7 @@ public:
         }
         return nullptr;
     }
-    std::shared_ptr<ISignalName> GetSharedSignalByName(const std::string& name)
+    std::shared_ptr<SignalName> GetSharedSignalByName(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = signals_.find(name);
@@ -266,7 +267,7 @@ private:
     SignalManager(const SignalManager&) = delete;
     SignalManager& operator=(const SignalManager&) = delete;
 
-    std::unordered_map<std::string, std::shared_ptr<ISignalName>> signals_;
+    std::unordered_map<std::string, std::shared_ptr<SignalName>> signals_;
     std::mutex mutex_;
     std::shared_ptr<spdlog::logger> logger_;
 };

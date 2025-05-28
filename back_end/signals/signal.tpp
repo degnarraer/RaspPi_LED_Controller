@@ -9,16 +9,94 @@
 
 
 template<typename T>
+T SignalValue<T>::GetValue() const
+{
+    std::lock_guard<std::mutex> lock(this->mutex_);
+    if (!data_)
+    {
+        this->logger_->error("Data is not initialized!");
+        return T();
+    }
+
+    if (this->logger_)
+    {
+        this->logger_->debug("GetValue");
+    }
+    return *data_;
+}
+
+template<typename T>
+void SignalValue<T>::RegisterSignalValueCallback(SignalValueCallback cb, void* arg)
+{
+    std::lock_guard<std::mutex> lock(this->mutex_);
+    if (this->logger_)
+    {
+        this->logger_->debug("Register Callback");
+    }
+
+    auto it = std::find_if(this->callbacks_.begin(), this->callbacks_.end(),
+        [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; });
+
+    if (it != this->callbacks_.end())
+    {
+        if (this->logger_)
+        {
+            this->logger_->debug("Existing Callback Updated.");
+        }
+        it->callback = std::move(cb);
+    }
+    else
+    {
+        if (this->logger_)
+        {
+            this->logger_->debug("New Callback Registered.");
+        }
+        this->callbacks_.emplace_back(typename SignalValue<T>::SignalValueCallbackData{std::move(cb), arg});
+    }
+}
+
+template<typename T>
+void SignalValue<T>::UnregisterSignalValueCallbackByArg(void* arg)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (this->logger_)
+    {
+        this->logger_->debug("Callback Unregistered.");
+    }
+
+    this->callbacks_.erase(std::remove_if(this->callbacks_.begin(), this->callbacks_.end(),
+        [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; }), this->callbacks_.end());
+}
+
+template<typename T>
+void SignalValue<T>::SetValue(const T& value, void* arg)
+{
+    std::lock_guard<std::mutex> lock(this->mutex_);
+    if (!data_)
+    {
+        this->logger_->error("Data is not initialized!");
+        return;
+    }
+
+    if (this->logger_)
+    {
+        this->logger_->debug("SetValue");
+    }
+
+    *data_ = value;
+}
+
+
+template<typename T>
 Signal<T>::Signal( const std::string& name )
-                 : name_(name)
+                 : SignalValue<T>(name)
                  , webSocketServer_(nullptr)
-                 , data_(std::make_shared<T>())
                  , jsonEncoder_(nullptr)
                  , binaryEncoder_(nullptr)
                  , isUsingWebSocket_(false)
 {
-    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
-    logger_->info("Created Signal\n Name: {}\n Type: Internal ", name_);
+    this->logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+    this->logger_->info("Created Signal\n Name: {}\n Type: Internal ", this->name_);
 }
 
 template<typename T>
@@ -27,17 +105,16 @@ Signal<T>::Signal( const std::string& name
                  , JsonEncoder<T> jsonEncoder
                  , MessagePriority priority
                  , bool should_retry )
-                 : name_(name)
+                 : SignalValue<T>(name)
                  , webSocketServer_(webSocketServer)
-                 , data_(std::make_shared<T>())
                  , jsonEncoder_(jsonEncoder)
                  , binaryEncoder_(nullptr)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
 {
-    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
-    logger_->info("Created Signal\n Name: {}\n Type: json WebSocket", name_);
+    this->logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+    this->logger_->info("Created Signal\n Name: {}\n Type: json WebSocket", this->name_);
 }
 
 template<typename T>
@@ -46,17 +123,16 @@ Signal<T>::Signal( const std::string& name
                  , BinaryEncoder<T> binaryEncoder
                  , MessagePriority priority
                  , bool should_retry )
-                 : name_(name)
+                 : SignalValue<T>(name)
                  , webSocketServer_(webSocketServer)
-                 , data_(std::make_shared<T>())
                  , jsonEncoder_(nullptr)
                  , binaryEncoder_(binaryEncoder)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
 {
-    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
-    logger_->info("Created Signal\n Name: {}\n Type: binary WebSocket", name_);
+    this->logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
+    this->logger_->info("Created Signal\n Name: {}\n Type: binary WebSocket", this->name_);
 }
 
 template<typename T>
@@ -64,174 +140,89 @@ void Signal<T>::Setup()
 {
     if (webSocketServer_)
     {
-        webSocketServer_->register_backend_client(this->shared_from_this());
+        //webSocketServer_->register_backend_client(this->shared_from_this());
     }
     else
     {
-        logger_->warn("WebSocketServer is not initialized.");
+        this->logger_->warn("WebSocketServer is not initialized.");
     }
 }
 
 template<typename T>
 void Signal<T>::SetValue(const T& value, void* arg)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!data_)
+    if (this->logger_)
     {
-        logger_->error("Data is not initialized!");
-        return;
+        this->logger_->debug("SetValue");
     }
 
-    if (logger_)
-    {
-        logger_->debug("SetValue");
-    }
-
-    *data_ = value;
+    SignalValue<T>::SetValue(value, arg);
     NotifyClients(arg);
     NotifyWebSocket();
 }
 
 template<typename T>
-T Signal<T>::GetValue() const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!data_)
-    {
-        logger_->error("Data is not initialized!");
-        return T();  // Return default-constructed T
-    }
-
-    if (logger_)
-    {
-        logger_->debug("GetValue");
-    }
-
-    return *data_;
-}
-
-template<typename T>
-void Signal<T>::RegisterCallback(Callback cb, void* arg)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (logger_)
-    {
-        logger_->debug("Register Callback");
-    }
-
-    auto it = std::find_if(callbacks_.begin(), callbacks_.end(),
-        [arg](const typename ISignalValue<T>::CallbackData& data) { return data.arg == arg; });
-
-    if (it != callbacks_.end())
-    {
-        if (logger_)
-        {
-            logger_->debug("Existing Callback Updated.");
-        }
-        it->callback = std::move(cb);
-    }
-    else
-    {
-        if (logger_)
-        {
-            logger_->debug("New Callback Registered.");
-        }
-        callbacks_.emplace_back(typename ISignalValue<T>::CallbackData{std::move(cb), arg});
-        cb(*data_, arg);
-    }
-}
-
-template<typename T>
-void Signal<T>::UnregisterCallbackByArg(void* arg)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (logger_)
-    {
-        logger_->debug("Callback Unregistered.");
-    }
-
-    callbacks_.erase(std::remove_if(callbacks_.begin(), callbacks_.end(),
-        [arg](const typename ISignalValue<T>::CallbackData& data) { return data.arg == arg; }), callbacks_.end());
-}
-
-template<typename T>
-const std::string& Signal<T>::GetName() const
-{
-    return name_;
-}
-
-template<typename T>
-void Signal<T>::on_message_received_from_web_socket(const std::string& message)
-{
-    if (logger_)
-    {
-        logger_->info("Received WebSocket message: {}", message);
-    }
-}
-
-template<typename T>
 void Signal<T>::NotifyClients(void* arg)
 {
-    logger_->debug("NotifyClients.");
+    this->logger_->debug("NotifyClients.");
 
-    if (callbacks_.empty())
+    if (this->callbacks_.empty())
     {
-        logger_->debug("No callbacks registered.");
+        this->logger_->debug("No callbacks registered.");
         return;
     }
 
-    if (!data_)
+    if (!this->data_)
     {
-        logger_->error("{}: Data is not initialized.", name_);
+        this->logger_->error("{}: Data is not initialized.", this->name_);
         return;
     }
 
-    for (const auto& aCallback : callbacks_)
+    for (const auto& aCallback : this->callbacks_)
     {
         if (aCallback.callback)
         {
-            aCallback.callback(*data_, aCallback.arg);
+            aCallback.callback(*this->data_, aCallback.arg);
         }
         else
         {
-            logger_->warn("Found a null callback.");
+            this->logger_->warn("Found a null callback.");
         }
     }
 }
-
 
 template<typename T>
 void Signal<T>::NotifyWebSocket()
 {
     if(!isUsingWebSocket_) return;
-    if (!data_)
+    if (!this->data_)
     {
-        logger_->error("{}: Data is not initialized.", name_);
+        this->logger_->error("{}: Data is not initialized.", this->name_);
         return;
     }
-    logger_->debug("NotifyWebSocket: {}", to_string(*data_));
+    this->logger_->debug("NotifyWebSocket: {}", to_string(*this->data_));
     
     if (!webSocketServer_)
     {
-        logger_->error("{}: WebSocketServer is not initialized.", name_);
+        this->logger_->error("{}: WebSocketServer is not initialized.", this->name_);
         return;
     }
     
     if (!jsonEncoder_ && !binaryEncoder_)
     {
-        logger_->error("{}: Encoder is not initialized.", name_);
+        this->logger_->error("{}: Encoder is not initialized.", this->name_);
         return;
     }
 
     if(jsonEncoder_)
     {
-        std::string jsonMessage = jsonEncoder_(name_, *data_);
-        webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
+        std::string jsonMessage = jsonEncoder_(this->name_, *this->data_);
+        webSocketServer_->broadcast_signal_to_websocket(this->name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
     }
     else if(binaryEncoder_)
     {
-        const std::vector<uint8_t> binaryMessage = binaryEncoder_(name_, *data_);
-        webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(binaryMessage, priority_, should_retry_));
+        const std::vector<uint8_t> binaryMessage = binaryEncoder_(this->name_, *this->data_);
+        webSocketServer_->broadcast_signal_to_websocket(this->name_, WebSocketMessage(binaryMessage, priority_, should_retry_));
     }
 }
 

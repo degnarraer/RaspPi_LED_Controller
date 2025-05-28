@@ -55,7 +55,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     
     if (inputSignal_)
     {
-        inputSignal_->RegisterCallback(microphoneSignalCallback_, this);
+        inputSignal_->RegisterSignalValueCallback(microphoneSignalCallback_, this);
     }
     
     microphoneLeftChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
@@ -70,7 +70,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     
     if (inputSignalLeftChannel_)
     {
-        inputSignalLeftChannel_->RegisterCallback(microphoneLeftChannelSignalCallback_, this);
+        inputSignalLeftChannel_->RegisterSignalValueCallback(microphoneLeftChannelSignalCallback_, this);
     }
 
     microphoneRightChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
@@ -85,7 +85,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     
     if (inputSignalRightChannel_)
     {
-        inputSignalRightChannel_->RegisterCallback(microphoneRightChannelSignalCallback_, this);
+        inputSignalRightChannel_->RegisterSignalValueCallback(microphoneRightChannelSignalCallback_, this);
     }
 
     
@@ -97,7 +97,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
 
     if (minMicrophoneSignal_)
     {
-        minMicrophoneSignal_->RegisterCallback(minMicrophoneSignalCallback_, this);
+        minMicrophoneSignal_->RegisterSignalValueCallback(minMicrophoneSignalCallback_, this);
     }
 
     maxMicrophoneSignalCallback_ = [](const std::string& value, void* arg)
@@ -108,7 +108,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
 
     if (maxMicrophoneSignal_)
     {
-        maxMicrophoneSignal_->RegisterCallback(maxMicrophoneSignalCallback_, this);
+        maxMicrophoneSignal_->RegisterSignalValueCallback(maxMicrophoneSignalCallback_, this);
     }
     minMicrophoneSignal_->SetValue("-400000");
     minMicrophoneSignal_->SetValue("400000");
@@ -119,15 +119,15 @@ I2SMicrophone::~I2SMicrophone()
     StopReading();
     if (inputSignal_)
     {
-        inputSignal_->UnregisterCallbackByArg(this);
+        inputSignal_->UnregisterSignalValueCallbackByArg(this);
     }
     if (inputSignalLeftChannel_)
     {
-        inputSignalLeftChannel_->UnregisterCallbackByArg(this);
+        inputSignalLeftChannel_->UnregisterSignalValueCallbackByArg(this);
     }
     if (inputSignalRightChannel_)
     {
-        inputSignalRightChannel_->UnregisterCallbackByArg(this);
+        inputSignalRightChannel_->UnregisterSignalValueCallbackByArg(this);
     }
     if (handle_)
     {

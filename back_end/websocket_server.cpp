@@ -139,7 +139,7 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
         {
             if (auto session = it->second.lock())
             {
-                if (session->is_subscribed_to(signal_name))
+                //TO DO if (session->is_subscribed_to(signal_name))
                 {
                     targets.push_back(session);
                 }
@@ -166,6 +166,7 @@ void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session
     logger_->info("Session registered: {}", session->GetSessionID());
 }
 
+/*
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
@@ -173,7 +174,7 @@ void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_B
     backend_clients_[client->GetName()] = client;
     logger_->info("Backend Client {}: Registered.", client->GetName());
 }
-
+*/
 void WebSocketServer::close_session(const std::string& session_id)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);

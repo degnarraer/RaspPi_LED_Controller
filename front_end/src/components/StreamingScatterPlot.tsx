@@ -198,6 +198,7 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
 
     handleMinSignal = (msg: WebSocketMessage) => {
         const val = this.extractJsonValue(msg);
+        console.log('Received horizontal min signal:', val);
         if (val !== undefined) {
             this.setState({ horizontalMin: val }, this.updateChart);
         }
@@ -205,6 +206,7 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
 
     handleMaxSignal = (msg: WebSocketMessage) => {
         const val = this.extractJsonValue(msg);
+        console.log('Received horizontal max signal:', val);
         if (val !== undefined) {
             this.setState({ horizontalMax: val }, this.updateChart);
         }

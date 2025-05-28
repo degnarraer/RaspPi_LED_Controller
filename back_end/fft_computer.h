@@ -147,16 +147,16 @@ class FFTComputer
                 self->addData(value, channel);
             };
 
-            inputSignal_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
-            inputSignalLeftChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
-            inputSignalRightChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
+            inputSignal_->RegisterSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
+            inputSignalLeftChannel_->RegisterSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
+            inputSignalRightChannel_->RegisterSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
         }
 
         void unregisterCallbacks()
         {
-            inputSignal_->UnregisterCallbackByArg(this);
-            inputSignalLeftChannel_->UnregisterCallbackByArg(this);
-            inputSignalRightChannel_->UnregisterCallbackByArg(this);
+            inputSignal_->UnregisterSignalValueCallbackByArg(this);
+            inputSignalLeftChannel_->UnregisterSignalValueCallbackByArg(this);
+            inputSignalRightChannel_->UnregisterSignalValueCallbackByArg(this);
         }
 
         void processQueue()

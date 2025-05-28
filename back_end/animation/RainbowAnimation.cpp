@@ -11,14 +11,14 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
 
     if (fftLeft_)
     {
-        fftLeft_->RegisterCallback([this](const std::vector<float>& value, void*) {
+        fftLeft_->RegisterSignalValueCallback([this](const std::vector<float>& value, void*) {
             OnLeftUpdate(value, nullptr);
         }, this);
     }
 
     if (fftRight_)
     {
-        fftRight_->RegisterCallback([this](const std::vector<float>& value, void*) {
+        fftRight_->RegisterSignalValueCallback([this](const std::vector<float>& value, void*) {
             OnRightUpdate(value, nullptr);
         }, this);
     }
