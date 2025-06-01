@@ -135,7 +135,6 @@ public:
 
 protected:
     websocket::stream<tcp::socket> ws_;
-    boost::asio::strand<boost::asio::executor> strand_;
     std::weak_ptr<WebSocketServer> server_;
 
 private:
