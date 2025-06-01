@@ -86,6 +86,7 @@ void WebSocketServer::close_session(const std::string& session_id)
         if (session->isRunning())
         {
             session->close();
+            unsubscribe_session_from_all_signals(session_id);
         }
         else
         {
@@ -128,6 +129,7 @@ void WebSocketServer::end_session(const std::string& session_id)
         {
             session->close();
         }
+        unsubscribe_session_from_all_signals(session_id);
         sessions_.erase(it);
         logger_->info("Session ended: {}", session_id);
     }

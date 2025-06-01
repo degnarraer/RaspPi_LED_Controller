@@ -11,7 +11,7 @@
 template<typename T>
 T SignalValue<T>::getValue() const
 {
-    std::lock_guard<std::mutex> lock(this->mutex_);
+    std::lock_guard<std::mutex> lock(dataMutex_);
     if (!data_)
     {
         this->logger_->error("Data is not initialized!");
@@ -26,9 +26,29 @@ T SignalValue<T>::getValue() const
 }
 
 template<typename T>
+bool SignalValue<T>::setValue(const T& value, void* arg)
+{
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    if (!data_)
+    {
+        this->logger_->error("Data is not initialized!");
+        return false;
+    }
+
+    if (*data_ != value)
+    {
+        *data_ = value;
+        this->logger_->debug("SetValue - value changed");
+        return true;
+    }
+    this->logger_->debug("SetValue - value unchanged");
+    return false;
+}
+
+template<typename T>
 void SignalValue<T>::registerSignalValueCallback(SignalValueCallback cb, void* arg)
 {
-    std::lock_guard<std::mutex> lock(this->mutex_);
+    std::lock_guard<std::mutex> lock(callbackMutex_);
     if (this->logger_)
     {
         this->logger_->debug("Register Callback");
@@ -58,7 +78,7 @@ void SignalValue<T>::registerSignalValueCallback(SignalValueCallback cb, void* a
 template<typename T>
 void SignalValue<T>::unregisterSignalValueCallbackByArg(void* arg)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(callbackMutex_);
     if (this->logger_)
     {
         this->logger_->debug("Callback Unregistered.");
@@ -67,25 +87,6 @@ void SignalValue<T>::unregisterSignalValueCallbackByArg(void* arg)
     this->callbacks_.erase(std::remove_if(this->callbacks_.begin(), this->callbacks_.end(),
         [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; }), this->callbacks_.end());
 }
-
-template<typename T>
-void SignalValue<T>::setValue(const T& value, void* arg)
-{
-    std::lock_guard<std::mutex> lock(this->mutex_);
-    if (!data_)
-    {
-        this->logger_->error("Data is not initialized!");
-        return;
-    }
-
-    if (this->logger_)
-    {
-        this->logger_->debug("SetValue");
-    }
-
-    *data_ = value;
-}
-
 
 template<typename T>
 Signal<T>::Signal( const std::string& name )
@@ -149,11 +150,15 @@ void Signal<T>::setup()
 }
 
 template<typename T>
-void Signal<T>::setValue(const T& value, void* arg)
+bool Signal<T>::setValue(const T& value, void* arg)
 {
-    SignalValue<T>::setValue(value, arg);
-    notifyClients(arg);
-    notifyWebSocket();
+    bool valueChanged = SignalValue<T>::setValue(value, arg);
+    if(valueChanged)
+    {
+        notifyClients(arg);
+        notifyWebSocket();
+    }
+    return valueChanged;
 }
 
 template<typename T>

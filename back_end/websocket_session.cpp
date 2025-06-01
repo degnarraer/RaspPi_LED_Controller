@@ -236,51 +236,84 @@ void WebSocketSession::start()
             }));
 }
 
+
 void WebSocketSession::close()
 {
     auto self = shared_from_this();
-    if (!ws_.is_open())
+    net::post(ws_.get_executor(), [self]()
     {
-        logger_->info("WebSocket session already closed.");
-        return;
-    }
-
-    ws_.async_close(websocket::close_code::normal,
-        net::bind_executor(
-            ws_.get_executor(),
-            [self](beast::error_code ec)
-            {
-                if (ec)
+        if (!self->ws_.is_open())
+        {
+            self->logger_->info("WebSocket session already closed.");
+            return;
+        }
+        if (self->closing_)
+        {
+            self->logger_->info("WebSocket session is already closing.");
+            return;
+        }
+        self->closing_ = true;
+        self->ws_.async_close(websocket::close_code::normal,
+            net::bind_executor(
+                self->ws_.get_executor(),
+                [self](beast::error_code ec)
                 {
-                    self->handleWebSocketError(ec, "close");
-                }
-                else
-                {
-                    self->logger_->info("WebSocket session closed cleanly.");
-                }
-                if (auto server = self->server_.lock())
-                    server->unregisterSession(self);
-            }));
+                    if (ec)
+                    {
+                        self->handleWebSocketError(ec, "close");
+                    }
+                    else
+                    {
+                        self->logger_->info("WebSocket session closed cleanly.");
+                    }
+                    if (auto server = self->server_.lock())
+                        server->unregisterSession(self);
+                }));
+    });
 }
 
 void WebSocketSession::doRead()
 {
     auto self = shared_from_this();
+    {
+        std::lock_guard<std::mutex> lock(close_mutex_);
+        if (!ws_.is_open())
+        {
+            logger_->warn("WebSocket session is not open, cannot read.");
+            return;
+        }
+        if (closing_)
+        {
+            logger_->warn("WebSocket session is closing, cannot read.");
+            return;
+        }
+    }
     ws_.async_read(
         readBuffer_,
         net::bind_executor(
             ws_.get_executor(),
-            std::bind(
-                &WebSocketSession::onRead,
-                self,
-                std::placeholders::_1,
-                std::placeholders::_2)));
+            [self](beast::error_code ec, std::size_t bytes_transferred)
+            {
+                self->onRead(ec, bytes_transferred);
+            }));
 }
 
 void WebSocketSession::onRead(beast::error_code ec, std::size_t bytes_transferred)
 {
     if (ec)
     {
+        if (ec == boost::beast::websocket::error::closed)
+        {
+            logger_->info("WebSocket closed by client.");
+            close();
+            return;
+        }
+        else if (ec == net::error::operation_aborted)
+        {
+            logger_->info("Operation aborted, likely due to shutdown.");
+            close();
+            return;
+        }
         handleWebSocketError(ec, "onRead");
         return;
     }
@@ -295,7 +328,19 @@ void WebSocketSession::doWrite()
 {
     auto self = shared_from_this();
     std::shared_ptr<WebSocketMessage> webSocketMessage;
-
+    {
+        std::lock_guard<std::mutex> lock(close_mutex_);
+        if (!ws_.is_open())
+        {
+            logger_->warn("WebSocket session is not open, cannot read.");
+            return;
+        }
+        if (closing_)
+        {
+            logger_->warn("WebSocket session is closing, cannot read.");
+            return;
+        }
+    }
     {
         std::unique_lock<std::mutex> lock(write_mutex_);
 
@@ -351,11 +396,11 @@ void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferr
         {
             std::string message = webSocketMessage.message;
             message.resize(200);
-            logger_->info("Sent text message: {}", message);
+            logger_->debug("Sent text message: {}", message);
         }
         else if(webSocketMessage.webSocket_Message_type == WebSocketMessageType::Binary)
         {
-            logger_->info("Sent binary message of size: {} bytes", webSocketMessage.binary_data.size());
+            logger_->debug("Sent binary message of size: {} bytes", webSocketMessage.binary_data.size());
         }
     }
     doWrite();
@@ -504,12 +549,19 @@ void WebSocketSession::handleUnknownMessageType()
 
 void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std::string& context)
 {
+    {
+        std::lock_guard<std::mutex> lock(close_mutex_);
+        if (closing_)
+        {
+            logger_->debug("WebSocket session is already closing, ignoring error: {}", ec.message());
+            return;
+        }
+    }
     if (!ec) return;
 
     const std::string sid = getSessionID();
     const std::string ctx = context.empty() ? "" : " (" + context + ")";
     const int code = ec.value();
-
     switch (code)
     {
         case ECONNREFUSED:

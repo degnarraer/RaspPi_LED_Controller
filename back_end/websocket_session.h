@@ -160,4 +160,8 @@ private:
     beast::flat_buffer readBuffer_;
     std::atomic<bool> writing_ = false;
     std::mutex write_mutex_;
+
+    
+    std::atomic<bool> closing_ = false;
+    std::mutex close_mutex_;
 };

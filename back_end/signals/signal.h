@@ -170,11 +170,11 @@ class SignalValue: public SignalName
             SignalValueCallback callback;
             void* arg;
         };
-        virtual void setValue(const T& value, void* arg = nullptr);
+        virtual bool setValue(const T& value, void* arg = nullptr);
         virtual T getValue() const;
         virtual std::shared_ptr<T> GetData() const
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::lock_guard<std::mutex> lock(dataMutex_);
             return data_;
         }
         void registerSignalValueCallback(SignalValueCallback cb, void* arg = nullptr);
@@ -183,8 +183,9 @@ class SignalValue: public SignalName
         virtual ~SignalValue() = default;
     protected:
         std::shared_ptr<T> data_;
-        mutable std::mutex mutex_;
+        mutable std::mutex dataMutex_;
         std::vector<typename SignalValue<T>::SignalValueCallbackData> callbacks_;
+        mutable std::mutex callbackMutex_;
 };
 
 template<typename T>
@@ -208,7 +209,7 @@ class Signal : public SignalValue<T>
               , bool should_retry = false );
 
         void setup();
-        void setValue(const T& value, void* arg = nullptr) override;
+        bool setValue(const T& value, void* arg = nullptr) override;
         void notify()
         {
             std::lock_guard<std::mutex> lock(this->mutex_);
