@@ -16,21 +16,21 @@ public:
         IntVectorSignal("Microphone", webSocketServer);
         IntVectorSignal("Microphone Left Channel", webSocketServer);
         IntVectorSignal("Microphone Right Channel", webSocketServer);
-        SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands", webSocketServer, encode_FFT_Bands);
-        SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, encode_FFT_Bands);
-        SignalManager::GetInstance().CreateSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, encode_FFT_Bands);
-        SignalManager::GetInstance().CreateSignal<std::string>("CPU Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("CPU Memory Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("CPU Temp", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("GPU Temp", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Throttle Status", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Net RX", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Net TX", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Disk Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Load Avg", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Uptime", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::vector<float>>("FFT Bands", webSocketServer, encode_FFT_Bands);
+        SignalManager::getInstance().createSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, encode_FFT_Bands);
+        SignalManager::getInstance().createSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, encode_FFT_Bands);
+        SignalManager::getInstance().createSignal<std::string>("CPU Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("CPU Memory Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("CPU Temp", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("GPU Temp", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Throttle Status", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Net RX", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Net TX", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Disk Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Load Avg", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Uptime", webSocketServer, get_signal_and_value_encoder<std::string>());
 
-        SignalManager::GetInstance().CreateSignal<std::string>("Min Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
-        SignalManager::GetInstance().CreateSignal<std::string>("Max Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Min Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
+        SignalManager::getInstance().createSignal<std::string>("Max Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
     }
 };

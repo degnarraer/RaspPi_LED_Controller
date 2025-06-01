@@ -6,17 +6,17 @@ PixelGridAnimation::PixelGridAnimation(PixelGridSignal& grid, int frameRate)
 
 PixelGridAnimation::~PixelGridAnimation()
 {
-    Stop();
+    stop();
 }
 
 void PixelGridAnimation::Start()
 {
     if (running_) return;
     running_ = true;
-    thread_ = std::thread(&PixelGridAnimation::Run, this);
+    thread_ = std::thread(&PixelGridAnimation::run, this);
 }
 
-void PixelGridAnimation::Stop()
+void PixelGridAnimation::stop()
 {
     if (!running_) return;
     running_ = false;
@@ -31,7 +31,7 @@ bool PixelGridAnimation::IsRunning() const
     return running_;
 }
 
-void PixelGridAnimation::Run()
+void PixelGridAnimation::run()
 {
     using namespace std::chrono;
     const auto frameTime = milliseconds(1000 / frameRate_);

@@ -4,7 +4,7 @@
 #include <memory>
 #include <chrono>
 
-std::shared_ptr<spdlog::logger> InitializeLogger(const std::string& loggerName, spdlog::level::level_enum level);
+std::shared_ptr<spdlog::logger> initializeLogger(const std::string& loggerName, spdlog::level::level_enum level);
 
 #pragma once
 #include <spdlog/spdlog.h>
@@ -15,7 +15,7 @@ std::shared_ptr<spdlog::logger> InitializeLogger(const std::string& loggerName, 
 #include <unordered_map>
 #include <mutex>
 
-std::shared_ptr<spdlog::logger> InitializeLogger(const std::string& loggerName, spdlog::level::level_enum level);
+std::shared_ptr<spdlog::logger> initializeLogger(const std::string& loggerName, spdlog::level::level_enum level);
 
 class RateLimitedLogger
 {

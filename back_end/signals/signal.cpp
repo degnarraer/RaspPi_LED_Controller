@@ -1,7 +1,7 @@
 #include "signal.h"
 
 
-SignalManager& SignalManager::GetInstance()
+SignalManager& SignalManager::getInstance()
 {
     static SignalManager instance;
     return instance;
@@ -9,5 +9,5 @@ SignalManager& SignalManager::GetInstance()
 
 SignalManager::SignalManager()
 {
-    logger_ = InitializeLogger("Signal Manager", spdlog::level::info);
+    logger_ = initializeLogger("Signal Manager", spdlog::level::info);
 }

@@ -9,15 +9,15 @@ PixelGridSignal::PixelGridSignal(const std::string& signalName,
       height_(height),
       webSocketServer_(std::move(webSocketServer)),
       pixels_(height, std::vector<RGB>(width, RGB{0, 0, 0})),
-      signal_(SignalManager::GetInstance().CreateSignal<std::vector<std::vector<RGB>>>( signalName_,
+      signal_(SignalManager::getInstance().createSignal<std::vector<std::vector<RGB>>>( signalName_,
                                                                                         webSocketServer_,
                                                                                         get_rgb_matrix_to_binary_encoder()))
 {
-    logger_ = InitializeLogger("PixelGridSignal", spdlog::level::info);
+    logger_ = initializeLogger("PixelGridSignal", spdlog::level::info);
     logger_->info("PixelGridSignal created with dimensions: {}x{}", width_, height_);
 }
 
-void PixelGridSignal::SetPixel(size_t x, size_t y, RGB color)
+void PixelGridSignal::setPixel(size_t x, size_t y, RGB color)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (x < width_ && y < height_)
@@ -26,7 +26,7 @@ void PixelGridSignal::SetPixel(size_t x, size_t y, RGB color)
     }
 }
 
-RGB PixelGridSignal::GetPixel(size_t x, size_t y) const
+RGB PixelGridSignal::getValue(size_t x, size_t y) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (x < width_ && y < height_)
@@ -36,7 +36,7 @@ RGB PixelGridSignal::GetPixel(size_t x, size_t y) const
     return {0, 0, 0};
 }
 
-void PixelGridSignal::Clear(RGB color)
+void PixelGridSignal::clear(RGB color)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto& row : pixels_)
@@ -45,10 +45,10 @@ void PixelGridSignal::Clear(RGB color)
     }
 }
 
-void PixelGridSignal::Notify()
+void PixelGridSignal::notify()
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    signal_->SetValue(pixels_);
+    signal_->setValue(pixels_);
 }
 
 std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> PixelGridSignal::GetSignal() const

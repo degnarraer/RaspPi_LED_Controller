@@ -3,22 +3,22 @@
 RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 100)
 {
-    auto leftBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Left Channel");
-    auto rightBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Right Channel");
+    auto leftBase = SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Channel");
+    auto rightBase = SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Channel");
 
     fftLeft_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(leftBase);
     fftRight_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(rightBase);
 
     if (fftLeft_)
     {
-        fftLeft_->RegisterSignalValueCallback([this](const std::vector<float>& value, void*) {
+        fftLeft_->registerSignalValueCallback([this](const std::vector<float>& value, void*) {
             OnLeftUpdate(value, nullptr);
         }, this);
     }
 
     if (fftRight_)
     {
-        fftRight_->RegisterSignalValueCallback([this](const std::vector<float>& value, void*) {
+        fftRight_->registerSignalValueCallback([this](const std::vector<float>& value, void*) {
             OnRightUpdate(value, nullptr);
         }, this);
     }
@@ -61,8 +61,8 @@ void RainbowAnimation::AnimateFrame()
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    const int width = grid_.GetWidth();
-    const int height = grid_.GetHeight();
+    const int width = grid_.getWidth();
+    const int height = grid_.getHeight();
 
     // Find the strongest bin in 0–31 range
     int strongestBin = 0;
@@ -87,15 +87,15 @@ void RainbowAnimation::AnimateFrame()
     {
         for (int x = 0; x < width; ++x)
         {
-            grid_.SetPixel(x, y, grid_.GetPixel(x, y + 1));
+            grid_.setPixel(x, y, grid_.getValue(x, y + 1));
         }
     }
 
     // Set the bottom row to the new color
     for (int x = 0; x < width; ++x)
     {
-        grid_.SetPixel(x, height - 1, color);
+        grid_.setPixel(x, height - 1, color);
     }
 
-    grid_.Notify();
+    grid_.notify();
 }

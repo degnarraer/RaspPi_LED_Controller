@@ -25,11 +25,11 @@ class I2SMicrophone
                      , unsigned int latency
                      , std::shared_ptr<WebSocketServer> webSocketServer );
         ~I2SMicrophone();
-        std::vector<int32_t> ReadAudioData();
-        void StartReadingMicrophone();
-        void StartReadingSineWave(double frequency);
-        void StopReading();
-        void SplitAudioData(const std::vector<int32_t>& buffer);
+        std::vector<int32_t> readAudioData();
+        void startReadingMicrophone();
+        void startReadingSineWave(double frequency);
+        void stopReading();
+        void splitAudioData(const std::vector<int32_t>& buffer);
         std::string find_device(std::string targetDevice);
 
         

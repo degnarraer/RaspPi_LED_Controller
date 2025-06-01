@@ -15,7 +15,7 @@ class DeploymentManager
         DeploymentManager()
         {
             // Retrieve existing logger or create a new one
-            logger_ = InitializeLogger("Deployment Manager", spdlog::level::info);
+            logger_ = initializeLogger("Deployment Manager", spdlog::level::info);
         }
         ~DeploymentManager(){}
         std::shared_ptr<spdlog::logger> logger_;

@@ -4,19 +4,19 @@
 LED_Controller::LED_Controller(int ledCount, int gpioPin)
     : ledCount_(ledCount), gpioPin_(gpioPin)
 {
-    logger_ = InitializeLogger("LED Logger", spdlog::level::info);
+    logger_ = initializeLogger("LED Logger", spdlog::level::info);
     rate_limited_log_ = std::make_shared<RateLimitedLogger>(logger_, std::chrono::milliseconds(10000));
-    InitializeLEDString();
+    initializeLEDString();
 }
 
 LED_Controller::~LED_Controller()
 {
-    Stop();
+    stop();
     ws2811_fini(&ledstring_);
     logger_->info("WS2811 cleaned up in destructor.");
 }
 
-void LED_Controller::InitializeLEDString()
+void LED_Controller::initializeLEDString()
 {
     ledstring_ = {
         .freq = WS2811_TARGET_FREQ,
@@ -34,7 +34,7 @@ void LED_Controller::InitializeLEDString()
     };
 }
 
-void LED_Controller::RenderLoop()
+void LED_Controller::renderLoop()
 {
     logger_->info("LED Render thread started.");
     while (running_)
@@ -64,7 +64,7 @@ void LED_Controller::RenderLoop()
     logger_->info("LED render thread stopped.");
 }
 
-void LED_Controller::SetColor(uint32_t color)
+void LED_Controller::setColor(uint32_t color)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
     for (int i = 0; i < ledCount_; ++i)
@@ -75,7 +75,7 @@ void LED_Controller::SetColor(uint32_t color)
     logger_->info("All LEDs set to color: #{:06X}", color & 0xFFFFFF);
 }
 
-void LED_Controller::Run()
+void LED_Controller::run()
 {
     logger_->info("Starting LED Renderer thread.");
     std::lock_guard<std::mutex> lock(led_mutex_);
@@ -92,11 +92,11 @@ void LED_Controller::Run()
         return;
     }
     logger_->info("WS2811 initialized successfully.");
-    ledRenderThread_ = std::thread(&LED_Controller::RenderLoop, this);
+    ledRenderThread_ = std::thread(&LED_Controller::renderLoop, this);
     running_ = true;
 }
 
-void LED_Controller::Stop()
+void LED_Controller::stop()
 {
     running_ = false;
     if (ledRenderThread_.joinable())
@@ -106,10 +106,10 @@ void LED_Controller::Stop()
 
     std::lock_guard<std::mutex> lock(led_mutex_);
     ws2811_fini(&ledstring_);
-    logger_->info("WS2811 cleaned up in Stop().");
+    logger_->info("WS2811 cleaned up in stop().");
 }
 
-void LED_Controller::Clear()
+void LED_Controller::clear()
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
     for (int i = 0; i < ledCount_; i++)
@@ -129,7 +129,7 @@ void LED_Controller::Clear()
 }
 
 
-void LED_Controller::CalculateCurrent()
+void LED_Controller::calculateCurrent()
 {
     float current_draw_mA = 0.0f;
 

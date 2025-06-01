@@ -12,7 +12,7 @@ public:
     virtual ~PixelGridAnimation();
 
     void Start();
-    void Stop();
+    void stop();
     bool IsRunning() const;
 
 protected:
@@ -23,6 +23,6 @@ protected:
     std::atomic<bool> running_;
 
 private:
-    void Run();
+    void run();
     std::thread thread_;
 };

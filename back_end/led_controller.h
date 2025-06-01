@@ -12,11 +12,11 @@ public:
     LED_Controller(int ledCount = 60, int gpioPin = 13);
     ~LED_Controller();
 
-    void Run();
-    void Stop();
-    void Clear();
-    void SetColor(uint32_t color);
-    void CalculateCurrent();
+    void run();
+    void stop();
+    void clear();
+    void setColor(uint32_t color);
+    void calculateCurrent();
 
 private:
     std::shared_ptr<spdlog::logger> logger_;
@@ -29,6 +29,6 @@ private:
     int gpioPin_;
     bool running_ = false;
 
-    void InitializeLEDString();
-    void RenderLoop();
+    void initializeLEDString();
+    void renderLoop();
 };

@@ -73,16 +73,16 @@ public:
                     size_t height,
                     std::shared_ptr<WebSocketServer> webSocketServer);
 
-    void SetPixel(size_t x, size_t y, RGB color);
-    RGB GetPixel(size_t x, size_t y) const;
+    void setPixel(size_t x, size_t y, RGB color);
+    RGB getValue(size_t x, size_t y) const;
 
-    void Clear(RGB color = {0, 0, 0});
-    void Notify();
+    void clear(RGB color = {0, 0, 0});
+    void notify();
 
     std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> GetSignal() const;
 
-    size_t GetWidth() const { return width_; }
-    size_t GetHeight() const { return height_; }
+    size_t getWidth() const { return width_; }
+    size_t getHeight() const { return height_; }
 
 private:
     std::string signalName_;

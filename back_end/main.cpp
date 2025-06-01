@@ -16,7 +16,7 @@
 int main()
 {
     std::shared_ptr<spdlog::logger> logger_;
-    logger_ = InitializeLogger("Main Logger", spdlog::level::info);
+    logger_ = initializeLogger("Main Logger", spdlog::level::info);
 
     std::shared_ptr<WebSocketServer> webSocketServer = std::make_shared<WebSocketServer>(8080);
     SignalFactory::CreateSignals(webSocketServer);
@@ -28,18 +28,17 @@ int main()
 
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");
     deploymentManger->copyFolderContentsWithSudo("./www", "/var/www/html");
-    webSocketServer->Run();
-    mic->StartReadingMicrophone();
+    webSocketServer->start();
+    mic->startReadingMicrophone();
     systemStatusMonitor->startMonitoring();
     
     PixelGridSignal grid("Pixel Grid", 32, 64, webSocketServer);
     RainbowAnimation animation(grid);
     animation.Start();
-    //ledController->Run();
-    //ledController->SetColor(0xFF0000);
+
     std::cin.get();
-    animation.Stop();
-    //ledController->Stop();
-    webSocketServer->close_all_sessions();
+
+    animation.stop();
+    webSocketServer->stop();
     return 0;
 }

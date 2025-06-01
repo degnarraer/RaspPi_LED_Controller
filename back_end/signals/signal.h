@@ -146,10 +146,10 @@ class SignalName
 {
     public:
         SignalName(const std::string name) : name_(name)
-                                           , logger_(InitializeLogger("Signal " + name + "Logger", spdlog::level::info)) {}
+                                           , logger_(initializeLogger("Signal " + name + "Logger", spdlog::level::info)) {}
 
         virtual ~SignalName() = default;
-        const std::string& GetName() const
+        const std::string& getName() const
         {
             return name_;
         }
@@ -159,7 +159,7 @@ class SignalName
 };
 
 template<typename T>
-class SignalValue : public SignalName
+class SignalValue: public SignalName
 {
     public:
         SignalValue(const std::string& name) : SignalName(name)
@@ -170,15 +170,17 @@ class SignalValue : public SignalName
             SignalValueCallback callback;
             void* arg;
         };
-        virtual void SetValue(const T& value, void* arg = nullptr);
-        virtual T GetValue() const;
+        virtual void setValue(const T& value, void* arg = nullptr);
+        virtual T getValue() const;
         virtual std::shared_ptr<T> GetData() const
         {
             std::lock_guard<std::mutex> lock(mutex_);
             return data_;
         }
-        void RegisterSignalValueCallback(SignalValueCallback cb, void* arg = nullptr);
-        void UnregisterSignalValueCallbackByArg(void* arg);
+        void registerSignalValueCallback(SignalValueCallback cb, void* arg = nullptr);
+        void unregisterSignalValueCallbackByArg(void* arg);
+
+        virtual ~SignalValue() = default;
     protected:
         std::shared_ptr<T> data_;
         mutable std::mutex mutex_;
@@ -187,6 +189,7 @@ class SignalValue : public SignalName
 
 template<typename T>
 class Signal : public SignalValue<T>
+             , public WebSocketServerNotificationClient
              , public std::enable_shared_from_this<Signal<T>>
 {
     public:
@@ -204,15 +207,28 @@ class Signal : public SignalValue<T>
               , MessagePriority priority = MessagePriority::Low
               , bool should_retry = false );
 
-        void Setup();
-        void SetValue(const T& value, void* arg = nullptr) override;
-        void Notify()
+        void setup();
+        void setValue(const T& value, void* arg = nullptr) override;
+        void notify()
         {
             std::lock_guard<std::mutex> lock(this->mutex_);
-            NotifyClients(nullptr);
+            notifyClients(nullptr);
             if (isUsingWebSocket_)
             {
-                NotifyWebSocket();
+                notifyWebSocket();
+            }
+        }
+
+        // WebSocketServerNotificationClient Interface
+        const std::string& getName() const override
+        {
+            return this->name_;
+        }
+        void onValueRequest() const override
+        {
+            if (this->logger_)
+            {
+                this->logger_->debug("WebSocketServerNotificationClient: Value requested for signal {}", this->name_);
             }
         }
     private:
@@ -222,25 +238,25 @@ class Signal : public SignalValue<T>
         MessagePriority priority_;
         bool should_retry_;
         bool isUsingWebSocket_;
-        void NotifyClients(void* arg);
-        void NotifyWebSocket();
+        void notifyClients(void* arg);
+        void notifyWebSocket();
 };
 
 class SignalManager
 {
 public:
-    static SignalManager& GetInstance();
+    static SignalManager& getInstance();
 
     template<typename T>
-    std::shared_ptr<Signal<T>> CreateSignal(const std::string& name);
+    std::shared_ptr<Signal<T>> createSignal(const std::string& name);
 
     template<typename T>
-    std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder = nullptr);
+    std::shared_ptr<Signal<T>> createSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder = nullptr);
     
     template<typename T>
-    std::shared_ptr<Signal<T>> CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder = nullptr);
+    std::shared_ptr<Signal<T>> createSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder = nullptr);
 
-    SignalName* GetSignalByName(const std::string& name)
+    SignalName* getSignalByName(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = signals_.find(name);
@@ -250,7 +266,7 @@ public:
         }
         return nullptr;
     }
-    std::shared_ptr<SignalName> GetSharedSignalByName(const std::string& name)
+    std::shared_ptr<SignalName> getSharedSignalByName(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = signals_.find(name);

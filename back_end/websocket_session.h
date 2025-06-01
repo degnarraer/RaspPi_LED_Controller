@@ -12,6 +12,7 @@
 #include <optional>
 #include <boost/locale.hpp>
 #include <boost/uuid/uuid.hpp>
+#include <boost/beast/http.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/asio.hpp>
@@ -90,17 +91,17 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
         WebSocketSessionMessageManager( WebSocketSession& session );
         virtual ~WebSocketSessionMessageManager() = default;
         
-        bool subscribe_to_signal(const std::string& signal_name);
-        bool unsubscribe_from_signal(const std::string& signal_name);
-        bool is_subscribed_to(const std::string& signal_name) const;
+        bool subscribeToSignal(const std::string& signal_name);
+        bool unsubscribeFromSignal(const std::string& signal_name);
+        bool isSubscribedToSignal(const std::string& signal_name) const;
 
-        void handle_string_message(const std::string& message);
-        void handle_subscribe(const json& incoming);
-        void handle_unsubscribe(const json& incoming);
-        void handle_text_message(const json& incoming);
-        void handle_signal_message(const json& incoming);
-        void handle_echo_message(const json& incoming);
-        void handle_unknown_message(const json& incoming);
+        void handleStringMessage(const std::string& message);
+        void handleSubscribe(const json& incoming);
+        void handleUnsubscribe(const json& incoming);
+        void handleTextMessage(const json& incoming);
+        void handleSignalMessage(const json& incoming);
+        void handleEchoMessage(const json& incoming);
+        void handleUnknownMessage(const json& incoming);
     protected:
         WebSocketSession& session_;
         std::vector<WebSocketSignalValueCallbackData> signal_value_callbacks_;
@@ -111,7 +112,7 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
         
         std::shared_ptr<spdlog::logger> logger_;
 };
-
+/*
 class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
 public:
@@ -119,16 +120,16 @@ public:
     void run();
     bool isRunning() const { return ws_.is_open(); }
     void close();
-    void send_message(const WebSocketMessage& message);
-    void send_binary_message(const std::vector<uint8_t>& message);
-    std::string GetSessionID() const;
+    void sendMessage(const WebSocketMessage& message);
+    void sendBinaryMessage(const std::vector<uint8_t>& message);
+    std::string getSessionID() const;
 
 private:
-    void do_read();
-    void on_read(std::size_t bytes_transferred);
+    void doRead();
+    void onRead(std::size_t bytes_transferred);
     void handleWebSocketError(const std::error_code& ec, const std::string& context = "");
-    void do_write();
-    void on_write(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
+    void doWrite();
+    void onWrite(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
     void maybe_backoff();
     void try_schedule_backoff();
     void schedule_backoff();
@@ -138,7 +139,7 @@ private:
     void on_disconnect();
     void resume_sending();
     void remove_sent_message_from_retry_queue();
-    bool is_valid_utf8(const std::string& str);
+    bool isValidUtf8(const std::string& str);
     static std::string truncate_for_log(const std::string& str, size_t max_length = 200)
     {
         if (str.length() <= max_length)
@@ -173,4 +174,46 @@ private:
     static constexpr int BASE_BACKOFF_MS = 50;
     int backoff_attempts_ = 0;
     std::atomic<bool> backoff_enabled_{false};
+};
+*/
+namespace net = boost::asio;
+namespace beast = boost::beast;
+namespace websocket = beast::websocket;
+using tcp = net::ip::tcp;
+
+class WebSocketServer;
+
+class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
+                       , public WebSocketSessionMessageManager
+{
+public:
+    WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocketServer> server);
+
+    void start();
+    void close();
+    void end();
+    void sendMessage(const WebSocketMessage& message);
+    void sendBinaryMessage(const std::vector<uint8_t>& message);
+    std::string getSessionID() const { return session_id_; }
+    bool isRunning() const { return ws_.is_open(); }
+
+private:
+    void doRead();
+    void onRead(beast::error_code ec, std::size_t bytes_transferred);
+    void doWrite();
+    void onWrite(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
+    void handleWebSocketError(const std::error_code& ec, const std::string& context);
+    bool isValidUtf8(const std::string& str);
+
+    websocket::stream<tcp::socket> ws_;
+    std::weak_ptr<WebSocketServer> server_;
+    const std::string session_id_;
+    std::shared_ptr<spdlog::logger> logger_;
+    std::shared_ptr<RateLimitedLogger> rate_limited_log_;
+
+    static constexpr size_t MAX_QUEUE_SIZE = 500;
+    std::deque<WebSocketMessage> outgoing_messages_;
+    beast::flat_buffer buffer_;
+    mutable std::mutex outgoing_mutex_;
+    bool writing_ = false;
 };

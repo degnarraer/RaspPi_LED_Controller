@@ -56,12 +56,12 @@ class FFTComputer
             , stopFlag_(false)
         {
             // Retrieve existing logger or create a new one
-            logger = InitializeLogger("FFT Computer", spdlog::level::info);
-            inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_));
+            logger = initializeLogger("FFT Computer", spdlog::level::info);
+            inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_));
             if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_);
-            inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_ + " Left Channel"));
+            inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_ + " Left Channel"));
             if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Left Channel");
-            inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_ + " Right Channel"));
+            inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_ + " Right Channel"));
             if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Right Channel");
             fft_ = kiss_fft_alloc(fft_size_, 0, nullptr, nullptr);
             if (!fft_)
@@ -134,9 +134,9 @@ class FFTComputer
         Signal<std::vector<int32_t>>* inputSignal_;
         Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
         Signal<std::vector<int32_t>>* inputSignalRightChannel_;
-        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands);
-        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands);
-        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands);
 
         void registerCallbacks()
         {
@@ -147,16 +147,16 @@ class FFTComputer
                 self->addData(value, channel);
             };
 
-            inputSignal_->RegisterSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
-            inputSignalLeftChannel_->RegisterSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
-            inputSignalRightChannel_->RegisterSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
+            inputSignal_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
+            inputSignalLeftChannel_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
+            inputSignalRightChannel_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
         }
 
         void unregisterCallbacks()
         {
-            inputSignal_->UnregisterSignalValueCallbackByArg(this);
-            inputSignalLeftChannel_->UnregisterSignalValueCallbackByArg(this);
-            inputSignalRightChannel_->UnregisterSignalValueCallbackByArg(this);
+            inputSignal_->unregisterSignalValueCallbackByArg(this);
+            inputSignalLeftChannel_->unregisterSignalValueCallbackByArg(this);
+            inputSignalRightChannel_->unregisterSignalValueCallbackByArg(this);
         }
 
         void processQueue()
@@ -234,15 +234,15 @@ class FFTComputer
             {
                 case ChannelType::Mono:
                     logger->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    monoOutputSignal_->SetValue(saeBands);
+                    monoOutputSignal_->setValue(saeBands);
                 break;
                 case ChannelType::Left:
                     logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    leftChannelOutputSignal_->SetValue(saeBands);
+                    leftChannelOutputSignal_->setValue(saeBands);
                 break;
                 case ChannelType::Right:
                     logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    rightChannelOutputSignal_->SetValue(saeBands);
+                    rightChannelOutputSignal_->setValue(saeBands);
                 break;
                 default:
                     logger->error("Device {}: Unsupported channel type:", name_);

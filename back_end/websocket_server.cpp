@@ -1,35 +1,213 @@
 #include "websocket_server.h"
 
-WebSocketServer::WebSocketServer(short port)
-    : ioc_()
-    , port_(port)
-    , acceptor_(ioc_, tcp::endpoint(tcp::v4(), port_))
-{
-    logger_ = spdlog::stdout_color_mt("Websocket Server");
-    logger_->set_level(spdlog::level::info);
 
-    try {        
-        unsigned short server_port = acceptor_.local_endpoint().port();
-        logger_->info("WebSocket Server is running on {}", server_port);
-    } catch (const std::exception& e) {
-        logger_->error("Error retrieving port: {}", e.what());
+WebSocketServer::WebSocketServer(unsigned short port, unsigned int thread_count)
+    : ioc_(1)
+    , acceptor_(ioc_)
+    , thread_count_(thread_count == 0 ? std::max(1u, std::thread::hardware_concurrency()) : thread_count)
+    , logger_(initializeLogger("WebSocketServer", spdlog::level::info))
+{
+    beast::error_code ec;
+
+    tcp::endpoint endpoint(tcp::v4(), port);
+
+    acceptor_.open(endpoint.protocol(), ec);
+    if (ec)
+    {
+        logger_->error("Open failed: {}", ec.message());
+        return;
     }
 
-    acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
-    acceptor_.set_option(boost::asio::socket_base::keep_alive(true));
-    acceptor_.set_option(boost::asio::socket_base::receive_buffer_size(8192));
-    acceptor_.set_option(boost::asio::socket_base::send_buffer_size(8192));
-    logger_->debug("Instantiated WebSocketServer.");
+    acceptor_.set_option(net::socket_base::reuse_address(true), ec);
+    if (ec)
+    {
+        logger_->error("Set option failed: {}", ec.message());
+        return;
+    }
+
+    acceptor_.bind(endpoint, ec);
+    if (ec)
+    {
+        logger_->error("Bind failed: {}", ec.message());
+        return;
+    }
+
+    acceptor_.listen(net::socket_base::max_listen_connections, ec);
+    if (ec)
+    {
+        logger_->error("Listen failed: {}", ec.message());
+        return;
+    }
 }
 
-WebSocketServer::~WebSocketServer()
+void WebSocketServer::start()
 {
-    logger_->debug("Destroying WebSocketServer.");
-    close_all_sessions();
-    Stop();
+    if (running_)
+        return;
+
+    running_ = true;
+
+    do_accept();
+
+    for (unsigned int i = 0; i < thread_count_; ++i)
+    {
+        thread_pool_.emplace_back([this]()
+        {
+            ioc_.run();
+        });
+    }
 }
 
-void WebSocketServer::Run()
+void WebSocketServer::stop()
+{
+    if (!running_)
+        return;
+
+    running_ = false;
+
+    ioc_.stop();
+
+    for (auto& t : thread_pool_)
+    {
+        if (t.joinable())
+            t.join();
+    }
+    thread_pool_.clear();
+}
+
+void WebSocketServer::close_session(const std::string& session_id)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    logger_->info("Closing session: {}", session_id);
+    auto it = sessions_.find(session_id);
+    if (it != sessions_.end())
+    {
+        auto& session = it->second;
+        if (session->isRunning())
+        {
+            session->close();
+        }
+        else
+        {
+            logger_->warn("Session is not running: {}", session_id);
+        }
+    }
+    else
+    {
+        logger_->warn("Attempted to close unknown session: {}.", session_id);
+    }
+}
+
+void WebSocketServer::close_all_sessions()
+{
+
+}
+
+void WebSocketServer::end_session(const std::string& session_id)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    logger_->info("Ending session: {}", session_id);
+    auto it = sessions_.find(session_id);
+    if (it != sessions_.end())
+    {
+        auto& session = it->second;
+        if (session->isRunning())
+        {
+            session->close();
+        }
+        sessions_.erase(it);
+        logger_->info("Session ended: {}", session_id);
+    }
+    else
+    {
+        logger_->warn("Attempted to end unknown session: {}.", session_id);
+    }
+}
+
+void WebSocketServer::register_notification_client(const std::string& client_name, WebSocketServerNotificationClient* client)
+{
+    std::lock_guard<std::mutex> lock(notification_clients_mutex_);
+    logger_->info("Registering Notification Client {}.", client_name);
+    notification_clients_[client_name] = client;
+    logger_->info("Notification Client {}: Registered.", client_name);
+}
+
+void WebSocketServer::unregister_notification_client(const std::string& client_name)
+{
+    std::lock_guard<std::mutex> lock(notification_clients_mutex_);
+    auto it = notification_clients_.find(client_name);
+    if (it != notification_clients_.end())
+    {
+        logger_->info("Unregistering Notification Client {}.", client_name);
+        notification_clients_.erase(it);
+        logger_->info("Notification Client {}: Unregistered.", client_name);
+    }
+    else
+    {
+        logger_->warn("Attempted to unregister unknown Notification Client: {}.", client_name);
+    }
+}
+
+void WebSocketServer::registerSession(std::shared_ptr<WebSocketSession> session)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    const std::string& session_id = session->getSessionID();
+    sessions_[session_id] = session;
+}
+
+void WebSocketServer::unregisterSession(std::shared_ptr<WebSocketSession> session)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    const std::string& session_id = session->getSessionID();
+    sessions_.erase(session_id);
+}
+
+void WebSocketServer::broadcast(const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    for (auto& [id, session] : sessions_)
+    {
+        if (session && session->isRunning())
+        {
+            session->sendMessage(message);
+        }
+    }
+}
+
+void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const WebSocketMessage& webSocketMessage)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    for (auto& [id, session] : sessions_)
+    {
+        if (session && session->isSubscribedToSignal(signal_name))
+        {
+            session->sendMessage(webSocketMessage.message);
+        }
+    }
+}
+
+void WebSocketServer::do_accept()
+{
+    acceptor_.async_accept(
+        [self = shared_from_this()](beast::error_code ec, tcp::socket socket)
+        {
+            if (ec)
+            {
+                self->logger_->error("Accept failed: {}", ec.message());
+            }
+            else
+            {
+                auto session = std::make_shared<WebSocketSession>(std::move(socket), self);
+                session->start();
+            }
+
+            if (self->running_)
+                self->do_accept();
+        });
+}
+
+/*
+void WebSocketServer::run()
 {
     std::lock_guard<std::mutex> lock(server_mutex_);
     if (is_running_.exchange(true))
@@ -68,7 +246,7 @@ void WebSocketServer::Run()
     }
 }
 
-void WebSocketServer::Stop()
+void WebSocketServer::stop()
 {
     std::lock_guard<std::mutex> lock(server_mutex_);
     if (!is_running_.exchange(false))
@@ -106,7 +284,6 @@ void WebSocketServer::Stop()
 void WebSocketServer::broadcast_message_to_websocket(const WebSocketMessage& webSocketMessage)
 {
     std::vector<std::shared_ptr<WebSocketSession>> targets;
-
     {
         std::lock_guard<std::mutex> lock(session_mutex_);
         for (auto it = sessions_.begin(); it != sessions_.end();)
@@ -126,7 +303,7 @@ void WebSocketServer::broadcast_message_to_websocket(const WebSocketMessage& web
     logger_->debug("Broadcasting message to sessions: {}", targets.size());
     for (auto& session : targets)
     {
-        session->send_message(webSocketMessage);
+        session->sendMessage(webSocketMessage);
     }
 }
 
@@ -139,7 +316,7 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
         {
             if (auto session = it->second.lock())
             {
-                //TO DO if (session->is_subscribed_to(signal_name))
+                //TO DO if (session->isSubscribedToSignal(signal_name))
                 {
                     targets.push_back(session);
                 }
@@ -154,27 +331,28 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
 
     for (auto& session : targets)
     {
-        session->send_message(message);
+        session->sendMessage(message);
     }
 }
 
 void WebSocketServer::register_session(std::shared_ptr<WebSocketSession> session)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->info("Registering session: {}.", session->GetSessionID());
-    sessions_[session->GetSessionID()] = session;
-    logger_->info("Session registered: {}", session->GetSessionID());
+    logger_->info("Registering session: {}.", session->getSessionID());
+    sessions_[session->getSessionID()] = session;
+    logger_->info("Session registered: {}", session->getSessionID());
 }
 
 /*
 void WebSocketServer::register_backend_client(std::shared_ptr<IWebSocketServer_BackendClient> client)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
-    logger_->info("Registering Backend Client {}.", client->GetName());
-    backend_clients_[client->GetName()] = client;
-    logger_->info("Backend Client {}: Registered.", client->GetName());
+    logger_->info("Registering Backend Client {}.", client->getName());
+    backend_clients_[client->getName()] = client;
+    logger_->info("Backend Client {}: Registered.", client->getName());
 }
 */
+/*
 void WebSocketServer::close_session(const std::string& session_id)
 {
     std::lock_guard<std::mutex> lock(session_mutex_);
@@ -231,7 +409,7 @@ void WebSocketServer::close_all_sessions()
     {
         if (auto shared_session = session.lock())
         {
-            shared_session->send_message(WebSocketMessage("Server shutting down...", MessagePriority::High, true));
+            shared_session->sendMessage(WebSocketMessage("Server shutting down...", MessagePriority::High, true));
             shared_session->close();
         }
     }
@@ -273,3 +451,4 @@ void WebSocketServer::do_accept()
             self->do_accept();
         });
 }
+*/
