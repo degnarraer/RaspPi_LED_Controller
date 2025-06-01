@@ -38,7 +38,11 @@ bool WebSocketSessionMessageManager::subscribeToSignal(const std::string& signal
         logger_->info("Subscribed to signal: {}", signal_name);
         return true;
     }
-    return false;
+    else
+    {
+        logger_->warn("Attempted to subscribe to an already subscribed signal: {}", signal_name);
+        return false;
+    }
 }
 
 bool WebSocketSessionMessageManager::unsubscribeFromSignal(const std::string& signal_name)
@@ -51,7 +55,11 @@ bool WebSocketSessionMessageManager::unsubscribeFromSignal(const std::string& si
         logger_->info("Unsubscribed from signal: {}", signal_name);
         return true;
     }
-    return false;
+    else
+    {
+        logger_->warn("Attempted to unsubscribe from a signal not subscribed: {}", signal_name);
+        return false;
+    }
 }
                                                               
 void WebSocketSessionMessageManager::handleStringMessage(const std::string& message)
@@ -201,9 +209,7 @@ void WebSocketSession::start()
             {
                 if (ec)
                 {
-                    self->logger_->error("WebSocket handshake failed: {}", ec.message());
-                    if (auto server = self->server_.lock())
-                        server->unregisterSession(self);
+                    self->handleWebSocketError(ec, "start");
                     return;
                 }
                 else
@@ -229,7 +235,7 @@ void WebSocketSession::close()
             {
                 if (ec)
                 {
-                    self->logger_->error("Error during WebSocket close: {}", ec.message());
+                    self->handleWebSocketError(ec, "close");
                 }
                 else
                 {
@@ -243,7 +249,7 @@ void WebSocketSession::close()
 void WebSocketSession::doRead()
 {
     ws_.async_read(
-        buffer_,
+        readBuffer_,
         net::bind_executor(
             ws_.get_executor(),
             std::bind(
@@ -255,23 +261,14 @@ void WebSocketSession::doRead()
 
 void WebSocketSession::onRead(beast::error_code ec, std::size_t bytes_transferred)
 {
-    if (ec == websocket::error::closed)
-    {
-        if (auto s = server_.lock())
-            s->unregisterSession(shared_from_this());
-        return;
-    }
-
     if (ec)
     {
-        logger_->error("Read error: {}", ec.message());
-        if (auto s = server_.lock())
-            s->unregisterSession(shared_from_this());
+        handleWebSocketError(ec, "onRead");
         return;
     }
 
-    std::string message = beast::buffers_to_string(buffer_.data());
-    buffer_.consume(bytes_transferred);
+    std::string message = beast::buffers_to_string(readBuffer_.data());
+    readBuffer_.consume(bytes_transferred);
     logger_->info("Received message: {}", message);
     handleStringMessage(message);
     doRead();
@@ -288,12 +285,15 @@ void WebSocketSession::doWrite()
     switch (webSocketMessage.webSocket_Message_type)
     {
         case WebSocketMessageType::Text:
-            if (!isValidUtf8(webSocketMessage.message))
+            if (isValidUtf8(webSocketMessage.message))
+            {
+                ws_.text(true);
+            }
+            else 
             {
                 logger_->warn("Invalid UTF-8 message, skipping...");
                 return;
             }
-            ws_.text(true);
         break;
         case WebSocketMessageType::Binary:
             ws_.binary(true);
@@ -320,12 +320,10 @@ void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferr
     writing_ = false;
     if (ec)
     {
-        logger_->error("Write error: {}", ec.message());
-        if (auto server = server_.lock())
-            server->unregisterSession(shared_from_this());
+        handleWebSocketError(ec, "onWrite");
         return;
     }
-    logger_->debug("Sent message: {} ({} bytes)", webSocketMessage.message, bytes_transferred);
+    logger_->info("Sent {} byte message)", bytes_transferred);
     if (!outgoing_messages_.empty())
     {
         doWrite();
@@ -334,10 +332,10 @@ void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferr
 
 void WebSocketSession::sendMessage(const WebSocketMessage& webSocketMessage)
 {
-    net::post(ws_.get_executor(), [self=shared_from_this(), msg = std::move(webSocketMessage)]() mutable {
+    net::post( ws_.get_executor(), [self=shared_from_this(), msg = std::move(webSocketMessage)]() mutable{
         if (self->ws_.is_open())
         {
-            if (self->outgoing_messages_.size() < MAX_QUEUE_SIZE)
+            if (self->outgoing_messages_.size() <= MAX_QUEUE_SIZE)
             {
                 bool write_in_progress = !self->outgoing_messages_.empty();
                 self->outgoing_messages_.push_back(std::move(msg));

@@ -191,7 +191,6 @@ public:
 
     void start();
     void close();
-    void end();
     void sendMessage(const WebSocketMessage& message);
     void sendBinaryMessage(const std::vector<uint8_t>& message);
     std::string getSessionID() const { return session_id_; }
@@ -213,7 +212,7 @@ private:
 
     static constexpr size_t MAX_QUEUE_SIZE = 500;
     std::deque<WebSocketMessage> outgoing_messages_;
-    beast::flat_buffer buffer_;
+    beast::flat_buffer readBuffer_;
     mutable std::mutex outgoing_mutex_;
     bool writing_ = false;
 };

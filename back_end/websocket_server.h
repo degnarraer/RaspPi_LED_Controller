@@ -65,8 +65,8 @@ public:
     void broadcast(const std::string& message);
 
     // Internal: session management called by sessions
-    void registerSession(std::shared_ptr<WebSocketSession> session);
-    void unregisterSession(std::shared_ptr<WebSocketSession> session);
+    bool registerSession(std::shared_ptr<WebSocketSession> session);
+    bool unregisterSession(std::shared_ptr<WebSocketSession> session);
 
     void register_notification_client(const std::string& client_name, WebSocketServerNotificationClient* client);
     void unregister_notification_client(const std::string& client_name);
