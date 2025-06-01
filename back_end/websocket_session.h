@@ -135,6 +135,7 @@ public:
 
 protected:
     websocket::stream<tcp::socket> ws_;
+    boost::asio::strand<boost::asio::executor> strand_;
     std::weak_ptr<WebSocketServer> server_;
 
 private:
@@ -158,10 +159,6 @@ private:
     static constexpr size_t MAX_QUEUE_SIZE = 500;
     std::deque<WebSocketMessage> outgoing_messages_;
     beast::flat_buffer readBuffer_;
-    std::atomic<bool> writing_ = false;
-    std::mutex write_mutex_;
-
-    
-    std::atomic<bool> closing_ = false;
-    std::mutex close_mutex_;
+    bool writing_ = false;
+    bool closing_ = false;
 };

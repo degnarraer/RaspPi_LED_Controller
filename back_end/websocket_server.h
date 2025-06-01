@@ -82,8 +82,10 @@ public:
 
 private:
     void do_accept();
+    void handle_accept(beast::error_code ec, tcp::socket socket);
 
     net::io_context ioc_;
+    net::strand<net::io_context::executor_type> strand_;
     tcp::acceptor acceptor_;
 
     std::unordered_map<std::string, std::shared_ptr<WebSocketSession>> sessions_;

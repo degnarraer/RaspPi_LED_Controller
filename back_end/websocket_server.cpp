@@ -3,6 +3,7 @@
 
 WebSocketServer::WebSocketServer(unsigned short port, unsigned int thread_count)
     : ioc_(1)
+    , strand_(net::make_strand(ioc_))
     , acceptor_(ioc_)
     , thread_count_(thread_count == 0 ? std::max(1u, std::thread::hardware_concurrency()) : thread_count)
     , logger_(initializeLogger("WebSocketServer", spdlog::level::info))
@@ -286,28 +287,32 @@ void WebSocketServer::unsubscribe_session_from_all_signals(const std::string& se
 void WebSocketServer::do_accept()
 {
     acceptor_.async_accept(
-        [self = shared_from_this()](beast::error_code ec, tcp::socket socket)
-        {
-            if (ec)
+        boost::asio::bind_executor(
+            strand_,
+            [self = shared_from_this()](beast::error_code ec, tcp::socket socket) mutable
             {
-                self->logger_->error("Accept failed: {}", ec.message());
-            }
-            else
-            {
-                auto session = std::make_shared<WebSocketSession>(std::move(socket), self);
-                if(self->registerSession(session))
-                {
-                    session->start();
-                }
-                else
-                {
-                    self->logger_->error("Failed to register session.");
-                    session->close();
-                }
-            }
+                self->handle_accept(ec, std::move(socket));
+            }));
+}
 
-            if (self->running_)
-                self->do_accept();
-        });
+void WebSocketServer::handle_accept(beast::error_code ec, tcp::socket socket)
+{
+    if (ec)
+    {
+        logger_->error("Accept failed: {}", ec.message());
+        return;
+    }
+
+    auto session = std::make_shared<WebSocketSession>(std::move(socket), shared_from_this());
+    if (registerSession(session))
+    {
+        session->start();
+    }
+    else
+    {
+        logger_->error("Failed to register new session.");
+    }
+
+    do_accept();
 }
 
