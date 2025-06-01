@@ -100,7 +100,20 @@ void WebSocketServer::close_session(const std::string& session_id)
 
 void WebSocketServer::close_all_sessions()
 {
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    logger_->info("Closing all sessions.");
 
+    for (auto& [session_id, session] : sessions_)
+    {
+        if (session && session->isRunning())
+        {
+            logger_->info("Closing session: {}", session_id);
+            session->close();
+        }
+    }
+
+    sessions_.clear();
+    logger_->info("All sessions closed.");
 }
 
 void WebSocketServer::end_session(const std::string& session_id)
@@ -187,30 +200,85 @@ bool WebSocketServer::unregisterSession(std::shared_ptr<WebSocketSession> sessio
     }
 }
 
-void WebSocketServer::broadcast(const std::string& message)
+void WebSocketServer::broadcast(const WebSocketMessage& webSocketMessage)
 {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
-    logger_->debug("Broadcast message \"{}\" to WebSocket.", message);
+    logger_->debug("Broadcast message \"{}\" to WebSocket.", webSocketMessage.message);
     for (auto& [id, session] : sessions_)
     {
         if (session && session->isRunning())
         {
-            session->sendMessage(message);
+            session->sendMessage(webSocketMessage);
         }
     }
 }
 
+// Optimized broadcast to subscribers of a signal
 void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const WebSocketMessage& webSocketMessage)
-{        
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
-    logger_->debug("Broadcast signal \"{}\" to WebSocket.", signal_name);
-    for (auto& [id, session] : sessions_)
+{
+    std::unordered_set<std::string> subscribers_copy;
     {
-        if (session && session->isSubscribedToSignal(signal_name))
+        std::lock_guard<std::mutex> lock(signal_subscriptions_mutex_);
+        auto it = signal_subscriptions_.find(signal_name);
+        if (it != signal_subscriptions_.end())
         {
-            session->sendMessage(webSocketMessage.message);
+            subscribers_copy = it->second; // copy so we can unlock early
         }
     }
+
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    logger_->debug("Broadcast signal \"{}\" to WebSocket.", signal_name);
+
+    for (const auto& session_id : subscribers_copy)
+    {
+        auto it = sessions_.find(session_id);
+        if (it != sessions_.end())
+        {
+            auto& session = it->second;
+            if (session && session->isRunning())
+            {
+                session->sendMessage(webSocketMessage);
+            }
+        }
+    }
+}
+
+ void WebSocketServer::subscribe_session_to_signal(const std::string& session_id, const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(signal_subscriptions_mutex_);
+    signal_subscriptions_[signal_name].insert(session_id);
+    logger_->info("Session {} subscribed to signal {}", session_id, signal_name);
+}
+
+// Call this to unregister a subscription for a session
+void WebSocketServer::unsubscribe_session_from_signal(const std::string& session_id, const std::string& signal_name)
+{
+    std::lock_guard<std::mutex> lock(signal_subscriptions_mutex_);
+    auto it = signal_subscriptions_.find(signal_name);
+    if (it != signal_subscriptions_.end())
+    {
+        it->second.erase(session_id);
+        if (it->second.empty())
+        {
+            signal_subscriptions_.erase(it);
+        }
+        logger_->info("Session {} unsubscribed from signal {}", session_id, signal_name);
+    }
+}
+
+// Unsubscribe session from all signals (call on session end)
+void WebSocketServer::unsubscribe_session_from_all_signals(const std::string& session_id)
+{
+    std::lock_guard<std::mutex> lock(signal_subscriptions_mutex_);
+    for (auto it = signal_subscriptions_.begin(); it != signal_subscriptions_.end(); )
+    {
+        it->second.erase(session_id);
+        if (it->second.empty())
+            it = signal_subscriptions_.erase(it);
+        else
+            ++it;
+    }
+    logger_->info("Session {} unsubscribed from all signals", session_id);
 }
 
 void WebSocketServer::do_accept()
@@ -240,3 +308,4 @@ void WebSocketServer::do_accept()
                 self->do_accept();
         });
 }
+

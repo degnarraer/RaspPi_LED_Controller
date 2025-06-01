@@ -15,19 +15,17 @@
 #include <boost/beast/http.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <boost/asio.hpp>
 #include "logger.h"
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
+namespace net = boost::asio;
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
-namespace asio = boost::asio;
-using tcp = asio::ip::tcp;
+using tcp = net::ip::tcp;
 
 class WebSocketServer;
-
 class MessageTypeHelper
 {
 public:
@@ -72,7 +70,7 @@ struct WebSocketMessage
     bool should_retry = false;
     WebSocketMessage() = default;
     WebSocketMessage( const std::string& msg, MessagePriority p = MessagePriority::Low, bool retry_flag = false )
-                    : message(msg), priority(p), should_retry(retry_flag) {}
+                    : message(msg), webSocket_Message_type(WebSocketMessageType::Text), priority(p), should_retry(retry_flag) {}
     WebSocketMessage( const std::vector<uint8_t>& data, MessagePriority p = MessagePriority::Low, bool retry_flag = false )
                     : binary_data(data), webSocket_Message_type(WebSocketMessageType::Binary), priority(p), should_retry(retry_flag) {}
 };
@@ -112,77 +110,8 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
         
         std::shared_ptr<spdlog::logger> logger_;
 };
-/*
-class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
-{
-public:
-    explicit WebSocketSession(tcp::socket socket, WebSocketServer& server);
-    void run();
-    bool isRunning() const { return ws_.is_open(); }
-    void close();
-    void sendMessage(const WebSocketMessage& message);
-    void sendBinaryMessage(const std::vector<uint8_t>& message);
-    std::string getSessionID() const;
-
-private:
-    void doRead();
-    void onRead(std::size_t bytes_transferred);
-    void handleWebSocketError(const std::error_code& ec, const std::string& context = "");
-    void doWrite();
-    void onWrite(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
-    void maybe_backoff();
-    void try_schedule_backoff();
-    void schedule_backoff();
-    void retry_message(const WebSocketMessage& message);
-    void send_signal_update(const std::string& signal_name, const std::string& data);
-    void end_session();
-    void on_disconnect();
-    void resume_sending();
-    void remove_sent_message_from_retry_queue();
-    bool isValidUtf8(const std::string& str);
-    static std::string truncate_for_log(const std::string& str, size_t max_length = 200)
-    {
-        if (str.length() <= max_length)
-        {
-            return str;
-        }
-        else
-        {
-            return str.substr(0, max_length) + "...";
-        }
-    }
-
-    websocket::stream<beast::tcp_stream> ws_;
-    WebSocketServer& server_;
-    boost::asio::io_context::strand strand_;
-    asio::steady_timer backoff_timer_;
-    const std::string session_id_;
-    WebSocketSessionMessageManager message_manager_;
-    std::shared_ptr<spdlog::logger> logger_;
-    std::shared_ptr<RateLimitedLogger> rate_limited_log_;
-
-    std::deque<WebSocketMessage> outgoing_messages_;
-    beast::flat_buffer buffer_;
-    bool writing_ = false;
-
-    std::deque<WebSocketMessage> retry_messages_;
-    mutable std::mutex retry_mutex_;
-
-    const int MAX_RETRY_COUNT = 5;
-    const std::chrono::seconds MAX_RETRY_AGE = std::chrono::seconds(5);
-    static constexpr size_t MAX_QUEUE_SIZE = 500;
-    static constexpr int BASE_BACKOFF_MS = 50;
-    int backoff_attempts_ = 0;
-    std::atomic<bool> backoff_enabled_{false};
-};
-*/
-namespace net = boost::asio;
-namespace beast = boost::beast;
-namespace websocket = beast::websocket;
-using tcp = net::ip::tcp;
 
 class WebSocketServer;
-
 class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
                        , public WebSocketSessionMessageManager
 {
@@ -191,21 +120,37 @@ public:
 
     void start();
     void close();
+    net::any_io_executor getExecutor()
+    {
+        return ws_.get_executor();
+    }
     void sendMessage(const WebSocketMessage& message);
     void sendBinaryMessage(const std::vector<uint8_t>& message);
     std::string getSessionID() const { return session_id_; }
     bool isRunning() const { return ws_.is_open(); }
 
+    //Signal management
+    void subscribeToSignalFromServer(const std::string& signal_name);
+    void unsubscribeFromSignalFromServer(const std::string& signal_name);
+
+protected:
+    websocket::stream<tcp::socket> ws_;
+    std::weak_ptr<WebSocketServer> server_;
+
 private:
     void doRead();
     void onRead(beast::error_code ec, std::size_t bytes_transferred);
     void doWrite();
+    void releaseWritingAndContinue();
     void onWrite(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
-    void handleWebSocketError(const std::error_code& ec, const std::string& context);
     bool isValidUtf8(const std::string& str);
 
-    websocket::stream<tcp::socket> ws_;
-    std::weak_ptr<WebSocketServer> server_;
+    // Handle incoming messages
+    void handleTextMessage(std::shared_ptr<WebSocketSession> self, std::shared_ptr<WebSocketMessage> message);
+    void handleBinaryMessage(std::shared_ptr<WebSocketSession> self, std::shared_ptr<WebSocketMessage> message);
+    void handleUnknownMessageType();
+    void handleWebSocketError(const std::error_code& ec, const std::string& context);
+
     const std::string session_id_;
     std::shared_ptr<spdlog::logger> logger_;
     std::shared_ptr<RateLimitedLogger> rate_limited_log_;
@@ -213,6 +158,6 @@ private:
     static constexpr size_t MAX_QUEUE_SIZE = 500;
     std::deque<WebSocketMessage> outgoing_messages_;
     beast::flat_buffer readBuffer_;
-    mutable std::mutex outgoing_mutex_;
-    bool writing_ = false;
+    std::atomic<bool> writing_ = false;
+    std::mutex write_mutex_;
 };

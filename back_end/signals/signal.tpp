@@ -212,7 +212,7 @@ void Signal<T>::notifyWebSocket()
         std::string jsonMessage = jsonEncoder_(this->name_, *this->data_);
         webSocketServer_->broadcast_signal_to_websocket(this->name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
     }
-    else if(binaryEncoder_)
+    if(binaryEncoder_)
     {
         const std::vector<uint8_t> binaryMessage = binaryEncoder_(this->name_, *this->data_);
         webSocketServer_->broadcast_signal_to_websocket(this->name_, WebSocketMessage(binaryMessage, priority_, should_retry_));
