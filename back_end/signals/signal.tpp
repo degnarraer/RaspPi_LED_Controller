@@ -215,12 +215,14 @@ void Signal<T>::notifyWebSocket()
     if(jsonEncoder_)
     {
         std::string jsonMessage = jsonEncoder_(this->name_, *this->data_);
-        webSocketServer_->broadcast_signal_to_websocket(this->name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
+        auto webSocketMessage = std::make_shared<WebSocketMessage>(WebSocketMessage(jsonMessage, priority_, should_retry_));
+        webSocketServer_->broadcast_signal_to_websocket(this->name_, std::move(webSocketMessage));
     }
     if(binaryEncoder_)
     {
         const std::vector<uint8_t> binaryMessage = binaryEncoder_(this->name_, *this->data_);
-        webSocketServer_->broadcast_signal_to_websocket(this->name_, WebSocketMessage(binaryMessage, priority_, should_retry_));
+        auto webSocketMessage = std::make_shared<WebSocketMessage>(WebSocketMessage(binaryMessage, priority_, should_retry_));
+        webSocketServer_->broadcast_signal_to_websocket(this->name_, std::move(webSocketMessage));
     }
 }
 

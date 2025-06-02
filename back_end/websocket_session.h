@@ -11,6 +11,7 @@
 #include <atomic>
 #include <optional>
 #include <boost/locale.hpp>
+#include <boost/locale/encoding_utf.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -100,6 +101,10 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
         void handleSignalMessage(const json& incoming);
         void handleEchoMessage(const json& incoming);
         void handleUnknownMessage(const json& incoming);
+
+        std::string createEchoResponse(const std::string& message);
+        void sendEchoResponse(const std::string& msg, MessagePriority priority = MessagePriority::Low);
+
     protected:
         WebSocketSession& session_;
         std::vector<WebSocketSignalValueCallbackData> signal_value_callbacks_;
@@ -117,6 +122,8 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
 public:
     WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocketServer> server);
+    WebSocketSession(const WebSocketSession&) = delete;
+    WebSocketSession& operator=(const WebSocketSession&) = delete;
 
     void start();
     void close();
@@ -124,9 +131,8 @@ public:
     {
         return ws_.get_executor();
     }
-    void sendMessage(const WebSocketMessage& message);
-    void sendBinaryMessage(const std::vector<uint8_t>& message);
-    std::string getSessionID() const { return session_id_; }
+    void sendMessage(std::shared_ptr<WebSocketMessage> webSocketMessage);
+    const std::string& getSessionID() const { return session_id_; }
     bool isRunning() const { return ws_.is_open(); }
 
     //Signal management
@@ -142,7 +148,7 @@ private:
     void onRead(beast::error_code ec, std::size_t bytes_transferred);
     void doWrite();
     void releaseWritingAndContinue();
-    void onWrite(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage);
+    void onWrite(beast::error_code ec, std::size_t bytes_transferred, std::shared_ptr<WebSocketMessage> message);
     bool isValidUtf8(const std::string& str);
 
     // Handle incoming messages
@@ -156,7 +162,7 @@ private:
     std::shared_ptr<RateLimitedLogger> rate_limited_log_;
 
     static constexpr size_t MAX_QUEUE_SIZE = 500;
-    std::deque<WebSocketMessage> outgoing_messages_;
+    std::deque<std::shared_ptr<WebSocketMessage>> outgoing_messages_;
     beast::flat_buffer readBuffer_;
     bool writing_ = false;
     bool closing_ = false;

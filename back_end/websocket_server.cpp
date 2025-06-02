@@ -66,6 +66,7 @@ void WebSocketServer::stop()
 
     running_ = false;
 
+    close_all_sessions();
     ioc_.stop();
 
     for (auto& t : thread_pool_)
@@ -175,7 +176,7 @@ bool WebSocketServer::registerSession(std::shared_ptr<WebSocketSession> session)
             logger_->error("Session ID is empty, cannot register session.");
             return false;
         }
-        sessions_[session_id] = session;
+        sessions_[session_id] = std::move(session);
         logger_->info("Session \"{}\" Registered", session_id);
         return true;
     }
@@ -203,21 +204,21 @@ bool WebSocketServer::unregisterSession(std::shared_ptr<WebSocketSession> sessio
     }
 }
 
-void WebSocketServer::broadcast(const WebSocketMessage& webSocketMessage)
+void WebSocketServer::broadcast(std::shared_ptr<WebSocketMessage> webSocketMessage)
 {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
-    logger_->debug("Broadcast message \"{}\" to WebSocket.", webSocketMessage.message);
+    logger_->debug("Broadcast message \"{}\" to WebSocket.", webSocketMessage->message);
     for (auto& [id, session] : sessions_)
     {
         if (session && session->isRunning())
         {
-            session->sendMessage(webSocketMessage);
+            session->sendMessage(std::move(webSocketMessage));
         }
     }
 }
 
 // Optimized broadcast to subscribers of a signal
-void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, const WebSocketMessage& webSocketMessage)
+void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_name, std::shared_ptr<WebSocketMessage> webSocketMessage)
 {
     std::unordered_set<std::string> subscribers_copy;
     {
@@ -307,12 +308,13 @@ void WebSocketServer::handle_accept(beast::error_code ec, tcp::socket socket)
     if (registerSession(session))
     {
         session->start();
+        do_accept();
     }
     else
     {
-        logger_->error("Failed to register new session.");
+        logger_->error("Failed to register new session. Restarting Web Socket Server.");
+        stop();
+        start();
     }
-
-    do_accept();
 }
 

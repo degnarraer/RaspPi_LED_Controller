@@ -32,75 +32,83 @@ WebSocketSessionMessageManager::WebSocketSessionMessageManager( WebSocketSession
 bool WebSocketSessionMessageManager::subscribeToSignal(const std::string& signal_name)
 {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
-    if (subscribed_signals_.find(signal_name) == subscribed_signals_.end())
+    auto result = subscribed_signals_.emplace(signal_name);
+    if (result.second)  // true if insertion happened
     {
-        subscribed_signals_.emplace(signal_name);
         session_.subscribeToSignalFromServer(signal_name);
         logger_->info("Subscribed to signal: {}", signal_name);
         return true;
     }
-    else
-    {
-        logger_->warn("Attempted to subscribe to an already subscribed signal: {}", signal_name);
-        return false;
-    }
+    logger_->warn("Attempted to subscribe to an already subscribed signal: {}", signal_name);
+    return false;
 }
 
 bool WebSocketSessionMessageManager::unsubscribeFromSignal(const std::string& signal_name)
 {
     std::lock_guard<std::mutex> lock(subscription_mutex_);
-    auto it = subscribed_signals_.find(signal_name);
-    if (it != subscribed_signals_.end())
+    auto erased = subscribed_signals_.erase(signal_name);
+    if (erased > 0)
     {
-        subscribed_signals_.erase(it);
         session_.unsubscribeFromSignalFromServer(signal_name);
         logger_->info("Unsubscribed from signal: {}", signal_name);
         return true;
     }
-    else
-    {
-        logger_->warn("Attempted to unsubscribe from a signal not subscribed: {}", signal_name);
-        return false;
-    }
+    logger_->warn("Attempted to unsubscribe from a signal not subscribed: {}", signal_name);
+    return false;
 }
                                                               
 void WebSocketSessionMessageManager::handleStringMessage(const std::string& message)
 {
-    json incoming = json::parse(message);
-    if (incoming.contains("type"))
+    json incoming;
+    try
     {
-        logger_->trace("Message type: {}", incoming["type"].get<std::string>());
-        auto type_str = incoming["type"].get<std::string>();
-        auto it = string_to_type_.find(type_str);
-        if (it != string_to_type_.end()) {
-            switch (it->second)
-            {
-                case MessageType::Subscribe:
-                    handleSubscribe(incoming);
-                    break;
-                case MessageType::Unsubscribe:
-                    handleUnsubscribe(incoming);
-                    break;
-                case MessageType::Text:
-                    handleTextMessage(incoming);
-                    break;
-                case MessageType::Signal:
-                    handleSignalMessage(incoming);
-                    break;
-                default:
-                    handleUnknownMessage(incoming);
-                    break;
-            }
-        }
-        else 
-        {
-            logger_->warn("Unknown message type: {}", type_str);
-            handleUnknownMessage(incoming);
-        }
+        logger_->trace("Message: {}", message);
+        incoming = json::parse(message);
     }
-    else
+    catch (const json::parse_error& e)
+    {
+        logger_->warn("Failed to parse JSON message: {} Error: {}", message, e.what());
+        return;
+    }
+
+    if (!incoming.contains("type"))
     {
         logger_->warn("Message does not contain a valid type: {}", message);
+        return;
+    }
+
+    auto type_str = incoming.value("type", "");
+    logger_->trace("Message type: {}", type_str);
+
+    auto it = string_to_type_.find(type_str);
+    if (it == string_to_type_.end())
+    {
+        logger_->warn("Unknown message type: {}", type_str);
+        handleUnknownMessage(incoming);
+        return;
+    }
+
+    switch (it->second)
+    {
+        case MessageType::Subscribe:
+            handleSubscribe(incoming);
+            break;
+
+        case MessageType::Unsubscribe:
+            handleUnsubscribe(incoming);
+            break;
+
+        case MessageType::Text:
+            handleTextMessage(incoming);
+            break;
+
+        case MessageType::Signal:
+            handleSignalMessage(incoming);
+            break;
+
+        default:
+            handleUnknownMessage(incoming);
+            break;
     }
 }
 
@@ -108,30 +116,21 @@ void WebSocketSessionMessageManager::handleSubscribe(const json& incoming)
 {
     logger_->info("Handle subscribe message.");
     auto session = session_.shared_from_this();
-    if(incoming.contains("signal"))
+    if(incoming.contains("signal") && incoming["signal"].is_string())
     {
         if(subscribeToSignal(incoming["signal"]))
         {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Successfully Subscribed to " + incoming["signal"].get<std::string>();
-            session->sendMessage(response.dump());
+            sendEchoResponse("Successfully Subscribed to " + incoming["signal"].get<std::string>());
         }
         else
         {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Already subscribed to " + incoming["signal"].get<std::string>();
-            session->sendMessage(response.dump());
+            sendEchoResponse("Already subscribed to " + incoming["signal"].get<std::string>());
         }
     }
     else
     {
         logger_->warn("Subscribe message without signal.");
-        json response;
-        response["type"] = type_to_string_.at(MessageType::Echo);
-        response["message"] = "Subscribe message missing signal";
-        session->sendMessage(response.dump());
+        sendEchoResponse("Subscribe message missing signal");
     }
 }
 
@@ -139,30 +138,21 @@ void WebSocketSessionMessageManager::handleUnsubscribe(const json& incoming)
 {
     logger_->info("Handle unsubscribe message.");
     auto session = session_.shared_from_this();
-    if(incoming.contains("signal"))
+    if(incoming.contains("signal") && incoming["signal"].is_string())
     {
         if(unsubscribeFromSignal(incoming["signal"]))
         {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
-            session->sendMessage(response.dump());
+            sendEchoResponse("Successfully unsubscribed from " + incoming["signal"].get<std::string>());
         }
         else
         {
-            json response;
-            response["type"] = type_to_string_.at(MessageType::Echo);
-            response["message"] = "Already unsubscribed from " + incoming["signal"].get<std::string>();
-            session->sendMessage(response.dump());
+            sendEchoResponse("Already unsubscribed from " + incoming["signal"].get<std::string>());
         }
     }
     else
     {
         logger_->warn("Unsubscribe message without signal.");
-        json response;
-        response["type"] = type_to_string_.at(MessageType::Echo);
-        response["message"] = "Unsubscribe message missing signal";
-        session->sendMessage(response.dump());
+        sendEchoResponse("Unsubscribe message missing signal");
     }
 }
 
@@ -180,19 +170,31 @@ void WebSocketSessionMessageManager::handleTextMessage(const json& incoming)
 void WebSocketSessionMessageManager::handleSignalMessage(const json& incoming)
 {
     auto session = session_.shared_from_this();
-    if(incoming.contains("signal"))
+    if(incoming.contains("signal") && incoming["signal"].is_string())
     {
         std::string signal_data = incoming["signal"].get<std::string>();
-        logger_->warn("Received signal data: {}, not yet handled.");
+        logger_->warn("Received signal data: {}, not yet handled.", signal_data);
     }
     else
     {
         logger_->warn("Signal message without signal.");
-        json response;
-        response["type"] = type_to_string_.at(MessageType::Echo);
-        response["message"] = "Signal message missing signal";
-        session->sendMessage(response.dump());
+        sendEchoResponse("Signal message missing signal");
     }
+}
+
+std::string WebSocketSessionMessageManager::createEchoResponse(const std::string& message)
+{
+    json response;
+    response["type"] = MessageTypeHelper::type_to_string_.at(MessageTypeHelper::MessageType::Echo);
+    response["message"] = message;
+    return response.dump();
+}
+
+void WebSocketSessionMessageManager::sendEchoResponse(const std::string& msg, MessagePriority priority)
+{
+    auto session = session_.shared_from_this();
+    auto echo = std::make_shared<WebSocketMessage>(createEchoResponse(msg), priority, false);
+    session->sendMessage(std::move(echo));
 }
 
 void WebSocketSessionMessageManager::handleEchoMessage(const json& incoming)
@@ -292,13 +294,13 @@ void WebSocketSession::doRead()
             return;
         }
         self->ws_.async_read(
-            self->readBuffer_,
-            net::bind_executor(
-                self->ws_.get_executor(),
-                [self](beast::error_code ec, std::size_t bytes_transferred)
-                {
-                    self->onRead(ec, bytes_transferred);
-                }));
+        self->readBuffer_,
+        net::bind_executor(
+            self->ws_.get_executor(),
+            [self](beast::error_code ec, std::size_t bytes_transferred)
+            {
+                self->onRead(ec, bytes_transferred);
+            }));
     });
 }
 
@@ -328,16 +330,16 @@ void WebSocketSession::onRead(beast::error_code ec, std::size_t bytes_transferre
     doRead();
 }
 
-void WebSocketSession::sendMessage(const WebSocketMessage& webSocketMessage)
+void WebSocketSession::sendMessage(std::shared_ptr<WebSocketMessage> webSocketMessage)
 {
     auto self = shared_from_this();
-    net::post(ws_.get_executor(), [self, msg = std::move(webSocketMessage)]() mutable
+    net::post(ws_.get_executor(), [self, wsm = std::move(webSocketMessage)]()
     {
         if (self->ws_.is_open())
         {
             if (self->outgoing_messages_.size() <= MAX_QUEUE_SIZE)
             {
-                self->outgoing_messages_.push_back(std::move(msg));
+                self->outgoing_messages_.push_back(std::move(wsm));
                 self->doWrite();
             }
             else
@@ -357,15 +359,14 @@ void WebSocketSession::doWrite()
     auto self = shared_from_this();
     net::post(ws_.get_executor(), [self]()
     {
-        std::shared_ptr<WebSocketMessage> webSocketMessage;
         if (!self->ws_.is_open())
         {
-            self->logger_->warn("WebSocket session is not open, cannot read.");
+            self->logger_->warn("WebSocket session is not open, cannot write.");
             return;
         }
         if (self->closing_)
         {
-            self->logger_->warn("WebSocket session is closing, cannot read.");
+            self->logger_->warn("WebSocket session is closing, cannot write.");
             return;
         }
         if (self->writing_ || self->outgoing_messages_.empty())
@@ -374,16 +375,17 @@ void WebSocketSession::doWrite()
         }
         
         self->writing_ = true;
-        webSocketMessage = std::make_shared<WebSocketMessage>(std::move(self->outgoing_messages_.front()));
+        std::shared_ptr<WebSocketMessage> webSocketMessage = std::move(self->outgoing_messages_.front());
         self->outgoing_messages_.pop_front();
         switch (webSocketMessage->webSocket_Message_type)
+
         {
             case WebSocketMessageType::Text:
-                self->handleTextMessage(self, webSocketMessage);
+                self->handleTextMessage(self, std::move(webSocketMessage));
                 break;
 
             case WebSocketMessageType::Binary:
-                self->handleBinaryMessage(self, webSocketMessage);
+                self->handleBinaryMessage(self, std::move(webSocketMessage));
                 break;
 
             default:
@@ -400,7 +402,7 @@ void WebSocketSession::releaseWritingAndContinue()
     self->doWrite();
 }
 
-void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferred, const WebSocketMessage& webSocketMessage)
+void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferred, std::shared_ptr<WebSocketMessage> webSocketMessage)
 {
     if (ec)
     {
@@ -408,92 +410,39 @@ void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferr
     }
     else
     {
-        if(webSocketMessage.webSocket_Message_type == WebSocketMessageType::Text)
+        if(webSocketMessage->webSocket_Message_type == WebSocketMessageType::Text)
         {
-            std::string message = webSocketMessage.message;
+            std::string message = webSocketMessage->message;
             message.resize(200);
             logger_->debug("Sent text message: {}", message);
         }
-        else if(webSocketMessage.webSocket_Message_type == WebSocketMessageType::Binary)
+        else if(webSocketMessage->webSocket_Message_type == WebSocketMessageType::Binary)
         {
-            logger_->debug("Sent binary message of size: {} bytes", webSocketMessage.binary_data.size());
+            logger_->debug("Sent binary message of size: {} bytes", webSocketMessage->binary_data.size());
         }
     }
     writing_ = false;
     doWrite();
 }
 
-void WebSocketSession::sendBinaryMessage(const std::vector<uint8_t>& message)
-{
-    WebSocketMessage binary_msg(message, MessagePriority::Low, false);
-    sendMessage(binary_msg);
-}
-
 bool WebSocketSession::isValidUtf8(const std::string& str)
 {
-    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(str.data());
-    size_t length = str.size();
-    size_t i = 0;
-
-    while (i < length)
+    try
     {
-        if (bytes[i] <= 0x7F)
-        {
-            // ASCII byte
-            i++;
-        }
-        else if ((bytes[i] & 0xE0) == 0xC0)
-        {
-            // 2-byte sequence
-            if (i + 1 >= length) return false;
-            if ((bytes[i+1] & 0xC0) != 0x80) return false;
-            if (bytes[i] < 0xC2) return false; // overlong encoding check
-            i += 2;
-        }
-        else if ((bytes[i] & 0xF0) == 0xE0)
-        {
-            // 3-byte sequence
-            if (i + 2 >= length) return false;
-            if ((bytes[i+1] & 0xC0) != 0x80) return false;
-            if ((bytes[i+2] & 0xC0) != 0x80) return false;
-
-            // overlong check for 3-byte sequence
-            if (bytes[i] == 0xE0 && bytes[i+1] < 0xA0) return false;
-
-            // UTF-16 surrogate halves are invalid in UTF-8
-            if (bytes[i] == 0xED && bytes[i+1] >= 0xA0) return false;
-
-            i += 3;
-        }
-        else if ((bytes[i] & 0xF8) == 0xF0)
-        {
-            // 4-byte sequence
-            if (i + 3 >= length) return false;
-            if ((bytes[i+1] & 0xC0) != 0x80) return false;
-            if ((bytes[i+2] & 0xC0) != 0x80) return false;
-            if ((bytes[i+3] & 0xC0) != 0x80) return false;
-
-            // overlong check for 4-byte sequence
-            if (bytes[i] == 0xF0 && bytes[i+1] < 0x90) return false;
-
-            // restrict to valid Unicode range (<= U+10FFFF)
-            if (bytes[i] > 0xF4) return false;
-
-            i += 4;
-        }
-        else
-        {
-            return false;
-        }
+        // Attempt to convert UTF-8 string to UTF-32. Will throw on invalid input.
+        boost::locale::conv::utf_to_utf<char32_t>(str);
+        return true;
     }
-    return true;
+    catch (const boost::locale::conv::conversion_error&)
+    {
+        return false;
+    }
 }
 
-void WebSocketSession::handleTextMessage(
-    std::shared_ptr<WebSocketSession> self,
-    std::shared_ptr<WebSocketMessage> message)
+void WebSocketSession::handleTextMessage( std::shared_ptr<WebSocketSession> self
+                                        , std::shared_ptr<WebSocketMessage> webSocketMessage )
 {
-    if (!isValidUtf8(message->message))
+    if (!isValidUtf8(webSocketMessage->message))
     {
         logger_->warn("Invalid UTF-8 message, skipping...");
         releaseWritingAndContinue();
@@ -501,21 +450,20 @@ void WebSocketSession::handleTextMessage(
     }
     ws_.text(true);
     ws_.async_write(
-        net::buffer(message->message),
+        net::buffer(webSocketMessage->message),
         net::bind_executor(
             ws_.get_executor(),
-            [self, message](boost::system::error_code ec, std::size_t bytes_transferred)
+            [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)
             {
-                self->onWrite(ec, bytes_transferred, *message);
+                self->onWrite(ec, bytes_transferred, std::move(wsm));
             }));
 }
 
 
-void WebSocketSession::handleBinaryMessage(
-    std::shared_ptr<WebSocketSession> self,
-    std::shared_ptr<WebSocketMessage> message)
+void WebSocketSession::handleBinaryMessage( std::shared_ptr<WebSocketSession> self
+                                          , std::shared_ptr<WebSocketMessage> webSocketMessage )
 {
-    if (message->binary_data.empty())
+    if (webSocketMessage->binary_data.empty())
     {
         logger_->warn("Empty binary message, skipping...");
         releaseWritingAndContinue();
@@ -523,12 +471,12 @@ void WebSocketSession::handleBinaryMessage(
     }
     ws_.text(false);
     ws_.async_write(
-        net::buffer(message->binary_data),
+        net::buffer(webSocketMessage->binary_data),
         net::bind_executor(
             ws_.get_executor(),
-            [self, message](boost::system::error_code ec, std::size_t bytes_transferred)
+            [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)
             {
-                self->onWrite(ec, bytes_transferred, *message);
+                self->onWrite(ec, bytes_transferred, std::move(wsm));
             }));
 }
 

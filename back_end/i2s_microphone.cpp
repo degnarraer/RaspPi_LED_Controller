@@ -88,7 +88,6 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
         inputSignalRightChannel_->registerSignalValueCallback(microphoneRightChannelSignalCallback_, this);
     }
 
-    
     minMicrophoneSignalCallback_ = [](const std::string& value, void* arg)
     {
         I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
