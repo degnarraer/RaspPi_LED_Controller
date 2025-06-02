@@ -448,6 +448,12 @@ void WebSocketSession::handleTextMessage( std::shared_ptr<WebSocketSession> self
         releaseWritingAndContinue();
         return;
     }
+    if (!ws_.is_open())
+    {
+        logger_->warn("WebSocket is not open, aborting text write");
+        releaseWritingAndContinue();
+        return;
+    }
     ws_.text(true);
     ws_.async_write(
         net::buffer(webSocketMessage->message),
@@ -469,9 +475,15 @@ void WebSocketSession::handleBinaryMessage( std::shared_ptr<WebSocketSession> se
         releaseWritingAndContinue();
         return;
     }
-    ws_.text(false);
+    if (!ws_.is_open())
+    {
+        logger_->warn("WebSocket is not open, aborting binary write");
+        releaseWritingAndContinue();
+        return;
+    }
+    ws_.binary(true);
     ws_.async_write(
-        net::buffer(webSocketMessage->binary_data),
+        net::buffer(webSocketMessage->binary_data.data(), webSocketMessage->binary_data.size()),
         net::bind_executor(
             ws_.get_executor(),
             [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)

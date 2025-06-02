@@ -220,9 +220,17 @@ void Signal<T>::notifyWebSocket()
     }
     if(binaryEncoder_)
     {
-        const std::vector<uint8_t> binaryMessage = binaryEncoder_(this->name_, *this->data_);
-        auto webSocketMessage = std::make_shared<WebSocketMessage>(WebSocketMessage(binaryMessage, priority_, should_retry_));
-        webSocketServer_->broadcast_signal_to_websocket(this->name_, std::move(webSocketMessage));
+        const std::vector<uint8_t> binaryData = binaryEncoder_(this->name_, *this->data_);
+        if(!binaryData.empty())
+        {
+            auto webSocketMessage = std::make_shared<WebSocketMessage>(WebSocketMessage(binaryData, priority_, should_retry_));
+            webSocketServer_->broadcast_signal_to_websocket(this->name_, std::move(webSocketMessage));
+        }
+        else
+        {
+            this->logger_->warn("Binary message is empty, not sending.");
+            return;
+        }
     }
 }
 
