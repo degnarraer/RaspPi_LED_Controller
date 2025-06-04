@@ -87,9 +87,11 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
             WebSocketSignalValueCallback callback;
             void* arg;
         };
-        WebSocketSessionMessageManager( WebSocketSession& session );
+        WebSocketSessionMessageManager();
         virtual ~WebSocketSessionMessageManager() = default;
         
+        void setSession(std::weak_ptr<WebSocketSession> session);
+
         bool subscribeToSignal(const std::string& signal_name);
         bool unsubscribeFromSignal(const std::string& signal_name);
         bool isSubscribedToSignal(const std::string& signal_name) const;
@@ -106,7 +108,7 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
         void sendEchoResponse(const std::string& msg, MessagePriority priority = MessagePriority::Low);
 
     protected:
-        WebSocketSession& session_;
+        std::weak_ptr<WebSocketSession> session_;
         std::vector<WebSocketSignalValueCallbackData> signal_value_callbacks_;
         mutable std::mutex signal_value_callbacks_mutex_;
         

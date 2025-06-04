@@ -102,7 +102,7 @@ Signal<T>::Signal( const std::string& name )
 
 template<typename T>
 Signal<T>::Signal( const std::string& name
-                 , std::shared_ptr<WebSocketServer> webSocketServer
+                 , std::weak_ptr<WebSocketServer> webSocketServer
                  , JsonEncoder<T> jsonEncoder
                  , MessagePriority priority
                  , bool should_retry )
@@ -120,7 +120,7 @@ Signal<T>::Signal( const std::string& name
 
 template<typename T>
 Signal<T>::Signal( const std::string& name
-                 , std::shared_ptr<WebSocketServer> webSocketServer
+                 , std::weak_ptr<WebSocketServer> webSocketServer
                  , BinaryEncoder<T> binaryEncoder
                  , MessagePriority priority
                  , bool should_retry )
@@ -139,9 +139,10 @@ Signal<T>::Signal( const std::string& name
 template<typename T>
 void Signal<T>::setup()
 {
-    if (webSocketServer_)
+    auto server = webSocketServer_.lock();
+    if (server)
     {
-        webSocketServer_->register_notification_client(this->getName(), this);
+        server->register_notification_client(this->getName(), this);
     }
     else
     {
@@ -194,42 +195,91 @@ void Signal<T>::notifyClients(void* arg)
 template<typename T>
 void Signal<T>::notifyWebSocket()
 {
-    if(!isUsingWebSocket_) return;
+    if (!isUsingWebSocket_) return;
+
     if (!this->data_)
     {
         this->logger_->error("{}: Data is not initialized.", this->name_);
         return;
-    }    
-    if (!webSocketServer_)
-    {
-        this->logger_->error("{}: WebSocketServer is not initialized.", this->name_);
-        return;
     }
-    if (!jsonEncoder_ && !binaryEncoder_)
+
+    auto server = webSocketServer_.lock();
+    if (!server)
     {
-        this->logger_->error("{}: Encoder is not initialized.", this->name_);
+        this->logger_->error("{}: WebSocketServer has expired or not set for {}", this->name_);
         return;
     }
 
-    this->logger_->debug("NotifyWebSocket: {}", to_string(*this->data_));
-    if(jsonEncoder_)
+    if (!jsonEncoder_ && !binaryEncoder_)
     {
-        std::string jsonMessage = jsonEncoder_(this->name_, *this->data_);
-        auto webSocketMessage = std::make_shared<WebSocketMessage>(WebSocketMessage(jsonMessage, priority_, should_retry_));
-        webSocketServer_->broadcast_signal_to_websocket(this->name_, std::move(webSocketMessage));
+        this->logger_->error("{}: No encoder provided.", this->name_);
+        return;
     }
-    if(binaryEncoder_)
+
+    std::shared_ptr<T> dataCopy;
     {
-        const std::vector<uint8_t> binaryData = binaryEncoder_(this->name_, *this->data_);
-        if(!binaryData.empty())
+        std::lock_guard<std::mutex> lock(this->dataMutex_);
+        dataCopy = this->data_;
+    }
+
+    if (!dataCopy) return;
+
+    // Protect to_string from crashing
+    try
+    {
+        this->logger_->debug("NotifyWebSocket: {}", to_string(*dataCopy));
+    }
+    catch (const std::exception& e)
+    {
+        this->logger_->warn("{}: Exception in to_string: {}", this->name_, e.what());
+    }
+    catch (...)
+    {
+        this->logger_->warn("{}: Unknown exception in to_string", this->name_);
+    }
+
+    // JSON Encoder
+    if (jsonEncoder_)
+    {
+        try
         {
-            auto webSocketMessage = std::make_shared<WebSocketMessage>(WebSocketMessage(binaryData, priority_, should_retry_));
-            webSocketServer_->broadcast_signal_to_websocket(this->name_, std::move(webSocketMessage));
+            auto msg = jsonEncoder_(this->name_, *dataCopy);
+            auto wsMsg = std::make_shared<WebSocketMessage>(msg, priority_, should_retry_);
+            server->broadcast_signal_to_websocket(this->name_, std::move(wsMsg));
         }
-        else
+        catch (const std::exception& e)
         {
-            this->logger_->warn("Binary message is empty, not sending.");
-            return;
+            this->logger_->error("{}: Exception in jsonEncoder: {}", this->name_, e.what());
+        }
+        catch (...)
+        {
+            this->logger_->error("{}: Unknown exception in jsonEncoder", this->name_);
+        }
+    }
+
+    // Binary Encoder
+    if (binaryEncoder_)
+    {
+        try
+        {
+            auto msg = binaryEncoder_(this->name_, *dataCopy);
+            if (!msg.empty())
+            {
+                auto wsMsg = std::make_shared<WebSocketMessage>(msg, priority_, should_retry_);
+                server->broadcast_signal_to_websocket(this->name_, std::move(wsMsg));
+            }
+            else
+            {
+                this->logger_->warn("{}: Binary encoder returned empty message, not sending.", this->name_);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            this->logger_->error("{}: Exception in binaryEncoder: {}", this->name_, e.what());
+        }
+        catch (...)
+        {
+            this->logger_->error("{}: Unknown exception in binaryEncoder", this->name_);
         }
     }
 }
@@ -237,26 +287,38 @@ void Signal<T>::notifyWebSocket()
 template<typename T>
 std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
     if (it != signals_.end())
     {
-        return std::static_pointer_cast<Signal<T>>(it->second);
+        auto existing = std::dynamic_pointer_cast<Signal<T>>(it->second);
+        if (!existing)
+        {
+            throw std::runtime_error("Type mismatch for signal: " + name);
+        }
+        return existing;
     }
-    
+
     auto signal = std::make_shared<Signal<T>>(name);
     signals_[name] = signal;
     return signal;
 }
 
 template<typename T>
-std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder)
+std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name,
+                                                       std::shared_ptr<WebSocketServer> webSocketServer,
+                                                       JsonEncoder<T> encoder)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
     if (it != signals_.end())
     {
-        return std::static_pointer_cast<Signal<T>>(it->second);
+        auto existing = std::dynamic_pointer_cast<Signal<T>>(it->second);
+        if (!existing)
+        {
+            throw std::runtime_error("Type mismatch for signal: " + name);
+        }
+        return existing;
     }
 
     auto signal = std::make_shared<Signal<T>>(name, webSocketServer, encoder);
@@ -268,11 +330,16 @@ std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name, 
 template<typename T>
 std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
     if (it != signals_.end())
     {
-        return std::static_pointer_cast<Signal<T>>(it->second);
+        auto existing = std::dynamic_pointer_cast<Signal<T>>(it->second);
+        if (!existing)
+        {
+            throw std::runtime_error("Type mismatch for signal: " + name);
+        }
+        return existing;
     }
 
     auto signal = std::make_shared<Signal<T>>(name, webSocketServer, encoder);
@@ -280,3 +347,4 @@ std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name, 
     signals_[name] = signal;
     return signal;
 }
+

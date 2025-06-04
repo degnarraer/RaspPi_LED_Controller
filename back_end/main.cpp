@@ -18,12 +18,12 @@ int main()
     std::shared_ptr<spdlog::logger> logger_;
     logger_ = initializeLogger("Main Logger", spdlog::level::info);
 
-    std::shared_ptr<WebSocketServer> webSocketServer = std::make_shared<WebSocketServer>(8080);
+    auto webSocketServer = std::make_shared<WebSocketServer>(8080);
     SignalFactory::CreateSignals(webSocketServer);
-    std::shared_ptr<I2SMicrophone> mic = std::make_shared<I2SMicrophone>("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1024, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000, webSocketServer);
-    std::shared_ptr<FFTComputer> fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
-    std::shared_ptr<DeploymentManager> deploymentManger = std::make_shared<DeploymentManager>();
-    std::shared_ptr<SystemStatusMonitor> systemStatusMonitor = std::make_shared<SystemStatusMonitor>(webSocketServer);
+    auto mic = std::make_shared<I2SMicrophone>("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 2, 1024, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000, webSocketServer);
+    auto fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
+    auto deploymentManger = std::make_shared<DeploymentManager>();
+    auto systemStatusMonitor = std::make_shared<SystemStatusMonitor>(webSocketServer);
     //std::shared_ptr<LED_Controller> ledController = std::make_shared<LED_Controller>(60, 13);
 
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");

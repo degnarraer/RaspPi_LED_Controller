@@ -23,19 +23,44 @@ const std::unordered_map<MessageTypeHelper::MessageType, std::string> MessageTyp
     {MessageTypeHelper::MessageType::Unknown, "unknown"},
 };
 
-WebSocketSessionMessageManager::WebSocketSessionMessageManager( WebSocketSession& session )
-                                                              : session_(session)
-                                                              , logger_(initializeLogger(session_.getSessionID() + " Message Mananger", spdlog::level::info))
+WebSocketSessionMessageManager::WebSocketSessionMessageManager()
 {
+}
+
+void WebSocketSessionMessageManager::setSession(std::weak_ptr<WebSocketSession> session)
+{
+    session_ = std::move(session);
+    auto locked_session = session_.lock();
+
+    if (locked_session)
+    {
+        if (!logger_)
+        {
+            logger_ = initializeLogger(locked_session->getSessionID() + " Message Manager", spdlog::level::info);
+        }
+    }
+    else
+    {
+        if (!logger_)
+        {
+            logger_ = initializeLogger("Unknown Session Message Manager", spdlog::level::info);
+        }
+    }
 }
 
 bool WebSocketSessionMessageManager::subscribeToSignal(const std::string& signal_name)
 {
+    auto session = session_.lock();
+    if (!session)
+    {
+        logger_->warn("sendEchoResponse failed: session expired");
+        return false;
+    }
     std::lock_guard<std::mutex> lock(subscription_mutex_);
     auto result = subscribed_signals_.emplace(signal_name);
-    if (result.second)  // true if insertion happened
+    if (result.second)
     {
-        session_.subscribeToSignalFromServer(signal_name);
+        session->subscribeToSignalFromServer(signal_name);
         logger_->info("Subscribed to signal: {}", signal_name);
         return true;
     }
@@ -45,11 +70,17 @@ bool WebSocketSessionMessageManager::subscribeToSignal(const std::string& signal
 
 bool WebSocketSessionMessageManager::unsubscribeFromSignal(const std::string& signal_name)
 {
+    auto session = session_.lock();
+    if (!session)
+    {
+        logger_->warn("sendEchoResponse failed: session expired");
+        return false;
+    }
     std::lock_guard<std::mutex> lock(subscription_mutex_);
     auto erased = subscribed_signals_.erase(signal_name);
     if (erased > 0)
     {
-        session_.unsubscribeFromSignalFromServer(signal_name);
+        session->unsubscribeFromSignalFromServer(signal_name);
         logger_->info("Unsubscribed from signal: {}", signal_name);
         return true;
     }
@@ -115,7 +146,6 @@ void WebSocketSessionMessageManager::handleStringMessage(const std::string& mess
 void WebSocketSessionMessageManager::handleSubscribe(const json& incoming)
 {
     logger_->info("Handle subscribe message.");
-    auto session = session_.shared_from_this();
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
         if(subscribeToSignal(incoming["signal"]))
@@ -137,7 +167,6 @@ void WebSocketSessionMessageManager::handleSubscribe(const json& incoming)
 void WebSocketSessionMessageManager::handleUnsubscribe(const json& incoming)
 {
     logger_->info("Handle unsubscribe message.");
-    auto session = session_.shared_from_this();
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
         if(unsubscribeFromSignal(incoming["signal"]))
@@ -169,7 +198,6 @@ void WebSocketSessionMessageManager::handleTextMessage(const json& incoming)
 
 void WebSocketSessionMessageManager::handleSignalMessage(const json& incoming)
 {
-    auto session = session_.shared_from_this();
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
         std::string signal_data = incoming["signal"].get<std::string>();
@@ -192,7 +220,12 @@ std::string WebSocketSessionMessageManager::createEchoResponse(const std::string
 
 void WebSocketSessionMessageManager::sendEchoResponse(const std::string& msg, MessagePriority priority)
 {
-    auto session = session_.shared_from_this();
+    auto session = session_.lock();
+    if (!session)
+    {
+        logger_->warn("sendEchoResponse failed: session expired");
+        return;
+    }
     auto echo = std::make_shared<WebSocketMessage>(createEchoResponse(msg), priority, false);
     session->sendMessage(std::move(echo));
 }
@@ -213,13 +246,14 @@ WebSocketSession::WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocket
     , session_id_(boost::uuids::to_string(boost::uuids::random_generator()()))
     , logger_(initializeLogger("WebSocketSession", spdlog::level::info))
     , rate_limited_log_(std::make_shared<RateLimitedLogger>(logger_, std::chrono::seconds(10)))
-    , WebSocketSessionMessageManager(*this)
+    , WebSocketSessionMessageManager()
 {
 }
 
 void WebSocketSession::start()
 {
     auto self = shared_from_this();
+    WebSocketSessionMessageManager::setSession(self);
     net::post(ws_.get_executor(), [self]()
     {
         self->ws_.async_accept(
@@ -398,8 +432,7 @@ void WebSocketSession::doWrite()
 void WebSocketSession::releaseWritingAndContinue()
 {
     writing_ = false;
-    auto self = shared_from_this();
-    self->doWrite();
+    doWrite();
 }
 
 void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferred, std::shared_ptr<WebSocketMessage> webSocketMessage)

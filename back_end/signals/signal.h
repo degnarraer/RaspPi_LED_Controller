@@ -198,12 +198,12 @@ class Signal : public SignalValue<T>
 
         explicit Signal(const std::string& name);
         Signal( const std::string& name
-              , std::shared_ptr<WebSocketServer> webSocketServer
+              , std::weak_ptr<WebSocketServer> webSocketServer
               , JsonEncoder<T> encoder = nullptr
               , MessagePriority priority = MessagePriority::Low
               , bool should_retry = false );
         Signal( const std::string& name
-              , std::shared_ptr<WebSocketServer> webSocketServer
+              , std::weak_ptr<WebSocketServer> webSocketServer
               , BinaryEncoder<T> encoder = nullptr
               , MessagePriority priority = MessagePriority::Low
               , bool should_retry = false );
@@ -212,7 +212,7 @@ class Signal : public SignalValue<T>
         bool setValue(const T& value, void* arg = nullptr) override;
         void notify()
         {
-            std::lock_guard<std::mutex> lock(this->mutex_);
+            std::lock_guard<std::mutex> lock(this->dataMutex_);
             notifyClients(nullptr);
             if (isUsingWebSocket_)
             {
@@ -233,7 +233,7 @@ class Signal : public SignalValue<T>
             }
         }
     private:
-        std::shared_ptr<WebSocketServer> webSocketServer_;
+        std::weak_ptr<WebSocketServer> webSocketServer_;
         JsonEncoder<T> jsonEncoder_;
         BinaryEncoder<T> binaryEncoder_;
         MessagePriority priority_;
@@ -257,26 +257,8 @@ public:
     template<typename T>
     std::shared_ptr<Signal<T>> createSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder = nullptr);
 
-    SignalName* getSignalByName(const std::string& name)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = signals_.find(name);
-        if (it != signals_.end())
-        {
-            return it->second.get();
-        }
-        return nullptr;
-    }
-    std::shared_ptr<SignalName> getSharedSignalByName(const std::string& name)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = signals_.find(name);
-        if (it != signals_.end())
-        {
-            return it->second;
-        }
-        return nullptr;
-    }
+    SignalName* getSignalByName(const std::string& name);
+    std::shared_ptr<SignalName> getSharedSignalByName(const std::string& name);
 
 private:
     SignalManager();
@@ -285,7 +267,7 @@ private:
     SignalManager& operator=(const SignalManager&) = delete;
 
     std::unordered_map<std::string, std::shared_ptr<SignalName>> signals_;
-    std::mutex mutex_;
+    std::mutex signal_mutex_;
     std::shared_ptr<spdlog::logger> logger_;
 };
 

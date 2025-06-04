@@ -81,6 +81,7 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "*.tpp": "cpp"
+        "*.tpp": "cpp",
+        "shared_mutex": "cpp"
     }
 }

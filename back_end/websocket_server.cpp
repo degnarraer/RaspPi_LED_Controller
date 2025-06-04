@@ -114,7 +114,6 @@ void WebSocketServer::close_all_sessions()
             session->close();
         }
     }
-
     sessions_.clear();
     logger_->info("All sessions closed.");
 }
@@ -226,7 +225,7 @@ void WebSocketServer::broadcast_signal_to_websocket(const std::string& signal_na
         auto it = signal_subscriptions_.find(signal_name);
         if (it != signal_subscriptions_.end())
         {
-            subscribers_copy = it->second; // copy so we can unlock early
+            subscribers_copy = it->second;
         }
     }
 
@@ -287,10 +286,11 @@ void WebSocketServer::unsubscribe_session_from_all_signals(const std::string& se
 
 void WebSocketServer::do_accept()
 {
+    auto self = shared_from_this();
     acceptor_.async_accept(
         boost::asio::bind_executor(
             strand_,
-            [self = shared_from_this()](beast::error_code ec, tcp::socket socket) mutable
+            [self](beast::error_code ec, tcp::socket socket) mutable
             {
                 self->handle_accept(ec, std::move(socket));
             }));
@@ -303,8 +303,8 @@ void WebSocketServer::handle_accept(beast::error_code ec, tcp::socket socket)
         logger_->error("Accept failed: {}", ec.message());
         return;
     }
-
-    auto session = std::make_shared<WebSocketSession>(std::move(socket), shared_from_this());
+    auto self = shared_from_this();
+    auto session = std::make_shared<WebSocketSession>(std::move(socket), self);
     if (registerSession(session))
     {
         session->start();
