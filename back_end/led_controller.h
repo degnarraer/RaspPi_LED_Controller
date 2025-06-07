@@ -1,34 +1,68 @@
 #pragma once
 
+#include <vector>
+#include <thread>
+#include <mutex>
 #include <memory>
 #include <cstdint>
 #include <spdlog/spdlog.h>
-#include <ws2811.h>
-#include "logger.h"
+
+struct Color
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+
+struct Pixel
+{
+    Color color;
+    float brightness = 1.0f;        // Animation brightness (0.0 to 1.0)
+    uint8_t device_brightness = 31; // Hardware brightness (APA102 0-31)
+};
 
 class LED_Controller
 {
 public:
-    LED_Controller(int ledCount = 60, int gpioPin = 13);
+    explicit LED_Controller( int ledCount );
     ~LED_Controller();
 
     void run();
     void stop();
+
+    void setColor(uint32_t color);          // Set all LEDs color (full brightness)
+    void setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float brightness = 1.0f);
     void clear();
-    void setColor(uint32_t color);
+
+    // Set global user brightness (0.0 - 1.0)
+    void setUserGlobalBrightness(float brightness);
+
+    // Set global device brightness (0-31)
+    void setDeviceGlobalBrightness(uint8_t brightness);
+
     void calculateCurrent();
 
 private:
-    std::shared_ptr<spdlog::logger> logger_;
-    std::shared_ptr<RateLimitedLogger> rate_limited_log_;
-    std::thread ledRenderThread_;
-    ws2811_t ledstring_;
-    std::mutex led_mutex_;
-    std::atomic<bool> render_in_progress_ = false;
-    int ledCount_;
-    int gpioPin_;
-    bool running_ = false;
-
-    void initializeLEDString();
     void renderLoop();
+
+    int openSPI();
+    void sendLEDFrame(int fd, const std::vector<uint8_t>& data);
+
+private:
+    int ledCount_;
+    std::vector<Pixel> ledStrip_;
+
+    bool running_;
+    bool render_in_progress_;
+    std::thread ledRenderThread_;
+    std::mutex led_mutex_;
+
+    float global_user_brightness_ = 1.0f;    // scales all pixels' colors/user brightness
+    uint8_t global_device_brightness_ = 31;  // hardware brightness (0-31) applied to all LEDs
+
+    std::shared_ptr<spdlog::logger> logger_;
+
+    // Constants
+    static constexpr const char* SPI_DEVICE = "/dev/spidev0.0";
+    static constexpr uint32_t SPI_SPEED_HZ = 8000000;
 };

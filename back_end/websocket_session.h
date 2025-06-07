@@ -123,7 +123,7 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
                        , public WebSocketSessionMessageManager
 {
 public:
-    WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocketServer> server);
+    WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocketServer> server, net::strand<net::io_context::executor_type>& strand);
     WebSocketSession(const WebSocketSession&) = delete;
     WebSocketSession& operator=(const WebSocketSession&) = delete;
 
@@ -144,6 +144,7 @@ public:
 protected:
     websocket::stream<tcp::socket> ws_;
     std::weak_ptr<WebSocketServer> server_;
+    net::strand<net::io_context::executor_type>& strand_;
 
 private:
     void doRead();

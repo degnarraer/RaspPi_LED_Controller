@@ -240,9 +240,10 @@ void WebSocketSessionMessageManager::handleUnknownMessage(const json& incoming)
     logger_->warn("Received unknown message: {}", incoming.dump()); 
 }
 
-WebSocketSession::WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocketServer> server)
+WebSocketSession::WebSocketSession(tcp::socket socket, std::shared_ptr<WebSocketServer> server, net::strand<net::io_context::executor_type>& strand)
     : ws_(std::move(socket))
     , server_(server)
+    , strand_(strand)
     , session_id_(boost::uuids::to_string(boost::uuids::random_generator()()))
     , logger_(initializeLogger("WebSocketSession", spdlog::level::info))
     , rate_limited_log_(std::make_shared<RateLimitedLogger>(logger_, std::chrono::seconds(10)))
@@ -254,11 +255,10 @@ void WebSocketSession::start()
 {
     auto self = shared_from_this();
     WebSocketSessionMessageManager::setSession(self);
-    net::post(ws_.get_executor(), [self]()
+    net::post(strand_, [self]()
     {
         self->ws_.async_accept(
-        net::bind_executor(
-            self->ws_.get_executor(),
+            net::bind_executor(self->strand_,
             [self](beast::error_code ec)
             {
                 if (ec)
@@ -278,7 +278,7 @@ void WebSocketSession::start()
 void WebSocketSession::close()
 {
     auto self = shared_from_this();
-    net::post(ws_.get_executor(), [self]()
+    net::post(strand_, [self]()
     {
         if (!self->ws_.is_open())
         {
@@ -290,32 +290,30 @@ void WebSocketSession::close()
             self->logger_->info("WebSocket session is already closing.");
             return;
         }
-
         self->closing_ = true;
-
         self->ws_.async_close(websocket::close_code::normal,
-            net::bind_executor(self->ws_.get_executor(),
-                [self](beast::error_code ec)
+            net::bind_executor(self->strand_,
+            [self](beast::error_code ec)
+            {
+                if (ec)
                 {
-                    if (ec)
-                    {
-                        self->handleWebSocketError(ec, "close");
-                    }
-                    else
-                    {
-                        self->logger_->info("WebSocket session closed cleanly.");
-                    }
+                    self->handleWebSocketError(ec, "close");
+                }
+                else
+                {
+                    self->logger_->info("WebSocket session closed cleanly.");
+                }
 
-                    if (auto server = self->server_.lock())
-                        server->unregisterSession(self);
-        }));
+                if (auto server = self->server_.lock())
+                    server->unregisterSession(self);
+            }));
     });
 }
 
 void WebSocketSession::doRead()
 {
     auto self = shared_from_this();
-    net::post(ws_.get_executor(), [self]()
+    net::post(strand_, [self]()
     {
         if (!self->ws_.is_open())
         {
@@ -329,17 +327,17 @@ void WebSocketSession::doRead()
         }
         self->ws_.async_read(
         self->readBuffer_,
-        net::bind_executor(
-            self->ws_.get_executor(),
-            [self](beast::error_code ec, std::size_t bytes_transferred)
-            {
-                self->onRead(ec, bytes_transferred);
-            }));
+        net::bind_executor(self->strand_,
+        [self](beast::error_code ec, std::size_t bytes_transferred)
+        {
+            self->onRead(ec, bytes_transferred);
+        }));
     });
 }
 
 void WebSocketSession::onRead(beast::error_code ec, std::size_t bytes_transferred)
 {
+    assert(strand_.running_in_this_thread());
     if (ec)
     {
         if (ec == boost::beast::websocket::error::closed)
@@ -367,7 +365,7 @@ void WebSocketSession::onRead(beast::error_code ec, std::size_t bytes_transferre
 void WebSocketSession::sendMessage(std::shared_ptr<WebSocketMessage> webSocketMessage)
 {
     auto self = shared_from_this();
-    net::post(ws_.get_executor(), [self, wsm = std::move(webSocketMessage)]()
+    net::post(strand_, [self, wsm = std::move(webSocketMessage)]()
     {
         if (self->ws_.is_open())
         {
@@ -391,28 +389,31 @@ void WebSocketSession::sendMessage(std::shared_ptr<WebSocketMessage> webSocketMe
 void WebSocketSession::doWrite()
 {
     auto self = shared_from_this();
-    net::post(ws_.get_executor(), [self]()
+    net::post(strand_, [self]()
     {
         if (!self->ws_.is_open())
         {
             self->logger_->warn("WebSocket session is not open, cannot write.");
             return;
         }
+
         if (self->closing_)
         {
             self->logger_->warn("WebSocket session is closing, cannot write.");
             return;
         }
+
         if (self->writing_ || self->outgoing_messages_.empty())
         {
             return;
         }
-        
+
         self->writing_ = true;
+
         std::shared_ptr<WebSocketMessage> webSocketMessage = std::move(self->outgoing_messages_.front());
         self->outgoing_messages_.pop_front();
-        switch (webSocketMessage->webSocket_Message_type)
 
+        switch (webSocketMessage->webSocket_Message_type)
         {
             case WebSocketMessageType::Text:
                 self->handleTextMessage(self, std::move(webSocketMessage));
@@ -426,17 +427,21 @@ void WebSocketSession::doWrite()
                 self->handleUnknownMessageType();
                 break;
         }
+        
     });
 }
 
+
 void WebSocketSession::releaseWritingAndContinue()
 {
+    assert(strand_.running_in_this_thread());
     writing_ = false;
     doWrite();
 }
 
 void WebSocketSession::onWrite(beast::error_code ec, std::size_t bytes_transferred, std::shared_ptr<WebSocketMessage> webSocketMessage)
 {
+    assert(strand_.running_in_this_thread());
     if (ec)
     {
         handleWebSocketError(ec, "onWrite");
@@ -475,6 +480,7 @@ bool WebSocketSession::isValidUtf8(const std::string& str)
 void WebSocketSession::handleTextMessage( std::shared_ptr<WebSocketSession> self
                                         , std::shared_ptr<WebSocketMessage> webSocketMessage )
 {
+    assert(strand_.running_in_this_thread());
     if (!isValidUtf8(webSocketMessage->message))
     {
         logger_->warn("Invalid UTF-8 message, skipping...");
@@ -490,18 +496,18 @@ void WebSocketSession::handleTextMessage( std::shared_ptr<WebSocketSession> self
     ws_.text(true);
     ws_.async_write(
         net::buffer(webSocketMessage->message),
-        net::bind_executor(
-            ws_.get_executor(),
-            [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)
-            {
-                self->onWrite(ec, bytes_transferred, std::move(wsm));
-            }));
+        net::bind_executor(self->strand_,
+        [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)
+        {
+            self->onWrite(ec, bytes_transferred, std::move(wsm));
+        }));
 }
 
 
 void WebSocketSession::handleBinaryMessage( std::shared_ptr<WebSocketSession> self
                                           , std::shared_ptr<WebSocketMessage> webSocketMessage )
 {
+    assert(strand_.running_in_this_thread());
     if (webSocketMessage->binary_data.empty())
     {
         logger_->warn("Empty binary message, skipping...");
@@ -517,16 +523,16 @@ void WebSocketSession::handleBinaryMessage( std::shared_ptr<WebSocketSession> se
     ws_.binary(true);
     ws_.async_write(
         net::buffer(webSocketMessage->binary_data.data(), webSocketMessage->binary_data.size()),
-        net::bind_executor(
-            ws_.get_executor(),
-            [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)
-            {
-                self->onWrite(ec, bytes_transferred, std::move(wsm));
-            }));
+        net::bind_executor(self->strand_,
+        [self, wsm = std::move(webSocketMessage)](boost::system::error_code ec, std::size_t bytes_transferred)
+        {
+            self->onWrite(ec, bytes_transferred, std::move(wsm));
+        }));
 }
 
 void WebSocketSession::handleUnknownMessageType()
 {
+    assert(strand_.running_in_this_thread());
     logger_->warn("Unknown WebSocket message type, skipping...");
     releaseWritingAndContinue();
 }
@@ -597,6 +603,7 @@ void WebSocketSession::handleWebSocketError(const std::error_code& ec, const std
 
 void WebSocketSession::subscribeToSignalFromServer(const std::string& signal_name)
 {
+    assert(strand_.running_in_this_thread());
     if (auto s = server_.lock())
     {
         s->subscribe_session_to_signal(getSessionID(), signal_name);
@@ -605,6 +612,7 @@ void WebSocketSession::subscribeToSignalFromServer(const std::string& signal_nam
 
 void WebSocketSession::unsubscribeFromSignalFromServer(const std::string& signal_name)
 {
+    assert(strand_.running_in_this_thread());
     if (auto s = server_.lock())
     {
         s->unsubscribe_session_from_signal(getSessionID(), signal_name);

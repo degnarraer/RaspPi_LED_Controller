@@ -304,7 +304,7 @@ void WebSocketServer::handle_accept(beast::error_code ec, tcp::socket socket)
         return;
     }
     auto self = shared_from_this();
-    auto session = std::make_shared<WebSocketSession>(std::move(socket), self);
+    auto session = std::make_shared<WebSocketSession>(std::move(socket), self, strand_);
     if (registerSession(session))
     {
         session->start();

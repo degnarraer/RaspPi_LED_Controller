@@ -129,21 +129,18 @@ endforeach()
 
 ############ Define Executable ############
 message(STATUS "STEP: Defining Executable")
-add_subdirectory(${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x)
 add_executable(RaspPi_LED_Controller ${SOURCES} ${KISSFFT_SRC})
 
 ############ Target Include Directories ############
 target_include_directories(RaspPi_LED_Controller PRIVATE
     ${CMAKE_SOURCE_DIR}/submodules/kissfft
     ${CMAKE_SOURCE_DIR}/submodules/spdlog/include
-    ${CMAKE_SOURCE_DIR}/submodules/rpi_ws281x
 )
 
 ############ Link Libraries ############
 target_link_libraries(RaspPi_LED_Controller PRIVATE
     asound
     Boost::locale
-    ws2811
 )
 
 ############ Build NPM ############
