@@ -15,11 +15,15 @@ PixelGridSignal::PixelGridSignal(const std::string& signalName,
 {
     logger_ = initializeLogger("PixelGridSignal", spdlog::level::info);
     logger_->info("PixelGridSignal created with dimensions: {}x{}", width_, height_);
+    ledController_->run();
+    ledController_->setDeviceGlobalBrightness(5);
 }
 
 void PixelGridSignal::setPixel(size_t x, size_t y, RGB color)
 {
     std::lock_guard<std::mutex> lock(mutex_);
+    
+    ledController_->setPixel(y, color.r, color.g, color.b, 1.0);
     if (x < width_ && y < height_)
     {
         pixels_[y][x] = color;

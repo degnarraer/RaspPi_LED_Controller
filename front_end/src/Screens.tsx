@@ -80,10 +80,10 @@ export function TowerScreen({ socket }: ScreenProps) {
     
     return (
       <div style={gridStyle}>
-        {Array.from({ length: 64 }, (_, i) => (
+        {Array.from({ length: 144 }, (_, i) => (
           <>
             <div key={`led-${i}`} style={itemStyle}>
-              <LedRow ledCount={32} signal="Pixel Grid" rowIndex={i} socket={socket} randomMode={false} />
+              <LedRow ledCount={5} signal="Pixel Grid" rowIndex={i} socket={socket} randomMode={false} />
             </div>
             <div key={`gauge-${i}`} style={itemStyle}>
               <LEDBoardTempGauge signalName={"Temp Signal {i}"} socket={socket} />

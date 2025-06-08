@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <mutex>
 #include <spdlog/spdlog.h>
+#include "../led_controller.h"
 
 #include "signal.h"
 #include "../websocket_server.h"
@@ -72,6 +73,10 @@ public:
                     size_t width,
                     size_t height,
                     std::shared_ptr<WebSocketServer> webSocketServer);
+    ~PixelGridSignal()
+    {
+        ledController_->stop();
+    }
 
     void setPixel(size_t x, size_t y, RGB color);
     RGB getValue(size_t x, size_t y) const;
@@ -93,6 +98,7 @@ private:
     std::shared_ptr<Signal<std::vector<std::vector<RGB>>>> signal_;
     std::shared_ptr<spdlog::logger> logger_;
     mutable std::mutex mutex_;
+    std::shared_ptr<LED_Controller> ledController_ = std::make_shared<LED_Controller>(144);
 
     BinaryEncoder<std::vector<std::vector<RGB>>> get_rgb_matrix_to_binary_encoder()
     {

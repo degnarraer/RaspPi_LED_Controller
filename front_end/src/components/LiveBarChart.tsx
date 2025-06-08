@@ -100,7 +100,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                     y: {
                         beginAtZero: true,
                         min: 0,
-                        max: 10,
+                        max: 1.0,
                         position: this.props.yLabelPosition || 'left',
                         reverse: this.props.flipY || false,
                         ticks: {

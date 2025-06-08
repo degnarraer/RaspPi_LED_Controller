@@ -11,7 +11,6 @@
 #include "signals/PixelGridSignal.h"
 #include "./animation/FFTAnimation.h"
 #include "./animation/RainbowAnimation.h"
-#include "led_controller.h"
 
 int main()
 {
@@ -24,17 +23,13 @@ int main()
     auto fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
     auto deploymentManger = std::make_shared<DeploymentManager>();
     auto systemStatusMonitor = std::make_shared<SystemStatusMonitor>(webSocketServer);
-    std::shared_ptr<LED_Controller> ledController = std::make_shared<LED_Controller>(140);
 
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");
     deploymentManger->copyFolderContentsWithSudo("./www", "/var/www/html");
     webSocketServer->start();
     mic->startReadingMicrophone();
     systemStatusMonitor->startMonitoring();
-    ledController->run();
-    ledController->setColor(0xFF0000);
-    ledController->setDeviceGlobalBrightness(1);
-    PixelGridSignal grid("Pixel Grid", 32, 64, webSocketServer);
+    PixelGridSignal grid("Pixel Grid", 5, 144, webSocketServer);
     RainbowAnimation animation(grid);
     animation.Start();
 

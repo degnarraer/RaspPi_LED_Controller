@@ -13,6 +13,42 @@
 
 using json = nlohmann::json;
 
+struct BinData
+{
+    uint16_t minBin = 0;
+    uint16_t maxBin = 0;
+    uint16_t totalBins = 0;
+    float minValue = 0.0;
+    float maxValue = 0.0;
+
+    std::string to_string() const
+    {
+        std::ostringstream oss;
+        oss << "BinData{minBin=" << minBin
+            << ", maxBin=" << maxBin
+            << ", totalBins=" << totalBins
+            << ", minValue=" << minValue
+            << ", maxValue=" << maxValue
+            << "}";
+        return oss.str();
+    }
+
+    bool operator==(const BinData& other) const
+    {
+        return minBin == other.minBin &&
+            maxBin == other.maxBin &&
+            totalBins == other.totalBins &&
+            minValue == other.minValue &&
+            maxValue == other.maxValue;
+    }
+
+    bool operator!=(const BinData& other) const
+    {
+        return !(*this == other);
+    }
+
+};
+
 struct Point
 {
     float x;
@@ -64,6 +100,28 @@ enum class BinaryEncoderType : uint8_t
      */
     Timestamped_Int_Vector_Encoder = 2,
 };
+
+inline void to_json(json& j, const BinData& data)
+{
+    j = json{
+        {"minBin", data.minBin},
+        {"maxBin", data.maxBin},
+        {"totalBins", data.totalBins},
+        {"minValue", data.minValue},
+        {"maxValue", data.maxValue}
+    };
+}
+
+inline std::ostream& operator<<(std::ostream& os, const BinData& data)
+{
+    os << "BinData{minBin=" << data.minBin
+       << ", maxBin=" << data.maxBin
+       << ", totalBins=" << data.totalBins
+       << ", minValue=" << data.minValue
+       << ", maxValue=" << data.maxValue
+       << "}";
+    return os;
+}
 
 template<typename T>
 using BinaryEncoder = std::function<std::vector<uint8_t>(const std::string&, const T&)>;
@@ -141,6 +199,13 @@ JsonEncoder<T> get_signal_and_value_encoder()
     };
     return encoder;
 }
+
+inline std::function<std::string(const std::string&, const BinData&)> binDataEncoder =
+    [](const std::string& name, const BinData& data) -> std::string
+    {
+        nlohmann::json j = data;
+        return encode_signal_name_and_json(name, j);
+    };
 
 class SignalName
 {
