@@ -209,16 +209,16 @@ void WebSocketSessionMessageManager::handleSignalMessage(const json& incoming)
             {
                 if (signal->setValueFromJSON(incoming["value"]))
                 {
-                    logger_->info("Signal {} updated successfully with data: {}", signal_Name, incoming["value"].dump());
+                    logger_->info("Signal \"{}\" updated successfully with data: {}", signal_Name, incoming["value"].dump());
                 }
                 else
                 {
-                    logger_->warn("Failed to update signal {} with data: {}", signal_Name, incoming["value"].dump());
+                    logger_->warn("Failed to update signal \"{}\" with data: {}", signal_Name, incoming["value"].dump());
                 }
             }
             else
             {
-                logger_->warn("Signal {} not found.", signal_Name);
+                logger_->warn("Signal \"{}\" not found.", signal_Name);
             }
         }
         else

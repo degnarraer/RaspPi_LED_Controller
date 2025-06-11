@@ -77,26 +77,35 @@ class FFTComputer
             {
                 FFTComputer* self = static_cast<FFTComputer*>(arg);
                 self->minDbValue_ = value;
-                self->logger_->debug("FFT Computer: Received new Min Db value: {}", value);
+                self->logger_->info("FFT Computer: Received new Min Db value: {}", value);
             };
-
+            minDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db"));
             if (minDbSignal_)
             {
-                minDbSignal_->setValue(0);
+                minDbSignal_->setValue(minDbValue_);
                 minDbSignal_->registerSignalValueCallback(minDbSignalCallback_, this);
+            }
+            else
+            {
+                logger_->warn("FFT Computer: Min db signal not found, using default value: {}", minDbValue_);
             }
 
             maxDbSignalCallback_ = [](const float& value, void* arg)
             {
                 FFTComputer* self = static_cast<FFTComputer*>(arg);
                 self->maxDbValue_ = value;
-                self->logger_->debug("FFT Computer: Received new Max Db value: {}", value);
+                self->logger_->info("FFT Computer: Received new Max Db value: {}", value);
             };
 
+            maxDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Max db"));
             if (maxDbSignal_)
             {
-                maxDbSignal_->setValue(85);
+                maxDbSignal_->setValue(maxDbValue_);
                 maxDbSignal_->registerSignalValueCallback(maxDbSignalCallback_, this);
+            }
+            else
+            {
+                logger_->warn("FFT Computer: Max db signal not found, using default value: {}", maxDbValue_);
             }
 
         }
@@ -170,7 +179,7 @@ class FFTComputer
         std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
         
         std::shared_ptr<Signal<float>> minDbSignal_;
-        float minDbValue_ = 0.0f;
+        float minDbValue_ = -80.0f;
         std::shared_ptr<Signal<float>> maxDbSignal_;
         float maxDbValue_ = 85.0f;
         std::function<void(const float&, void*)> minDbSignalCallback_;
@@ -329,9 +338,6 @@ class FFTComputer
             binData.minValue = 20.0f * std::log10(binData.minValue + 1e-6f);
             binData.maxValue = 20.0f * std::log10(binData.maxValue + 1e-6f);
 
-            const float min_dB = -80.0f; // Threshold for silence
-            const float max_dB = 60.0f;   // Maximum expected dB
-
             // Compute SAE bands
             for (size_t i = 0; i < ISO_32_BAND_CENTERS.size(); ++i)
             {
@@ -378,7 +384,7 @@ class FFTComputer
                     saeBands[i] = 20.0f * std::log10(saeBands[i] + 1e-6f); // avoid log(0)
 
                     // Normalize to 0–1.0
-                    saeBands[i] = (saeBands[i] - min_dB) / (max_dB - min_dB);
+                    saeBands[i] = (saeBands[i] - minDbValue_) / (maxDbValue_ - minDbValue_);
                     saeBands[i] = std::clamp(saeBands[i], 0.0f, 1.0f);
                 }
                 else

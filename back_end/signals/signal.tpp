@@ -68,12 +68,12 @@ bool SignalValue<T>::setValueFromJSON(const json& j)
 {
     try
     {
-        *data_ = j.get<T>();
+        this->setValue(j.get<T>());
         return true;
     }
     catch(const std::exception& e)
     {
-        std::cerr << "JSON parsing failed: " << e.what() << "\n";
+        this->logger_->error("JSON parsing failed: {}", e.what());
         return false;
     }
 }

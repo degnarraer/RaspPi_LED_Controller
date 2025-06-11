@@ -275,8 +275,8 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
         <Incrementer
           signal="Min db"
           socket={socket}
-          min={0}
-          max={100}
+          min={-80}
+          max={30}
           step={1}
           holdEnabled={true}
           holdIntervalMs={100}
@@ -297,7 +297,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
           signal="Max db"
           socket={socket}
           min={0}
-          max={100}
+          max={140}
           step={1}
           holdEnabled={true}
           holdIntervalMs={100}
@@ -323,13 +323,15 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
         </thead>
         <tbody>
           {[
+            ['-80 dB', 'Noise floor'],
             ['0 dB', 'Threshold of hearing'],
             ['30 dB', 'Whisper'],
             ['50 dB', 'Quiet conversation'],
             ['70 dB', 'Vacuum cleaner'],
             ['85 dB', 'City traffic (inside car)'],
-            ['100 dB', 'Jackhammer'],
+            ['110 dB', 'Jackhammer'],
             ['120 dB', 'Ambulance siren'],
+            ['130 dB', 'Pain threshold'],
             ['140 dB', 'Jet engine at takeoff'],
           ].map(([level, example]) => (
             <tr key={level}>
