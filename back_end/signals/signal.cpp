@@ -27,9 +27,5 @@ std::shared_ptr<SignalName> SignalManager::getSharedSignalByName(const std::stri
 {
     std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
-    if (it != signals_.end())
-    {
-        return it->second;
-    }
-    return nullptr;
+    return (it != signals_.end()) ? it->second : nullptr;
 }

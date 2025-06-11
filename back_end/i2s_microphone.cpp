@@ -20,8 +20,8 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     , inputSignal_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::getInstance().getSharedSignalByName("Microphone")))
     , inputSignalLeftChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::getInstance().getSharedSignalByName("Microphone Left Channel")))
     , inputSignalRightChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::getInstance().getSharedSignalByName("Microphone Right Channel")))
-    , minMicrophoneSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Min Microphone Limit")))
-    , maxMicrophoneSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Max Microphone Limit")))
+    , minDbSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db")))
+    , maxDbSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Max db")))
 {
     // Retrieve existing logger or create a new one
     logger_ = initializeLogger("I2s Microphone", spdlog::level::info);
@@ -88,29 +88,27 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
         inputSignalRightChannel_->registerSignalValueCallback(microphoneRightChannelSignalCallback_, this);
     }
 
-    minMicrophoneSignalCallback_ = [](const std::string& value, void* arg)
+    minDbSignalCallback_ = [](const float& value, void* arg)
     {
         I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
         self->logger_->debug("Device {}: Received new Min Microphone Limit values:", self->targetDevice_);
     };
 
-    if (minMicrophoneSignal_)
+    if (minDbSignal_)
     {
-        minMicrophoneSignal_->registerSignalValueCallback(minMicrophoneSignalCallback_, this);
+        minDbSignal_->registerSignalValueCallback(minDbSignalCallback_, this);
     }
 
-    maxMicrophoneSignalCallback_ = [](const std::string& value, void* arg)
+    maxDbSignalCallback_ = [](const float& value, void* arg)
     {
         I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
         self->logger_->debug("Device {}: Received new Max Microphone Limit values:", self->targetDevice_);
     };
 
-    if (maxMicrophoneSignal_)
+    if (maxDbSignal_)
     {
-        maxMicrophoneSignal_->registerSignalValueCallback(maxMicrophoneSignalCallback_, this);
+        maxDbSignal_->registerSignalValueCallback(maxDbSignalCallback_, this);
     }
-    minMicrophoneSignal_->setValue("-400000");
-    minMicrophoneSignal_->setValue("400000");
 }
 
 I2SMicrophone::~I2SMicrophone()

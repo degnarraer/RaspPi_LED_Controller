@@ -1,5 +1,6 @@
 #include "websocket_session.h"
 #include "websocket_server.h"
+#include "signals/signal.h"
 
 #define MAX_BATCH_COUNT 10
 #define MAX_RETRY_ATTEMPTS 5
@@ -200,8 +201,31 @@ void WebSocketSessionMessageManager::handleSignalMessage(const json& incoming)
 {
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
-        std::string signal_data = incoming["signal"].get<std::string>();
-        logger_->warn("Received signal data: {}, not yet handled.", signal_data);
+        if(incoming.contains("value"))
+        {
+            std::string signal_Name = incoming["signal"].get<std::string>();
+            std::shared_ptr<SignalName> signal = SignalManager::getInstance().getSharedSignalByName(signal_Name);
+            if(signal)
+            {
+                if (signal->setValueFromJSON(incoming["value"]))
+                {
+                    logger_->info("Signal {} updated successfully with data: {}", signal_Name, incoming["value"].dump());
+                }
+                else
+                {
+                    logger_->warn("Failed to update signal {} with data: {}", signal_Name, incoming["value"].dump());
+                }
+            }
+            else
+            {
+                logger_->warn("Signal {} not found.", signal_Name);
+            }
+        }
+        else
+        {
+            logger_->warn("Signal message without value.");
+            sendEchoResponse("Signal message missing value");
+        }
     }
     else
     {

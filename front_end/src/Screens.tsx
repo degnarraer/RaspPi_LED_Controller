@@ -9,6 +9,7 @@ import LedRow from './components/LedRow';
 //import SignalValueTextBox from './components/SignalValueTextbox';
 import HorizontalGauge from './components/HorizontalGauge';
 import { WebSocketContextType } from './components/WebSocketContext';
+import Incrementer from './components/Incrementer';
 
 export type ScreenType = (typeof SCREENS)[keyof typeof SCREENS];
 
@@ -35,19 +36,21 @@ export const SCREENS = {
 export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
     switch (screen) {
         case SCREENS.HOME:
-        return <HomeScreen />;
+          return <HomeScreen />;
         case SCREENS.TOWER_SCREEN:
-        return <TowerScreen socket={socket} />;
+          return <TowerScreen socket={socket} />;
         case SCREENS.HORIZONTAL_STEREO_SPECTRUM:
-        return <HorizontalStereoSpectrumScreen socket={socket} />;
+          return <HorizontalStereoSpectrumScreen socket={socket} />;
         case SCREENS.VERTICAL_STEREO_SPECTRUM:
-        return <VerticalStereoSpectrumScreen socket={socket} />;
+          return <VerticalStereoSpectrumScreen socket={socket} />;
         case SCREENS.WAVE_SCREEN:
-        return <WaveScreen socket={socket}  />;
+          return <WaveScreen socket={socket}  />;
         case SCREENS.SCROLLING_HEAT_MAP_RAINBOW:
-        return <ScrollingHeatMapRainbowScreen socket={socket} />;
+          return <ScrollingHeatMapRainbowScreen socket={socket} />;
         case SCREENS.SCROLLING_HEAT_MAP:
-        return <ScrollingHeatMapScreen socket={socket} />;
+          return <ScrollingHeatMapScreen socket={socket} />;
+        case SCREENS.SETTING_BRIGHTNESS:
+          return <SettingBrightnessScreen socket={socket} />;
         default:
         return <HomeScreen />;
     }
@@ -235,3 +238,108 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
       </RenderTickProvider>
     );
 }
+
+export function SettingBrightnessScreen({ socket }: ScreenProps) {
+  const cellStyle: React.CSSProperties = {
+    border: '1px solid #444',
+    padding: '8px',
+    textAlign: 'left',
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        height: '100%',
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#111',
+        color: 'white',
+        flexDirection: 'column',
+        gap: 20,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Row for Minimum dB Threshold */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
+        <Incrementer
+          signal="Min db"
+          socket={socket}
+          min={0}
+          max={100}
+          step={1}
+          holdEnabled={true}
+          holdIntervalMs={100}
+        />
+      </div>
+
+      {/* Row for Maximum dB Threshold */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
+        <Incrementer
+          signal="Max db"
+          socket={socket}
+          min={0}
+          max={100}
+          step={1}
+          holdEnabled={true}
+          holdIntervalMs={100}
+        />
+      </div>
+
+      {/* Reference Table */}
+      <table
+        style={{
+          borderCollapse: 'collapse',
+          width: '100%',
+          maxWidth: 400,
+          backgroundColor: '#222',
+          color: 'white',
+          fontSize: 14,
+        }}
+      >
+        <thead>
+          <tr>
+            <th style={cellStyle}>dB Level</th>
+            <th style={cellStyle}>Example Sound</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            ['0 dB', 'Threshold of hearing'],
+            ['30 dB', 'Whisper'],
+            ['50 dB', 'Quiet conversation'],
+            ['70 dB', 'Vacuum cleaner'],
+            ['85 dB', 'City traffic (inside car)'],
+            ['100 dB', 'Jackhammer'],
+            ['120 dB', 'Ambulance siren'],
+            ['140 dB', 'Jet engine at takeoff'],
+          ].map(([level, example]) => (
+            <tr key={level}>
+              <td style={cellStyle}>{level}</td>
+              <td style={cellStyle}>{example}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+

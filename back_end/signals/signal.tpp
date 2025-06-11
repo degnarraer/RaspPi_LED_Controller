@@ -45,6 +45,39 @@ bool SignalValue<T>::setValue(const T& value, void* arg)
     return false;
 }
 
+
+/*
+template<typename T>
+bool SignalValue<T>::setValueFromString(const std::string& value_str)
+{
+    try
+    {
+        *data_ = from_string(value_str);
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Parsing failed: " << e.what() << "\n";
+        return false;
+    }
+}
+*/
+
+template<typename T>
+bool SignalValue<T>::setValueFromJSON(const json& j)
+{
+    try
+    {
+        *data_ = j.get<T>();
+        return true;
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "JSON parsing failed: " << e.what() << "\n";
+        return false;
+    }
+}
+
 template<typename T>
 void SignalValue<T>::registerSignalValueCallback(SignalValueCallback cb, void* arg)
 {

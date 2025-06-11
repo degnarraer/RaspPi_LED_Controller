@@ -6,20 +6,7 @@
 #include <memory>
 #include <cstdint>
 #include <spdlog/spdlog.h>
-
-struct Color
-{
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-};
-
-struct Pixel
-{
-    Color color;
-    float brightness = 1.0f;        // Animation brightness (0.0 to 1.0)
-    uint8_t device_brightness = 31; // Hardware brightness (APA102 0-31)
-};
+#include "signals/DataTypesAndEncoders/DataTypesAndEncoders.h"
 
 class LED_Controller
 {

@@ -6,206 +6,10 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
-#include <nlohmann/json.hpp>
 #include <type_traits>
 #include "../logger.h"
 #include "../websocket_server.h"
-
-using json = nlohmann::json;
-
-struct BinData
-{
-    uint16_t minBin = 0;
-    uint16_t maxBin = 0;
-    uint16_t totalBins = 0;
-    float minValue = 0.0;
-    float maxValue = 0.0;
-
-    std::string to_string() const
-    {
-        std::ostringstream oss;
-        oss << "BinData{minBin=" << minBin
-            << ", maxBin=" << maxBin
-            << ", totalBins=" << totalBins
-            << ", minValue=" << minValue
-            << ", maxValue=" << maxValue
-            << "}";
-        return oss.str();
-    }
-
-    bool operator==(const BinData& other) const
-    {
-        return minBin == other.minBin &&
-            maxBin == other.maxBin &&
-            totalBins == other.totalBins &&
-            minValue == other.minValue &&
-            maxValue == other.maxValue;
-    }
-
-    bool operator!=(const BinData& other) const
-    {
-        return !(*this == other);
-    }
-
-};
-
-struct Point
-{
-    float x;
-    float y;
-};
-
-template<typename T>
-using JsonEncoder = std::function<std::string(const std::string&, const T&)>;
-
-enum class BinaryEncoderType : uint8_t
-{
-    /**
-     * Named_Binary_Encoder (0x01)
-     *
-     * Binary layout:
-     * --------------------------------------------------------
-     * | Offset | Field        | Size    | Description         |
-     * |--------|--------------|---------|---------------------|
-     * | 0      | message_type | 1 byte  | Always 0x01         |
-     * | 1–2    | name_length  | 2 bytes | Big-endian uint16_t |
-     * | 3–N    | signal_name  | N bytes | UTF-8, not null-term|
-     * | N+1+   | payload      | varies  | Signal value data   |
-     * 
-     * Notes:
-     * - Byte order: All multi-byte fields use **big-endian**.
-     * - signal_name: Encoded as raw UTF-8, no null terminator.
-     * - payload: Binary blob of the signal's value, e.g., RGB matrix.
-     * - Extensible by using new values for `BinaryEncoderType`.
-     */
-    Named_Binary_Encoder = 1,
-    
-    /**
-     * Timestamped_Int_Vector_Encoder (0x02)
-     *
-     * Binary layout:
-     * ------------------------------------------------------------
-     * | Offset | Field        | Size         | Description        |
-     * |--------|--------------|--------------|--------------------|
-     * | 0      | message_type | 1 byte       | Always 0x02        |
-     * | 1–2    | name_length  | 2 bytes      | Big-endian uint16_t|
-     * | 3–N    | signal_name  | N bytes      | UTF-8              |
-     * | N+1+   | timestamp    | 8 bytes      | Big-endian uint64_t|
-     * | N+9+   | vector_len   | 4 bytes      | Big-endian uint32_t|
-     * | N+13+  | vector_data  | 4 * len bytes| int32_t values     |
-     *
-     * Notes:
-     * - Timestamp is in microseconds since epoch.
-     * - All integers are big-endian.
-     */
-    Timestamped_Int_Vector_Encoder = 2,
-};
-
-inline void to_json(json& j, const BinData& data)
-{
-    j = json{
-        {"minBin", data.minBin},
-        {"maxBin", data.maxBin},
-        {"totalBins", data.totalBins},
-        {"minValue", data.minValue},
-        {"maxValue", data.maxValue}
-    };
-}
-
-inline std::ostream& operator<<(std::ostream& os, const BinData& data)
-{
-    os << "BinData{minBin=" << data.minBin
-       << ", maxBin=" << data.maxBin
-       << ", totalBins=" << data.totalBins
-       << ", minValue=" << data.minValue
-       << ", maxValue=" << data.maxValue
-       << "}";
-    return os;
-}
-
-template<typename T>
-using BinaryEncoder = std::function<std::vector<uint8_t>(const std::string&, const T&)>;
-
-template <typename T>
-inline std::string to_string(const T& value)
-{
-    std::ostringstream oss;
-    oss << value;
-    return oss.str();
-}
-
-template <typename T>
-inline std::string to_string(const std::vector<T>& vec)
-{
-    std::ostringstream oss;
-    oss << "[";
-    for (size_t i = 0; i < vec.size(); ++i)
-    {
-        if (i > 0) oss << ", ";
-        oss << to_string(vec[i]);
-    }
-    oss << "]";
-    return oss.str();
-}
-
-template <typename T>
-inline json encode_labels_with_values(const std::vector<std::string>& labels, const std::vector<T>& values)
-{
-    static_assert(std::is_constructible<json, std::vector<T>>::value,
-        "T must be serializable to nlohmann::json");
-
-    if (labels.size() != values.size())
-    {
-        throw std::invalid_argument("Labels and values vectors must have the same size.");
-    }
-
-    json j;
-    j["labels"] = labels;
-    j["values"] = values;
-    return j;
-}
-
-inline std::string encode_signal_name_and_json(const std::string& signal, const json& value)
-{
-    json j;
-    j["type"] = "signal";
-    j["signal"] = signal;
-    j["value"] = value;
-    return j.dump();
-}
-
-inline std::string encode_FFT_Bands(const std::string& signal, const std::vector<float>& values)
-{
-    std::vector<std::string> labels = {
-        "16 Hz", "20 Hz", "25 Hz", "31.5 Hz", "40 Hz", "50 Hz", "63 Hz", "80 Hz", "100 Hz",
-        "125 Hz", "160 Hz", "200 Hz", "250 Hz", "315 Hz", "400 Hz", "500 Hz", "630 Hz", "800 Hz", "1000 Hz", "1250 Hz",
-        "1600 Hz", "2000 Hz", "2500 Hz", "3150 Hz", "4000 Hz", "5000 Hz", "6300 Hz", "8000 Hz", "10000 Hz", "12500 Hz",
-        "16000 Hz", "20000 Hz"
-    };
-    return encode_signal_name_and_json(signal, encode_labels_with_values(labels, values));
-}
-
-template<typename T>
-JsonEncoder<T> get_signal_and_value_encoder()
-{
-    static_assert(std::is_constructible<json, T>::value,
-        "T must be serializable to nlohmann::json");
-    const JsonEncoder<T> encoder = [](const std::string& signal, const T& value) {
-        json j;
-        j["type"] = "signal";
-        j["signal"] = signal;
-        j["value"] = value;
-        return j.dump();
-    };
-    return encoder;
-}
-
-inline std::function<std::string(const std::string&, const BinData&)> binDataEncoder =
-    [](const std::string& name, const BinData& data) -> std::string
-    {
-        nlohmann::json j = data;
-        return encode_signal_name_and_json(name, j);
-    };
+#include "DataTypesAndEncoders/DataTypesAndEncoders.h"
 
 class SignalName
 {
@@ -214,6 +18,7 @@ class SignalName
                                            , logger_(initializeLogger("Signal " + name + "Logger", spdlog::level::info)) {}
 
         virtual ~SignalName() = default;
+        virtual bool setValueFromJSON(const json& j) = 0;
         const std::string& getName() const
         {
             return name_;
@@ -236,6 +41,8 @@ class SignalValue: public SignalName
             void* arg;
         };
         virtual bool setValue(const T& value, void* arg = nullptr);
+        //virtual bool setValueFromString(const std::string& value_str);
+        virtual bool setValueFromJSON(const json& j) override;
         virtual T getValue() const;
         virtual std::shared_ptr<T> GetData() const
         {

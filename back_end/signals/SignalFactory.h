@@ -17,9 +17,9 @@ public:
         IntVectorSignal("Microphone Left Channel", webSocketServer);
         IntVectorSignal("Microphone Right Channel", webSocketServer);
         SignalManager& signalManager = SignalManager::getInstance();
-        signalManager.createSignal<std::vector<float>>("FFT Bands", webSocketServer, encode_FFT_Bands);
-        signalManager.createSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, encode_FFT_Bands);
-        signalManager.createSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, encode_FFT_Bands);
+        signalManager.createSignal<std::vector<float>>("FFT Bands", webSocketServer, get_fft_bands_encoder());
+        signalManager.createSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, get_fft_bands_encoder());
+        signalManager.createSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, get_fft_bands_encoder());
         signalManager.createSignal<std::string>("CPU Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("CPU Memory Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("CPU Temp", webSocketServer, get_signal_and_value_encoder<std::string>());
@@ -31,7 +31,7 @@ public:
         signalManager.createSignal<std::string>("Load Avg", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("Uptime", webSocketServer, get_signal_and_value_encoder<std::string>());
 
-        signalManager.createSignal<std::string>("Min Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
-        signalManager.createSignal<std::string>("Max Microphone Limit", webSocketServer, get_signal_and_value_encoder<std::string>());
+        signalManager.createSignal<float>("Min db", webSocketServer, get_signal_and_value_encoder<float>());
+        signalManager.createSignal<float>("Max db", webSocketServer, get_signal_and_value_encoder<float>());
     }
 };
