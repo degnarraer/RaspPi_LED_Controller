@@ -179,7 +179,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
               dataWidth={32}
               dataHeight={240}
               min={0}
-              max={10}
+              max={1}
               flipX={true}
               mode={'Rainbow'}
               socket={socket}
@@ -191,7 +191,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
               dataWidth={32}
               dataHeight={240}
               min={0}
-              max={10}
+              max={1}
               flipX={false}
               mode={'Rainbow'}
               socket={socket}
@@ -212,7 +212,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
               dataWidth={32}
               dataHeight={240}
               min={0}
-              max={10}
+              max={1}
               flipX={true}
               minColor={'#000000'}
               midColor={'#0000ff'}
@@ -226,7 +226,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
               dataWidth={32}
               dataHeight={240}
               min={0}
-              max={10}
+              max={1}
               flipX={false}
               minColor={'#000000'}
               midColor={'#ff0000'}
