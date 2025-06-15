@@ -1,6 +1,6 @@
 #include "logger.h"
 
-std::shared_ptr<spdlog::logger> InitializeLogger(const std::string& loggerName, spdlog::level::level_enum level)
+std::shared_ptr<spdlog::logger> initializeLogger(const std::string& loggerName, spdlog::level::level_enum level)
 {
     // Retrieve existing logger if available
     auto logger = spdlog::get(loggerName);

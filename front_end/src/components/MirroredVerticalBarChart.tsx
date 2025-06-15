@@ -175,7 +175,7 @@ export default class MirroredVerticalBarChart extends Component<
 
 
     private handleSignalValue = (message: WebSocketMessage) => {
-        if (message.type === 'signal') {
+        if (message.type === 'signal value message') {
             const { leftSignal, rightSignal } = this.props;
             if (message.signal === leftSignal) {
                 this.setState({

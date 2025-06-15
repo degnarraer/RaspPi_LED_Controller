@@ -14,6 +14,7 @@
 #include "signals/IntVectorSignal.h"
 #include "websocket_server.h"
 
+
 enum class ChannelType
 {
     Mono,
@@ -55,13 +56,13 @@ class FFTComputer
             , webSocketServer_(webSocketServer)
             , stopFlag_(false)
         {
-            // Retrieve existing logger or create a new one
-            logger = InitializeLogger("FFT Computer", spdlog::level::info);
-            inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_));
+            // Retrieve existing logger_ or create a new one
+            logger_ = initializeLogger("FFT Computer", spdlog::level::info);
+            inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_));
             if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_);
-            inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_ + " Left Channel"));
+            inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_ + " Left Channel"));
             if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Left Channel");
-            inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::GetInstance().GetSignalByName(input_signal_name_ + " Right Channel"));
+            inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_ + " Right Channel"));
             if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Right Channel");
             fft_ = kiss_fft_alloc(fft_size_, 0, nullptr, nullptr);
             if (!fft_)
@@ -71,6 +72,42 @@ class FFTComputer
             fftOutput_.resize(fft_size_);        
             registerCallbacks();
             fftThread_ = std::thread(&FFTComputer::processQueue, this);
+
+            minDbSignalCallback_ = [](const float& value, void* arg)
+            {
+                FFTComputer* self = static_cast<FFTComputer*>(arg);
+                self->minDbValue_ = value;
+                self->logger_->info("FFT Computer: Received new Min Db value: {}", value);
+            };
+            minDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db"));
+            if (minDbSignal_)
+            {
+                minDbSignal_->setValue(minDbValue_);
+                minDbSignal_->registerSignalValueCallback(minDbSignalCallback_, this);
+            }
+            else
+            {
+                logger_->warn("FFT Computer: Min db signal not found, using default value: {}", minDbValue_);
+            }
+
+            maxDbSignalCallback_ = [](const float& value, void* arg)
+            {
+                FFTComputer* self = static_cast<FFTComputer*>(arg);
+                self->maxDbValue_ = value;
+                self->logger_->info("FFT Computer: Received new Max Db value: {}", value);
+            };
+
+            maxDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Max db"));
+            if (maxDbSignal_)
+            {
+                maxDbSignal_->setValue(maxDbValue_);
+                maxDbSignal_->registerSignalValueCallback(maxDbSignalCallback_, this);
+            }
+            else
+            {
+                logger_->warn("FFT Computer: Max db signal not found, using default value: {}", maxDbValue_);
+            }
+
         }
 
         ~FFTComputer()
@@ -129,14 +166,24 @@ class FFTComputer
         std::vector<kiss_fft_cpx> fftOutput_;
         std::function<void(const std::vector<float>&, ChannelType)> fftCallback_;
         const float sqrt2 = std::sqrt(2.0);
-        std::shared_ptr<spdlog::logger> logger;
+        std::shared_ptr<spdlog::logger> logger_;
 
         Signal<std::vector<int32_t>>* inputSignal_;
         Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
         Signal<std::vector<int32_t>>* inputSignalRightChannel_;
-        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_, webSocketServer_, encode_FFT_Bands);
-        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, encode_FFT_Bands);
-        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::GetInstance().CreateSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, encode_FFT_Bands);
+        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_, webSocketServer_, get_fft_bands_encoder());
+        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, get_fft_bands_encoder());
+        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, get_fft_bands_encoder());
+        std::shared_ptr<Signal<BinData>> monoBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Mono Bin Data", webSocketServer_, get_bin_data_encoder());
+        std::shared_ptr<Signal<BinData>> leftBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Left Bin Data", webSocketServer_, get_bin_data_encoder());
+        std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
+        
+        std::shared_ptr<Signal<float>> minDbSignal_;
+        float minDbValue_ = -80.0f;
+        std::shared_ptr<Signal<float>> maxDbSignal_;
+        float maxDbValue_ = 85.0f;
+        std::function<void(const float&, void*)> minDbSignalCallback_;
+        std::function<void(const float&, void*)> maxDbSignalCallback_;
 
         void registerCallbacks()
         {
@@ -147,16 +194,16 @@ class FFTComputer
                 self->addData(value, channel);
             };
 
-            inputSignal_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
-            inputSignalLeftChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
-            inputSignalRightChannel_->RegisterCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
+            inputSignal_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
+            inputSignalLeftChannel_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
+            inputSignalRightChannel_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
         }
 
         void unregisterCallbacks()
         {
-            inputSignal_->UnregisterCallbackByArg(this);
-            inputSignalLeftChannel_->UnregisterCallbackByArg(this);
-            inputSignalRightChannel_->UnregisterCallbackByArg(this);
+            inputSignal_->unregisterSignalValueCallbackByArg(this);
+            inputSignalLeftChannel_->unregisterSignalValueCallbackByArg(this);
+            inputSignalRightChannel_->unregisterSignalValueCallbackByArg(this);
         }
 
         void processQueue()
@@ -196,7 +243,6 @@ class FFTComputer
                 {
                     std::vector<int32_t> fftData(buffer->begin(), buffer->begin() + requiredSamples);
                     buffer->erase(buffer->begin(), buffer->begin() + nonOverlappingSamples);
-
                     processFFT({ std::move(fftData), dataPacket.channel });
                 }
             }
@@ -222,8 +268,8 @@ class FFTComputer
                 magnitudes[i] = sqrt(fftOutput_[i].r * fftOutput_[i].r + fftOutput_[i].i * fftOutput_[i].i);
                 magnitudes[i] /= maxValue_;
             }
-
-            computeSAEBands(magnitudes, saeBands);
+            BinData binData;
+            computeSAEBands(magnitudes, saeBands, binData);
             logSAEBands(saeBands);
 
             if (fftCallback_)
@@ -233,19 +279,22 @@ class FFTComputer
             switch(dataPacket.channel)
             {
                 case ChannelType::Mono:
-                    logger->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    monoOutputSignal_->SetValue(saeBands);
+                    logger_->debug("Device {}: Set Mono Output Signal Value:", name_);
+                    monoOutputSignal_->setValue(saeBands);
+                    monoBinDataSignal_->setValue(binData);
                 break;
                 case ChannelType::Left:
-                    logger->debug("Device {}: Set Left Output Signal Value:", name_);
-                    leftChannelOutputSignal_->SetValue(saeBands);
+                    logger_->debug("Device {}: Set Left Output Signal Value:", name_);
+                    leftChannelOutputSignal_->setValue(saeBands);
+                    leftBinDataSignal_->setValue(binData);
                 break;
                 case ChannelType::Right:
-                    logger->debug("Device {}: Set Right Output Signal Value:", name_);
-                    rightChannelOutputSignal_->SetValue(saeBands);
+                    logger_->debug("Device {}: Set Right Output Signal Value:", name_);
+                    rightChannelOutputSignal_->setValue(saeBands);
+                    rightBinDataSignal_->setValue(binData);
                 break;
                 default:
-                    logger->error("Device {}: Unsupported channel type:", name_);
+                    logger_->error("Device {}: Unsupported channel type:", name_);
                 break;
             }
         }
@@ -258,13 +307,46 @@ class FFTComputer
                 if(i > 0) result += " ";
                 result += fmt::format("{:.1f}", saeBands[i]);
             }
-            logger->trace("SAE Band Values: {}", result);
+            logger_->trace("SAE Band Values: {}", result);
         }
 
-        void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands)
-        {            
+        float normalizeDb(float amplitude)
+        {
+            float db = 20.0f * std::log10(amplitude + 1e-6f);
+            float normalized = (db - minDbValue_) / (maxDbValue_ - minDbValue_);
+            return std::clamp(normalized, 0.0f, 1.0f);
+        }
+
+        void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands, BinData& binData)
+        {
             float freqResolution = static_cast<float>(sampleRate_) / fft_size_;
 
+            // Initialize min/max amplitude and bin indices
+            binData.normalizedMinValue = std::numeric_limits<float>::max();
+            binData.normalizedMaxValue = std::numeric_limits<float>::lowest();
+            binData.minBin = 0;
+            binData.maxBin = 0;
+
+            // Find min/max amplitude and their bin indices across all magnitudes
+            for (size_t i = 0; i < magnitudes.size(); ++i)
+            {
+                if (magnitudes[i] < binData.normalizedMinValue)
+                {
+                    binData.normalizedMinValue = magnitudes[i];
+                    binData.minBin = static_cast<uint16_t>(i);
+                }
+                if (magnitudes[i] > binData.normalizedMaxValue)
+                {
+                    binData.normalizedMaxValue = magnitudes[i];
+                    binData.maxBin = static_cast<uint16_t>(i);
+                }
+            }
+
+            // Normalize to 0–1.0
+            binData.normalizedMinValue = normalizeDb(binData.normalizedMinValue);
+            binData.normalizedMaxValue = normalizeDb(binData.normalizedMaxValue);
+
+            // Compute SAE bands
             for (size_t i = 0; i < ISO_32_BAND_CENTERS.size(); ++i)
             {
                 float lowerFreq, upperFreq;
@@ -298,17 +380,25 @@ class FFTComputer
 
                 for (size_t j = binStart; j <= binEnd; ++j)
                 {
-                    saeBands[i] += magnitudes[j] * magnitudes[j];
+                    saeBands[i] += magnitudes[j] * magnitudes[j]; // power
                     ++count;
                 }
 
                 if (count > 0)
                 {
+                    // RMS
                     saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count));
+                    saeBands[i] = normalizeDb(saeBands[i]);
+                }
+                else
+                {
+                    saeBands[i] = 0.0f;
                 }
             }
+
+            binData.totalBins = static_cast<uint16_t>(fft_size_ / 2);
         }
- 
+
         static constexpr std::array<float, 32> ISO_32_BAND_CENTERS =
         {
             16, 20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,

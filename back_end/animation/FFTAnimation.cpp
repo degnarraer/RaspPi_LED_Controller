@@ -3,22 +3,22 @@
 FFTAnimation::FFTAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 30)
 {
-    auto leftBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Left Channel");
-    auto rightBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Right Channel");
+    auto leftBase = SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Channel");
+    auto rightBase = SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Channel");
 
     fftLeft_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(leftBase);
     fftRight_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(rightBase);
 
     if (fftLeft_)
     {
-        fftLeft_->RegisterCallback([this](const std::vector<float>& value, void*) {
+        fftLeft_->registerSignalValueCallback([this](const std::vector<float>& value, void*) {
             OnLeftUpdate(value, nullptr);
         }, this);
     }
 
     if (fftRight_)
     {
-        fftRight_->RegisterCallback([this](const std::vector<float>& value, void*) {
+        fftRight_->registerSignalValueCallback([this](const std::vector<float>& value, void*) {
             OnRightUpdate(value, nullptr);
         }, this);
     }
@@ -40,11 +40,11 @@ void FFTAnimation::AnimateFrame()
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    const int width = grid_.GetWidth();
-    const int height = grid_.GetHeight();
+    const int width = grid_.getWidth();
+    const int height = grid_.getHeight();
     const int halfWidth = width / 2;
 
-    grid_.Clear();
+    grid_.clear();
 
     for (int x = 0; x < leftBands_.size(); ++x)
     {
@@ -53,10 +53,10 @@ void FFTAnimation::AnimateFrame()
     
         for (int y = 0; y < std::min(barHeight, height); ++y)
         {
-            grid_.SetPixel(x, height - 1 - y, {255, 0, 0});
+            grid_.setPixel(x, height - 1 - y, {255, 0, 0});
         }
     }
 
-    grid_.Notify();
+    grid_.notify();
 
 }

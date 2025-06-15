@@ -100,7 +100,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                     y: {
                         beginAtZero: true,
                         min: 0,
-                        max: 10,
+                        max: 1.0,
                         position: this.props.yLabelPosition || 'left',
                         reverse: this.props.flipY || false,
                         ticks: {
@@ -199,7 +199,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     private handleSignalValue = (message: WebSocketMessage) => {
-        if (message.type === 'signal') {
+        if (message.type === 'signal value message') {
             const value = message.value;
             if (Array.isArray(value?.labels) && Array.isArray(value?.values)) {
                 this.setState({

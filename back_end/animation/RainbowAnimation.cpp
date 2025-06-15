@@ -2,38 +2,36 @@
 
 RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 100)
-{
-    auto leftBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Left Channel");
-    auto rightBase = SignalManager::GetInstance().GetSharedSignalByName("FFT Bands Right Channel");
-
-    fftLeft_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(leftBase);
-    fftRight_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(rightBase);
-
-    if (fftLeft_)
+{    
+    auto leftBinDataBase_ = SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Bin Data");
+    auto rightBinDataBase_ = SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Bin Data");
+    leftBinDataSignal_ = std::dynamic_pointer_cast<Signal<BinData>>(leftBinDataBase_);
+    rightBinDataSignal_ = std::dynamic_pointer_cast<Signal<BinData>>(rightBinDataBase_);
+    if (leftBinDataSignal_)
     {
-        fftLeft_->RegisterCallback([this](const std::vector<float>& value, void*) {
-            OnLeftUpdate(value, nullptr);
+        leftBinDataSignal_->registerSignalValueCallback([this](const BinData& value, void* arg) {
+            OnLeftBinDataUpdate(value, nullptr);
         }, this);
     }
 
-    if (fftRight_)
+    if (rightBinDataSignal_)
     {
-        fftRight_->RegisterCallback([this](const std::vector<float>& value, void*) {
-            OnRightUpdate(value, nullptr);
+        rightBinDataSignal_->registerSignalValueCallback([this](const BinData& value, void* arg) {
+            OnRightBinDataUpdate(value, nullptr);
         }, this);
     }
 }
 
-void RainbowAnimation::OnLeftUpdate(const std::vector<float>& value, void*)
+void RainbowAnimation::OnLeftBinDataUpdate(const BinData& value, void* arg)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    leftBands_ = value;
+    leftBinData_ = value;
 }
 
-void RainbowAnimation::OnRightUpdate(const std::vector<float>& value, void*)
+void RainbowAnimation::OnRightBinDataUpdate(const BinData& value, void* arg)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    rightBands_ = value;
+    rightBinData_ = value;
 }
 
 RGB RainbowAnimation::HSVtoRGB(float h, float s, float v)
@@ -61,41 +59,29 @@ void RainbowAnimation::AnimateFrame()
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    const int width = grid_.GetWidth();
-    const int height = grid_.GetHeight();
-
-    // Find the strongest bin in 0–31 range
-    int strongestBin = 0;
-    float maxValue = 0.0f;
-    for (int i = 0; i < std::min(32, static_cast<int>(leftBands_.size())); ++i)
-    {
-        if (leftBands_[i] > maxValue)
-        {
-            maxValue = leftBands_[i];
-            strongestBin = i;
-        }
-    }
+    const int width = grid_.getWidth();
+    const int height = grid_.getHeight();
 
     // Normalize amplitude to [0, 1]
-    float normalized = std::clamp(maxValue / 10.0f, 0.0f, 1.0f);
+    float normalized = leftBinData_.normalizedMaxValue;
 
     // Get bright rainbow color
-    RGB color = BinToRainbowRGB(strongestBin, normalized);
+    RGB color = BinToRainbowRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized);
 
     // Scroll all rows down
     for (int y = 0; y < height - 1; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
-            grid_.SetPixel(x, y, grid_.GetPixel(x, y + 1));
+            grid_.setPixel(x, y, grid_.getValue(x, y + 1));
         }
     }
 
     // Set the bottom row to the new color
     for (int x = 0; x < width; ++x)
     {
-        grid_.SetPixel(x, height - 1, color);
+        grid_.setPixel(x, height - 1, color);
     }
 
-    grid_.Notify();
+    grid_.notify();
 }

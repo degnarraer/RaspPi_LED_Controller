@@ -8,12 +8,12 @@ import React, {
 } from 'react';
 
 export type ControlWebSocketMessage = {
-  type: 'subscribe' | 'unsubscribe';
+  type: 'signal subscribe message' | 'signal unsubscribe message';
   signal: string;
 };
 
 export type SignalValueWebSocketMessage = {
-  type: 'text' | 'signal';
+  type: 'text' | 'signal value message';
   signal: string;
   value?: any;
 };
@@ -283,7 +283,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         console.log(`Web Socket: Subscribing to signal: ${signal}`);
-        sendMessage({ type: 'subscribe', signal });
+        sendMessage({ type: 'signal subscribe message', signal });
       }
     }
     signalSubscribers.add(callback);
@@ -300,7 +300,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
         
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           console.log(`Web Socket: Unsubscribing from signal: ${signal}`);
-          sendMessage({ type: 'unsubscribe', signal });
+          sendMessage({ type: 'signal unsubscribe message', signal });
         }
       }
     }

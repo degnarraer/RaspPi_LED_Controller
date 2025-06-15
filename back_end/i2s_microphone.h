@@ -25,11 +25,11 @@ class I2SMicrophone
                      , unsigned int latency
                      , std::shared_ptr<WebSocketServer> webSocketServer );
         ~I2SMicrophone();
-        std::vector<int32_t> ReadAudioData();
-        void StartReadingMicrophone();
-        void StartReadingSineWave(double frequency);
-        void StopReading();
-        void SplitAudioData(const std::vector<int32_t>& buffer);
+        std::vector<int32_t> readAudioData();
+        void startReadingMicrophone();
+        void startReadingSineWave(double frequency);
+        void stopReading();
+        void splitAudioData(const std::vector<int32_t>& buffer);
         std::string find_device(std::string targetDevice);
 
         
@@ -46,10 +46,14 @@ class I2SMicrophone
         std::atomic<bool> stopReading_;
         std::thread readingThread_;
         std::thread sineWaveThread_;
-        Signal<std::vector<int32_t>>* inputSignal_;
-        Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
-        Signal<std::vector<int32_t>>* inputSignalRightChannel_;
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignal_;
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalLeftChannel_;
+        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalRightChannel_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneSignalCallback_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneLeftChannelSignalCallback_;
         std::function<void(const std::vector<int32_t>&, void*)> microphoneRightChannelSignalCallback_;
+        std::shared_ptr<Signal<float>> minDbSignal_;
+        std::shared_ptr<Signal<float>> maxDbSignal_;
+        std::function<void(const float&, void*)> minDbSignalCallback_;
+        std::function<void(const float&, void*)> maxDbSignalCallback_;
 };

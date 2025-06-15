@@ -65,7 +65,7 @@ const MENU_STRUCTURE = {
 function App() {
   const socket = useContext(WebSocketContext);
   const [visible, setVisible] = useState(false);
-  const [screen, setScreen] = useState<ScreenType>(SCREENS.WAVE_SCREEN);
+  const [screen, setScreen] = useState<ScreenType>(SCREENS.HORIZONTAL_STEREO_SPECTRUM);
   const menuKeys = Object.keys(MENU_STRUCTURE) as Array<keyof typeof MENU_STRUCTURE>;
   const [menuStack, setMenuStack] = useState<(keyof typeof MENU_STRUCTURE)[]>([menuKeys[0]]);
   const currentMenuKey = menuStack[menuStack.length - 1];

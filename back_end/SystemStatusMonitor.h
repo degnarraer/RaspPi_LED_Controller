@@ -14,17 +14,17 @@ class SystemStatusMonitor
 public:
     SystemStatusMonitor(std::shared_ptr<WebSocketServer> webSocketServer)
         : webSocketServer_(webSocketServer)
-        , logger_(InitializeLogger("SystemStatusMonitor", spdlog::level::info))
-        , cpuUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Usage")))
-        , memoryUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Memory Usage")))
-        , cpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("CPU Temp")))
-        , gpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("GPU Temp")))
-        , throttleStatusSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Throttle Status")))
-        , netRxSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Network RX")))
-        , netTxSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Network TX")))
-        , diskUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Disk Usage")))
-        , loadAvgSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Load Average")))
-        , uptimeSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::GetInstance().GetSharedSignalByName("Uptime")))
+        , logger_(initializeLogger("SystemStatusMonitor", spdlog::level::info))
+        , cpuUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("CPU Usage")))
+        , memoryUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("CPU Memory Usage")))
+        , cpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("CPU Temp")))
+        , gpuTempSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("GPU Temp")))
+        , throttleStatusSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Throttle Status")))
+        , netRxSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Network RX")))
+        , netTxSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Network TX")))
+        , diskUsageSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Disk Usage")))
+        , loadAvgSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Load Average")))
+        , uptimeSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Uptime")))
         , running_(false)
     {
         logger_->info("SystemStatusMonitor initialized.");
@@ -295,7 +295,7 @@ private:
         if (cpuTempSignal_)
         {
             valueS = fmt::format("{:.2f} °C", valueF);
-            cpuTempSignal_->SetValue(valueS);
+            cpuTempSignal_->setValue(valueS);
             logger_->debug("CPU Temp: {}", valueS);
         }
 
@@ -304,7 +304,7 @@ private:
         if (cpuUsageSignal_)
         {
             valueS = fmt::format("{:.2f} %", valueF);
-            cpuUsageSignal_->SetValue(valueS);
+            cpuUsageSignal_->setValue(valueS);
             logger_->debug("CPU Usage: {}", valueS);
         }
 
@@ -313,7 +313,7 @@ private:
         if (memoryUsageSignal_)
         {
             valueS = fmt::format("{:.2f} %", valueF);
-            memoryUsageSignal_->SetValue(valueS);
+            memoryUsageSignal_->setValue(valueS);
             logger_->debug("Memory Usage: {}", valueS);
         }
 
@@ -322,7 +322,7 @@ private:
         if (gpuTempSignal_)
         {
             valueS = fmt::format("{:.2f} °C", valueF);
-            gpuTempSignal_->SetValue(valueS);
+            gpuTempSignal_->setValue(valueS);
             logger_->debug("GPU Temp: {}", valueS);
         }
 
@@ -330,7 +330,7 @@ private:
         valueS = getThrottleStatus();
         if (throttleStatusSignal_)
         {
-            throttleStatusSignal_->SetValue(valueS);
+            throttleStatusSignal_->setValue(valueS);
             logger_->debug("Throttle Status: {}", valueS);
         }
 
@@ -340,13 +340,13 @@ private:
         if (netRxSignal_)
         {
             valueS = fmt::format("{:.2f} KB", rx);
-            netRxSignal_->SetValue(valueS);
+            netRxSignal_->setValue(valueS);
             logger_->debug("Net RX: {}", valueS);
         }
         if (netTxSignal_)
         {
             valueS = fmt::format("{:.2f} KB", tx);
-            netTxSignal_->SetValue(valueS);
+            netTxSignal_->setValue(valueS);
             logger_->debug("Net TX: {}", valueS);
         }
 
@@ -355,7 +355,7 @@ private:
         if (diskUsageSignal_)
         {
             valueS = fmt::format("{:.2f} %", valueF);
-            diskUsageSignal_->SetValue(valueS);
+            diskUsageSignal_->setValue(valueS);
             logger_->debug("Disk Usage: {}", valueS);
         }
 
@@ -363,7 +363,7 @@ private:
         valueS = getLoadAverage();
         if (loadAvgSignal_)
         {
-            loadAvgSignal_->SetValue(valueS);
+            loadAvgSignal_->setValue(valueS);
             logger_->debug("Load Average: {}", valueS);
         }
 
@@ -371,7 +371,7 @@ private:
         valueS = getUptime();
         if (uptimeSignal_)
         {
-            uptimeSignal_->SetValue(valueS);
+            uptimeSignal_->setValue(valueS);
             logger_->debug("Uptime: {}", valueS);
         }
     }

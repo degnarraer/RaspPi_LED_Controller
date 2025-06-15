@@ -1,34 +1,55 @@
 #pragma once
 
+#include <vector>
+#include <thread>
+#include <mutex>
 #include <memory>
 #include <cstdint>
 #include <spdlog/spdlog.h>
-#include <ws2811.h>
-#include "logger.h"
+#include "signals/DataTypesAndEncoders/DataTypesAndEncoders.h"
 
 class LED_Controller
 {
 public:
-    LED_Controller(int ledCount = 60, int gpioPin = 13);
+    explicit LED_Controller( int ledCount );
     ~LED_Controller();
 
-    void Run();
-    void Stop();
-    void Clear();
-    void SetColor(uint32_t color);
-    void CalculateCurrent();
+    void run();
+    void stop();
+
+    void setColor(uint32_t color);          // Set all LEDs color (full brightness)
+    void setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float brightness = 1.0f);
+    void clear();
+
+    // Set global user brightness (0.0 - 1.0)
+    void setUserGlobalBrightness(float brightness);
+
+    // Set global device brightness (0-31)
+    void setDeviceGlobalBrightness(uint8_t brightness);
+
+    void calculateCurrent();
 
 private:
-    std::shared_ptr<spdlog::logger> logger_;
-    std::shared_ptr<RateLimitedLogger> rate_limited_log_;
-    std::thread ledRenderThread_;
-    ws2811_t ledstring_;
-    std::mutex led_mutex_;
-    std::atomic<bool> render_in_progress_ = false;
-    int ledCount_;
-    int gpioPin_;
-    bool running_ = false;
+    void renderLoop();
 
-    void InitializeLEDString();
-    void RenderLoop();
+    int openSPI();
+    void sendLEDFrame(int fd, const std::vector<uint8_t>& data);
+
+private:
+    int ledCount_;
+    std::vector<Pixel> ledStrip_;
+
+    bool running_;
+    bool render_in_progress_;
+    std::thread ledRenderThread_;
+    std::mutex led_mutex_;
+
+    float global_user_brightness_ = 1.0f;    // scales all pixels' colors/user brightness
+    uint8_t global_device_brightness_ = 31;  // hardware brightness (0-31) applied to all LEDs
+
+    std::shared_ptr<spdlog::logger> logger_;
+
+    // Constants
+    static constexpr const char* SPI_DEVICE = "/dev/spidev0.0";
+    static constexpr uint32_t SPI_SPEED_HZ = 20000000;
 };

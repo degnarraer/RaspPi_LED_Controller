@@ -18,7 +18,7 @@ public:
                    , std::shared_ptr<WebSocketServer> webSocketServer)                        
                    : Signal<std::vector<int32_t>>(signalName, webSocketServer, get_timestamped_int32_vector_to_binary_encoder())
     {
-        SignalManager::GetInstance().CreateSignal(signalName, webSocketServer, get_timestamped_int32_vector_to_binary_encoder());
+        SignalManager::getInstance().createSignal(signalName, webSocketServer, get_timestamped_int32_vector_to_binary_encoder());
     }
 
 private:

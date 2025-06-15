@@ -9,274 +9,365 @@
 
 
 template<typename T>
+T SignalValue<T>::getValue() const
+{
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    if (!data_)
+    {
+        this->logger_->error("Data is not initialized!");
+        return T();
+    }
+
+    if (this->logger_)
+    {
+        this->logger_->debug("GetValue");
+    }
+    return *data_;
+}
+
+template<typename T>
+bool SignalValue<T>::setValue(const T& value, void* arg)
+{
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    if (!data_)
+    {
+        this->logger_->error("Data is not initialized!");
+        return false;
+    }
+
+    if (*data_ != value)
+    {
+        *data_ = value;
+        this->logger_->debug("SetValue - value changed");
+        return true;
+    }
+    this->logger_->debug("SetValue - value unchanged");
+    return false;
+}
+
+template<typename T>
+bool SignalValue<T>::setValueFromJSON(const json& j)
+{
+    try
+    {
+        this->setValue(j.get<T>());
+        return true;
+    }
+    catch(const std::exception& e)
+    {
+        this->logger_->error("JSON parsing failed: {}", e.what());
+        return false;
+    }
+}
+
+template<typename T>
+void SignalValue<T>::registerSignalValueCallback(SignalValueCallback cb, void* arg)
+{
+    std::lock_guard<std::mutex> lock(callbackMutex_);
+    if (this->logger_)
+    {
+        this->logger_->debug("Register Callback");
+    }
+
+    auto it = std::find_if(this->callbacks_.begin(), this->callbacks_.end(),
+        [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; });
+
+    if (it != this->callbacks_.end())
+    {
+        if (this->logger_)
+        {
+            this->logger_->debug("Existing Callback Updated.");
+        }
+        it->callback = std::move(cb);
+    }
+    else
+    {
+        if (this->logger_)
+        {
+            this->logger_->debug("New Callback Registered.");
+        }
+        this->callbacks_.emplace_back(typename SignalValue<T>::SignalValueCallbackData{std::move(cb), arg});
+    }
+}
+
+template<typename T>
+void SignalValue<T>::unregisterSignalValueCallbackByArg(void* arg)
+{
+    std::lock_guard<std::mutex> lock(callbackMutex_);
+    if (this->logger_)
+    {
+        this->logger_->debug("Callback Unregistered.");
+    }
+
+    this->callbacks_.erase(std::remove_if(this->callbacks_.begin(), this->callbacks_.end(),
+        [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; }), this->callbacks_.end());
+}
+
+template<typename T>
 Signal<T>::Signal( const std::string& name )
-                 : name_(name)
+                 : SignalValue<T>(name)
                  , webSocketServer_(nullptr)
-                 , data_(std::make_shared<T>())
                  , jsonEncoder_(nullptr)
                  , binaryEncoder_(nullptr)
                  , isUsingWebSocket_(false)
 {
-    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
-    logger_->info("Created Signal\n Name: {}\n Type: Internal ", name_);
+    this->logger_ = initializeLogger(name + " Signal Logger", spdlog::level::info);
+    this->logger_->info("Created Signal\n Name: {}\n Type: Internal ", this->name_);
 }
 
 template<typename T>
 Signal<T>::Signal( const std::string& name
-                 , std::shared_ptr<WebSocketServer> webSocketServer
+                 , std::weak_ptr<WebSocketServer> webSocketServer
                  , JsonEncoder<T> jsonEncoder
                  , MessagePriority priority
                  , bool should_retry )
-                 : name_(name)
+                 : SignalValue<T>(name)
                  , webSocketServer_(webSocketServer)
-                 , data_(std::make_shared<T>())
                  , jsonEncoder_(jsonEncoder)
                  , binaryEncoder_(nullptr)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
 {
-    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
-    logger_->info("Created Signal\n Name: {}\n Type: json WebSocket", name_);
+    this->logger_ = initializeLogger(this->name_ + " Signal Logger", spdlog::level::info);
+    this->logger_->info("Created Signal\n Name: {}\n Type: json WebSocket", this->name_);
 }
 
 template<typename T>
 Signal<T>::Signal( const std::string& name
-                 , std::shared_ptr<WebSocketServer> webSocketServer
+                 , std::weak_ptr<WebSocketServer> webSocketServer
                  , BinaryEncoder<T> binaryEncoder
                  , MessagePriority priority
                  , bool should_retry )
-                 : name_(name)
+                 : SignalValue<T>(name)
                  , webSocketServer_(webSocketServer)
-                 , data_(std::make_shared<T>())
                  , jsonEncoder_(nullptr)
                  , binaryEncoder_(binaryEncoder)
                  , priority_(priority)
                  , should_retry_(should_retry)
                  , isUsingWebSocket_(true)
 {
-    logger_ = InitializeLogger(name + " Signal Logger", spdlog::level::info);
-    logger_->info("Created Signal\n Name: {}\n Type: binary WebSocket", name_);
+    this->logger_ = initializeLogger(this->name_ + " Signal Logger", spdlog::level::info);
+    this->logger_->info("Created Signal\n Name: {}\n Type: binary WebSocket", this->name_);
 }
 
 template<typename T>
-void Signal<T>::Setup()
+void Signal<T>::setup()
 {
-    if (webSocketServer_)
+    auto server = webSocketServer_.lock();
+    if (server)
     {
-        webSocketServer_->register_backend_client(this->shared_from_this());
+        server->register_notification_client(this->getName(), this);
     }
     else
     {
-        logger_->warn("WebSocketServer is not initialized.");
+        this->logger_->warn("WebSocketServer is not initialized.");
     }
 }
 
 template<typename T>
-void Signal<T>::SetValue(const T& value, void* arg)
+bool Signal<T>::setValue(const T& value, void* arg)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!data_)
+    bool valueChanged = SignalValue<T>::setValue(value, arg);
+    if(valueChanged)
     {
-        logger_->error("Data is not initialized!");
-        return;
+        notifyClients(arg);
+        notifyWebSocket();
     }
-
-    if (logger_)
-    {
-        logger_->debug("SetValue");
-    }
-
-    *data_ = value;
-    NotifyClients(arg);
-    NotifyWebSocket();
+    return valueChanged;
 }
 
 template<typename T>
-T Signal<T>::GetValue() const
+bool Signal<T>::notifyClients(void* arg) const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!data_)
+    this->logger_->debug("NotifyClients.");
+
+    if (this->callbacks_.empty())
     {
-        logger_->error("Data is not initialized!");
-        return T();  // Return default-constructed T
+        this->logger_->debug("No callbacks registered.");
+        return false;
     }
 
-    if (logger_)
+    if (!this->data_)
     {
-        logger_->debug("GetValue");
+        this->logger_->error("{}: Data is not initialized.", this->name_);
+        return false;
     }
 
-    return *data_;
-}
-
-template<typename T>
-void Signal<T>::RegisterCallback(Callback cb, void* arg)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (logger_)
-    {
-        logger_->debug("Register Callback");
-    }
-
-    auto it = std::find_if(callbacks_.begin(), callbacks_.end(),
-        [arg](const typename ISignalValue<T>::CallbackData& data) { return data.arg == arg; });
-
-    if (it != callbacks_.end())
-    {
-        if (logger_)
-        {
-            logger_->debug("Existing Callback Updated.");
-        }
-        it->callback = std::move(cb);
-    }
-    else
-    {
-        if (logger_)
-        {
-            logger_->debug("New Callback Registered.");
-        }
-        callbacks_.emplace_back(typename ISignalValue<T>::CallbackData{std::move(cb), arg});
-    }
-}
-
-template<typename T>
-void Signal<T>::UnregisterCallbackByArg(void* arg)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (logger_)
-    {
-        logger_->debug("Callback Unregistered.");
-    }
-
-    callbacks_.erase(std::remove_if(callbacks_.begin(), callbacks_.end(),
-        [arg](const typename ISignalValue<T>::CallbackData& data) { return data.arg == arg; }), callbacks_.end());
-}
-
-template<typename T>
-const std::string& Signal<T>::GetName() const
-{
-    return name_;
-}
-
-template<typename T>
-void Signal<T>::on_message_received_from_web_socket(const std::string& message)
-{
-    if (logger_)
-    {
-        logger_->info("Received WebSocket message: {}", message);
-    }
-}
-
-template<typename T>
-void Signal<T>::NotifyClients(void* arg)
-{
-    logger_->debug("NotifyClients.");
-
-    if (callbacks_.empty())
-    {
-        logger_->debug("No callbacks registered.");
-        return;
-    }
-
-    if (!data_)
-    {
-        logger_->error("{}: Data is not initialized.", name_);
-        return;
-    }
-
-    for (const auto& aCallback : callbacks_)
+    for (const auto& aCallback : this->callbacks_)
     {
         if (aCallback.callback)
         {
-            aCallback.callback(*data_, aCallback.arg);
+            aCallback.callback(*this->data_, aCallback.arg);
         }
         else
         {
-            logger_->warn("Found a null callback.");
+            this->logger_->warn("Found a null callback.");
         }
     }
+    return true;
 }
 
-
 template<typename T>
-void Signal<T>::NotifyWebSocket()
+bool Signal<T>::notifyWebSocket() const
 {
-    if(!isUsingWebSocket_) return;
-    if (!data_)
+    if (!isUsingWebSocket_) 
+        return false;
+
+    if (!this->data_)
     {
-        logger_->error("{}: Data is not initialized.", name_);
-        return;
+        this->logger_->error("{}: Data is not initialized.", this->name_);
+        return false;
     }
-    logger_->debug("NotifyWebSocket: {}", to_string(*data_));
-    
-    if (!webSocketServer_)
+
+    auto server = webSocketServer_.lock();
+    if (!server)
     {
-        logger_->error("{}: WebSocketServer is not initialized.", name_);
-        return;
+        this->logger_->error("{}: WebSocketServer has expired or not set for {}", this->name_);
+        return false;
     }
-    
+
     if (!jsonEncoder_ && !binaryEncoder_)
     {
-        logger_->error("{}: Encoder is not initialized.", name_);
-        return;
+        this->logger_->error("{}: No encoder provided.", this->name_);
+        return false;
     }
 
-    if(jsonEncoder_)
+    std::shared_ptr<T> dataCopy;
     {
-        std::string jsonMessage = jsonEncoder_(name_, *data_);
-        webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(jsonMessage, priority_, should_retry_));
+        std::lock_guard<std::mutex> lock(this->dataMutex_);
+        dataCopy = this->data_;
     }
-    else if(binaryEncoder_)
+
+    if (!dataCopy) return false;
+
+    // Protect to_string from crashing
+    try
     {
-        const std::vector<uint8_t> binaryMessage = binaryEncoder_(name_, *data_);
-        webSocketServer_->broadcast_signal_to_websocket(name_, WebSocketMessage(binaryMessage, priority_, should_retry_));
+        this->logger_->debug("NotifyWebSocket: {}", to_string(*dataCopy));
     }
+    catch (const std::exception& e)
+    {
+        this->logger_->warn("{}: Exception in to_string: {}", this->name_, e.what());
+        return false;
+    }
+    catch (...)
+    {
+        this->logger_->warn("{}: Unknown exception in to_string", this->name_);
+        return false;
+    }
+
+    // JSON Encoder
+    if (jsonEncoder_)
+    {
+        try
+        {
+            auto msg = jsonEncoder_(this->name_, *dataCopy);
+            auto wsMsg = std::make_shared<WebSocketMessage>(msg, priority_, should_retry_);
+            server->broadcast_signal_to_websocket(this->name_, std::move(wsMsg));
+        }
+        catch (const std::exception& e)
+        {
+            this->logger_->error("{}: Exception in jsonEncoder: {}", this->name_, e.what());
+            return false;
+        }
+        catch (...)
+        {
+            this->logger_->error("{}: Unknown exception in jsonEncoder", this->name_);
+            return false;
+        }
+    }
+    else if (binaryEncoder_)
+    {
+        try
+        {
+            auto msg = binaryEncoder_(this->name_, *dataCopy);
+            if (!msg.empty())
+            {
+                auto wsMsg = std::make_shared<WebSocketMessage>(msg, priority_, should_retry_);
+                server->broadcast_signal_to_websocket(this->name_, std::move(wsMsg));
+            }
+            else
+            {
+                this->logger_->warn("{}: Binary encoder returned empty message, not sending.", this->name_);
+                return false;
+            }
+        }
+        catch (const std::exception& e)
+        {
+            this->logger_->error("{}: Exception in binaryEncoder: {}", this->name_, e.what());
+            return false;
+        }
+        catch (...)
+        {
+            this->logger_->error("{}: Unknown exception in binaryEncoder", this->name_);
+            return false;
+        }
+    }
+    return true;
 }
 
 template<typename T>
-std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name)
+std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
     if (it != signals_.end())
     {
-        return std::static_pointer_cast<Signal<T>>(it->second);
+        auto existing = std::dynamic_pointer_cast<Signal<T>>(it->second);
+        if (!existing)
+        {
+            throw std::runtime_error("Type mismatch for signal: " + name);
+        }
+        return existing;
     }
-    
+
     auto signal = std::make_shared<Signal<T>>(name);
     signals_[name] = signal;
     return signal;
 }
 
 template<typename T>
-std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, JsonEncoder<T> encoder)
+std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name,
+                                                       std::shared_ptr<WebSocketServer> webSocketServer,
+                                                       JsonEncoder<T> encoder)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
     if (it != signals_.end())
     {
-        return std::static_pointer_cast<Signal<T>>(it->second);
+        auto existing = std::dynamic_pointer_cast<Signal<T>>(it->second);
+        if (!existing)
+        {
+            throw std::runtime_error("Type mismatch for signal: " + name);
+        }
+        return existing;
     }
 
     auto signal = std::make_shared<Signal<T>>(name, webSocketServer, encoder);
-    signal->Setup();
+    signal->setup();
     signals_[name] = signal;
     return signal;
 }
 
 template<typename T>
-std::shared_ptr<Signal<T>> SignalManager::CreateSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder)
+std::shared_ptr<Signal<T>> SignalManager::createSignal(const std::string& name, std::shared_ptr<WebSocketServer> webSocketServer, BinaryEncoder<T> encoder)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(signal_mutex_);
     auto it = signals_.find(name);
     if (it != signals_.end())
     {
-        return std::static_pointer_cast<Signal<T>>(it->second);
+        auto existing = std::dynamic_pointer_cast<Signal<T>>(it->second);
+        if (!existing)
+        {
+            throw std::runtime_error("Type mismatch for signal: " + name);
+        }
+        return existing;
     }
 
     auto signal = std::make_shared<Signal<T>>(name, webSocketServer, encoder);
-    signal->Setup();
+    signal->setup();
     signals_[name] = signal;
     return signal;
 }
+
