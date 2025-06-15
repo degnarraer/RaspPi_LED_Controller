@@ -63,7 +63,7 @@ void RainbowAnimation::AnimateFrame()
     const int height = grid_.getHeight();
 
     // Normalize amplitude to [0, 1]
-    float normalized = std::clamp(leftBinData_.maxValue / 100.0f, 0.0f, 1.0f);
+    float normalized = leftBinData_.normalizedMaxValue;
 
     // Get bright rainbow color
     RGB color = BinToRainbowRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized);

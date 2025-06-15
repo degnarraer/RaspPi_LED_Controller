@@ -8,16 +8,16 @@ struct BinData
     uint16_t minBin = 0;
     uint16_t maxBin = 0;
     uint16_t totalBins = 0;
-    float minValue = 0.0;
-    float maxValue = 0.0;
+    float normalizedMinValue = 0.0;
+    float normalizedMaxValue = 0.0;
 
     bool operator==(const BinData& other) const
     {
         return minBin == other.minBin &&
             maxBin == other.maxBin &&
             totalBins == other.totalBins &&
-            minValue == other.minValue &&
-            maxValue == other.maxValue;
+            normalizedMinValue == other.normalizedMinValue &&
+            normalizedMaxValue == other.normalizedMaxValue;
     }
 
     bool operator!=(const BinData& other) const
@@ -33,8 +33,8 @@ inline void to_json(json& j, const BinData& data)
         {"minBin", data.minBin},
         {"maxBin", data.maxBin},
         {"totalBins", data.totalBins},
-        {"minValue", data.minValue},
-        {"maxValue", data.maxValue}
+        {"normalizeMinValue", data.normalizedMinValue},
+        {"normalizeMaxValue", data.normalizedMaxValue}
     };
 }
 
@@ -43,8 +43,8 @@ inline void from_json(const json& j, BinData& data)
     j.at("minBin").get_to(data.minBin);
     j.at("maxBin").get_to(data.maxBin);
     j.at("totalBins").get_to(data.totalBins);
-    j.at("minValue").get_to(data.minValue);
-    j.at("maxValue").get_to(data.maxValue);
+    j.at("normalizeMinValue").get_to(data.normalizedMinValue);
+    j.at("normalizeMaxValue").get_to(data.normalizedMaxValue);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const BinData& data)
@@ -52,8 +52,8 @@ inline std::ostream& operator<<(std::ostream& os, const BinData& data)
     os << "BinData{minBin=" << data.minBin
        << ", maxBin=" << data.maxBin
        << ", totalBins=" << data.totalBins
-       << ", minValue=" << data.minValue
-       << ", maxValue=" << data.maxValue
+       << ", normalizedMinValue=" << data.normalizedMinValue
+       << ", normalizedMaxValue=" << data.normalizedMaxValue
        << "}";
     return os;
 }
@@ -114,8 +114,8 @@ inline std::istream& operator>>(std::istream& is, BinData& data)
     if (!parseKeyValue("minBin", data.minBin)) { is.setstate(std::ios::failbit); return is; }
     if (!parseKeyValue("maxBin", data.maxBin)) { is.setstate(std::ios::failbit); return is; }
     if (!parseKeyValue("totalBins", data.totalBins)) { is.setstate(std::ios::failbit); return is; }
-    if (!parseKeyValue("minValue", data.minValue)) { is.setstate(std::ios::failbit); return is; }
-    if (!parseKeyValue("maxValue", data.maxValue, true)) { is.setstate(std::ios::failbit); return is; }
+    if (!parseKeyValue("normalizeMinValue", data.normalizedMinValue)) { is.setstate(std::ios::failbit); return is; }
+    if (!parseKeyValue("normalizeMaxValue", data.normalizedMaxValue, true)) { is.setstate(std::ios::failbit); return is; }
 
     return is;
 }

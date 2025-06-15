@@ -15,7 +15,7 @@ class WebSocketServerNotificationClient
 {
 public:
     virtual const std::string& getName() const = 0;
-    virtual void onValueRequest() const = 0;
+    virtual bool handleWebSocketValueRequest() const = 0;
 };
 
 class WebSocketServer : public std::enable_shared_from_this<WebSocketServer>

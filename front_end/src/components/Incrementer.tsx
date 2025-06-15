@@ -11,11 +11,14 @@ interface IncrementerProps {
     holdIntervalMs?: number;
     boxStyle?: React.CSSProperties;
     buttonStyle?: React.CSSProperties;
+    onChange?: (value: number) => void;
 }
 
 interface IncrementerState {
-    value: number;             // read-back value from server
-    requestedValue: number;    // value last sent to server
+    value: number;
+    requestedValue: number;
+    pendingUpdate: boolean;
+    hasRequested: boolean;
 }
 
 export default class Incrementer extends Component<IncrementerProps, IncrementerState> {
@@ -28,13 +31,17 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
     };
 
     private holdTimer: NodeJS.Timeout | null = null;
+    private _incrementerOnOpen?: () => void;
 
     constructor(props: IncrementerProps) {
         super(props);
         this.state = {
             value: 0,
             requestedValue: 0,
+            pendingUpdate: false,
+            hasRequested: false,
         };
+
     }
 
     componentDidMount() {
@@ -50,13 +57,13 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
         const { socket, signal } = this.props;
         if (!socket) return;
 
-        (this as any)._incrementerOnOpen = () => {
+        this._incrementerOnOpen = () => {
             socket.subscribe(signal, this.handleSignalValue);
         };
-        socket.onOpen((this as any)._incrementerOnOpen);
+        socket.onOpen(this._incrementerOnOpen);
 
-        if (socket.isOpen && socket.isOpen()) {
-            (this as any)._incrementerOnOpen();
+        if (socket.isOpen?.()) {
+            this._incrementerOnOpen();
         }
     }
 
@@ -66,31 +73,36 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
 
         socket.unsubscribe(signal, this.handleSignalValue);
 
-        const onOpen = (this as any)._incrementerOnOpen;
-        if (onOpen && socket.removeOnOpen) {
-            socket.removeOnOpen(onOpen);
+        if (this._incrementerOnOpen && socket.removeOnOpen) {
+            socket.removeOnOpen(this._incrementerOnOpen);
         }
-        delete (this as any)._incrementerOnOpen;
+        this._incrementerOnOpen = undefined;
     }
 
     handleSignalValue = (message: WebSocketMessage) => {
-        if (message.type === 'signal') {
+        if (message.type === 'signal value message') {
             const val = message.value;
             if (typeof val === 'number') {
-                const clamped = Math.min(
-                    this.props.max!,
-                    Math.max(this.props.min!, val)
-                );
-                this.setState({ value: clamped });
+                const clamped = Math.min(this.props.max!, Math.max(this.props.min!, val));
+                this.setState((prevState) => {
+                    const shouldClearPending =
+                        prevState.hasRequested && clamped === prevState.requestedValue;
+
+                    return {
+                        value: clamped,
+                        pendingUpdate: shouldClearPending ? false : prevState.pendingUpdate,
+                    };
+                });
+                this.props.onChange?.(clamped);
             }
         }
     };
 
     sendValue(value: number) {
         const { socket, signal } = this.props;
-        if (socket && socket.isOpen && socket.isOpen()) {
+        if (socket?.isOpen?.()) {
             socket.sendMessage({
-                type: 'signal',
+                type: 'signal value message',
                 signal,
                 value,
             });
@@ -103,21 +115,26 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             this.props.max!,
             Math.max(this.props.min!, this.state.value + delta)
         );
-        this.setState({ value: newValue, requestedValue: newValue }, () => {
-            this.sendValue(newValue);
-        });
+
+        if (newValue !== this.state.requestedValue) {
+            this.setState(
+                {
+                    requestedValue: newValue,
+                    pendingUpdate: true,
+                    hasRequested: true,
+                },
+                () => this.sendValue(newValue)
+            );
+        }
     }
+
 
     startHold = (delta: number) => {
         const { holdEnabled, holdIntervalMs } = this.props;
-        if (!holdEnabled) {
-            this.changeValue(delta);
-            return;
-        }
-        // Immediate change once on press
-        this.changeValue(delta);
 
-        // Start repeating change every holdIntervalMs
+        this.changeValue(delta); // immediate
+        if (!holdEnabled) return;
+
         this.clearHoldTimer();
         this.holdTimer = setInterval(() => {
             this.changeValue(delta);
@@ -132,7 +149,8 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
     };
 
     render() {
-        const { boxStyle, buttonStyle, step } = this.props;
+        const { boxStyle, buttonStyle, step, min, max } = this.props;
+        const { value } = this.state;
 
         const defaultBoxStyle: React.CSSProperties = {
             display: 'flex',
@@ -140,7 +158,6 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             justifyContent: 'center',
             border: '1px solid white',
             borderRadius: 4,
-            // color will be dynamic below
             width: 80,
             height: 40,
             userSelect: 'none',
@@ -159,15 +176,13 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             userSelect: 'none',
         };
 
-        // Change color to yellow if requestedValue != read-back value
-        const textColor =
-            this.state.requestedValue !== this.state.value ? 'yellow' : 'white';
+        const textColor = this.state.pendingUpdate ? 'yellow' : 'white';
 
         return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <button
                     style={{ ...defaultButtonStyle, ...buttonStyle }}
-                    aria-label="-"
+                    aria-label="Decrease value"
                     onMouseDown={() => this.startHold(-(step ?? 1))}
                     onMouseUp={this.clearHoldTimer}
                     onMouseLeave={this.clearHoldTimer}
@@ -178,13 +193,20 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
                     –
                 </button>
 
-                <div style={{ ...defaultBoxStyle, ...boxStyle, color: textColor }}>
-                    {this.state.value}
+                <div
+                    style={{ ...defaultBoxStyle, ...boxStyle, color: textColor }}
+                    role="spinbutton"
+                    aria-valuemin={min}
+                    aria-valuemax={max}
+                    aria-valuenow={value}
+                    aria-live="polite"
+                >
+                    {value}
                 </div>
 
                 <button
                     style={{ ...defaultButtonStyle, ...buttonStyle }}
-                    aria-label="+"
+                    aria-label="Increase value"
                     onMouseDown={() => this.startHold(step ?? 1)}
                     onMouseUp={this.clearHoldTimer}
                     onMouseLeave={this.clearHoldTimer}

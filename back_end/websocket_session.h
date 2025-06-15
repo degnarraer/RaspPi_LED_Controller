@@ -32,18 +32,17 @@ class MessageTypeHelper
 public:
     enum class MessageType
     {
-        Subscribe,
-        Unsubscribe,
-        Text,
-        Signal,
-        Echo,
+        Signal_Subscribe_Message,
+        Signal_Unsubscribe_Message,
+        Signal_Value_Request_Message,
+        Text_Message,
+        Signal_Value_Message,
+        Echo_Message,
         Unknown
     };
 
     static MessageType FromString(const std::string& str);
     static std::string ToString(MessageType type);
-
-protected:
     static const std::unordered_map<std::string, MessageType> string_to_type_;
     static const std::unordered_map<MessageType, std::string> type_to_string_;
 };
@@ -97,10 +96,11 @@ class WebSocketSessionMessageManager : public MessageTypeHelper
         bool isSubscribedToSignal(const std::string& signal_name) const;
 
         void handleStringMessage(const std::string& message);
-        void handleSubscribe(const json& incoming);
-        void handleUnsubscribe(const json& incoming);
+        void handleSignalSubscribe(const json& incoming);
+        void handleSignalUnsubscribe(const json& incoming);
+        void handleSignalValueRequest(const json& incoming);
         void handleTextMessage(const json& incoming);
-        void handleSignalMessage(const json& incoming);
+        void handleSignalValueMessage(const json& incoming);
         void handleEchoMessage(const json& incoming);
         void handleUnknownMessage(const json& incoming);
 

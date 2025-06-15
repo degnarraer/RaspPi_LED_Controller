@@ -6,6 +6,7 @@
 #include "Encoder_Binary.h"
 #include "Encoder_Json.h"
 #include "Encoder_String.h"
+#include "../../websocket_session.h"
 
 template<typename T>
 JsonEncoder<T> get_signal_and_value_encoder()
@@ -14,7 +15,7 @@ JsonEncoder<T> get_signal_and_value_encoder()
         "T must be serializable to nlohmann::json");
     const JsonEncoder<T> encoder = [](const std::string& signal, const T& value) {
         json j;
-        j["type"] = "signal";
+        j["type"] = MessageTypeHelper::type_to_string_.at(MessageTypeHelper::MessageType::Signal_Value_Message);
         j["signal"] = signal;
         j["value"] = value;
         return j.dump();
@@ -42,7 +43,7 @@ inline json encode_labels_with_values(const std::vector<std::string>& labels, co
 inline std::string encode_signal_name_and_json(const std::string& signal, const json& value)
 {
     json j;
-    j["type"] = "signal";
+    j["type"] = MessageTypeHelper::type_to_string_.at(MessageTypeHelper::MessageType::Signal_Value_Message);
     j["signal"] = signal;
     j["value"] = value;
     return j.dump();

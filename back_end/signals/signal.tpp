@@ -45,24 +45,6 @@ bool SignalValue<T>::setValue(const T& value, void* arg)
     return false;
 }
 
-
-/*
-template<typename T>
-bool SignalValue<T>::setValueFromString(const std::string& value_str)
-{
-    try
-    {
-        *data_ = from_string(value_str);
-        return true;
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Parsing failed: " << e.what() << "\n";
-        return false;
-    }
-}
-*/
-
 template<typename T>
 bool SignalValue<T>::setValueFromJSON(const json& j)
 {
@@ -196,20 +178,20 @@ bool Signal<T>::setValue(const T& value, void* arg)
 }
 
 template<typename T>
-void Signal<T>::notifyClients(void* arg)
+bool Signal<T>::notifyClients(void* arg) const
 {
     this->logger_->debug("NotifyClients.");
 
     if (this->callbacks_.empty())
     {
         this->logger_->debug("No callbacks registered.");
-        return;
+        return false;
     }
 
     if (!this->data_)
     {
         this->logger_->error("{}: Data is not initialized.", this->name_);
-        return;
+        return false;
     }
 
     for (const auto& aCallback : this->callbacks_)
@@ -223,30 +205,32 @@ void Signal<T>::notifyClients(void* arg)
             this->logger_->warn("Found a null callback.");
         }
     }
+    return true;
 }
 
 template<typename T>
-void Signal<T>::notifyWebSocket()
+bool Signal<T>::notifyWebSocket() const
 {
-    if (!isUsingWebSocket_) return;
+    if (!isUsingWebSocket_) 
+        return false;
 
     if (!this->data_)
     {
         this->logger_->error("{}: Data is not initialized.", this->name_);
-        return;
+        return false;
     }
 
     auto server = webSocketServer_.lock();
     if (!server)
     {
         this->logger_->error("{}: WebSocketServer has expired or not set for {}", this->name_);
-        return;
+        return false;
     }
 
     if (!jsonEncoder_ && !binaryEncoder_)
     {
         this->logger_->error("{}: No encoder provided.", this->name_);
-        return;
+        return false;
     }
 
     std::shared_ptr<T> dataCopy;
@@ -255,7 +239,7 @@ void Signal<T>::notifyWebSocket()
         dataCopy = this->data_;
     }
 
-    if (!dataCopy) return;
+    if (!dataCopy) return false;
 
     // Protect to_string from crashing
     try
@@ -265,10 +249,12 @@ void Signal<T>::notifyWebSocket()
     catch (const std::exception& e)
     {
         this->logger_->warn("{}: Exception in to_string: {}", this->name_, e.what());
+        return false;
     }
     catch (...)
     {
         this->logger_->warn("{}: Unknown exception in to_string", this->name_);
+        return false;
     }
 
     // JSON Encoder
@@ -283,15 +269,15 @@ void Signal<T>::notifyWebSocket()
         catch (const std::exception& e)
         {
             this->logger_->error("{}: Exception in jsonEncoder: {}", this->name_, e.what());
+            return false;
         }
         catch (...)
         {
             this->logger_->error("{}: Unknown exception in jsonEncoder", this->name_);
+            return false;
         }
     }
-
-    // Binary Encoder
-    if (binaryEncoder_)
+    else if (binaryEncoder_)
     {
         try
         {
@@ -304,17 +290,21 @@ void Signal<T>::notifyWebSocket()
             else
             {
                 this->logger_->warn("{}: Binary encoder returned empty message, not sending.", this->name_);
+                return false;
             }
         }
         catch (const std::exception& e)
         {
             this->logger_->error("{}: Exception in binaryEncoder: {}", this->name_, e.what());
+            return false;
         }
         catch (...)
         {
             this->logger_->error("{}: Unknown exception in binaryEncoder", this->name_);
+            return false;
         }
     }
+    return true;
 }
 
 template<typename T>

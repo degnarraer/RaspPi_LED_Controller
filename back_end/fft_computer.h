@@ -310,33 +310,41 @@ class FFTComputer
             logger_->trace("SAE Band Values: {}", result);
         }
 
+        float normalizeDb(float amplitude)
+        {
+            float db = 20.0f * std::log10(amplitude + 1e-6f);
+            float normalized = (db - minDbValue_) / (maxDbValue_ - minDbValue_);
+            return std::clamp(normalized, 0.0f, 1.0f);
+        }
+
         void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands, BinData& binData)
         {
             float freqResolution = static_cast<float>(sampleRate_) / fft_size_;
 
             // Initialize min/max amplitude and bin indices
-            binData.minValue = std::numeric_limits<float>::max();
-            binData.maxValue = std::numeric_limits<float>::lowest();
+            binData.normalizedMinValue = std::numeric_limits<float>::max();
+            binData.normalizedMaxValue = std::numeric_limits<float>::lowest();
             binData.minBin = 0;
             binData.maxBin = 0;
 
             // Find min/max amplitude and their bin indices across all magnitudes
             for (size_t i = 0; i < magnitudes.size(); ++i)
             {
-                if (magnitudes[i] < binData.minValue)
+                if (magnitudes[i] < binData.normalizedMinValue)
                 {
-                    binData.minValue = magnitudes[i];
+                    binData.normalizedMinValue = magnitudes[i];
                     binData.minBin = static_cast<uint16_t>(i);
                 }
-                if (magnitudes[i] > binData.maxValue)
+                if (magnitudes[i] > binData.normalizedMaxValue)
                 {
-                    binData.maxValue = magnitudes[i];
+                    binData.normalizedMaxValue = magnitudes[i];
                     binData.maxBin = static_cast<uint16_t>(i);
                 }
             }
 
-            binData.minValue = 20.0f * std::log10(binData.minValue + 1e-6f);
-            binData.maxValue = 20.0f * std::log10(binData.maxValue + 1e-6f);
+            // Normalize to 0–1.0
+            binData.normalizedMinValue = normalizeDb(binData.normalizedMinValue);
+            binData.normalizedMaxValue = normalizeDb(binData.normalizedMaxValue);
 
             // Compute SAE bands
             for (size_t i = 0; i < ISO_32_BAND_CENTERS.size(); ++i)
@@ -378,14 +386,9 @@ class FFTComputer
 
                 if (count > 0)
                 {
-                    saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count)); // RMS
-
-                    // Convert to dB
-                    saeBands[i] = 20.0f * std::log10(saeBands[i] + 1e-6f); // avoid log(0)
-
-                    // Normalize to 0–1.0
-                    saeBands[i] = (saeBands[i] - minDbValue_) / (maxDbValue_ - minDbValue_);
-                    saeBands[i] = std::clamp(saeBands[i], 0.0f, 1.0f);
+                    // RMS
+                    saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count));
+                    saeBands[i] = normalizeDb(saeBands[i]);
                 }
                 else
                 {

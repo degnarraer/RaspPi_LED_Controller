@@ -7,20 +7,22 @@
 #define BASE_BACKOFF_MS 100
 
 const std::unordered_map<std::string, MessageTypeHelper::MessageType> MessageTypeHelper::string_to_type_ = {
-    {"subscribe", MessageTypeHelper::MessageType::Subscribe},
-    {"unsubscribe", MessageTypeHelper::MessageType::Unsubscribe},
-    {"text", MessageTypeHelper::MessageType::Text},
-    {"signal", MessageTypeHelper::MessageType::Signal},
-    {"echo", MessageTypeHelper::MessageType::Echo},
+    {"signal subscribe message", MessageTypeHelper::MessageType::Signal_Subscribe_Message},
+    {"signal unsubscribe message", MessageTypeHelper::MessageType::Signal_Unsubscribe_Message},
+    {"signal value request message", MessageTypeHelper::MessageType::Signal_Value_Request_Message},
+    {"text message", MessageTypeHelper::MessageType::Text_Message},
+    {"signal value message", MessageTypeHelper::MessageType::Signal_Value_Message},
+    {"echo message", MessageTypeHelper::MessageType::Echo_Message},
     {"unknown", MessageTypeHelper::MessageType::Unknown},
 };
 
 const std::unordered_map<MessageTypeHelper::MessageType, std::string> MessageTypeHelper::type_to_string_ = {
-    {MessageTypeHelper::MessageType::Subscribe, "subscribe"},
-    {MessageTypeHelper::MessageType::Unsubscribe, "unsubscribe"},
-    {MessageTypeHelper::MessageType::Text, "text"},
-    {MessageTypeHelper::MessageType::Signal, "signal"},
-    {MessageTypeHelper::MessageType::Echo, "echo"},
+    {MessageTypeHelper::MessageType::Signal_Subscribe_Message, "signal subscribe message"},
+    {MessageTypeHelper::MessageType::Signal_Unsubscribe_Message, "signal unsubscribe message"},
+    {MessageTypeHelper::MessageType::Signal_Value_Request_Message, "signal value request message"},
+    {MessageTypeHelper::MessageType::Text_Message, "text message"},
+    {MessageTypeHelper::MessageType::Signal_Value_Message, "signal value message"},
+    {MessageTypeHelper::MessageType::Echo_Message, "echo message"},
     {MessageTypeHelper::MessageType::Unknown, "unknown"},
 };
 
@@ -62,10 +64,14 @@ bool WebSocketSessionMessageManager::subscribeToSignal(const std::string& signal
     if (result.second)
     {
         session->subscribeToSignalFromServer(signal_name);
-        logger_->info("Subscribed to signal: {}", signal_name);
+        std::string response = "Successfully Subscribed to signal \"" + signal_name + "\"";
+        logger_->info(response);
+        sendEchoResponse(response);
         return true;
     }
-    logger_->warn("Attempted to subscribe to an already subscribed signal: {}", signal_name);
+    std::string response = "Attempted to subscribe to an already subscribed signal: \"" + signal_name + "\"";
+    logger_->warn(response);
+    sendEchoResponse(response);
     return false;
 }
 
@@ -82,7 +88,7 @@ bool WebSocketSessionMessageManager::unsubscribeFromSignal(const std::string& si
     if (erased > 0)
     {
         session->unsubscribeFromSignalFromServer(signal_name);
-        logger_->info("Unsubscribed from signal: {}", signal_name);
+        logger_->info("Unsubscribed from signal: \"{}\"", signal_name);
         return true;
     }
     logger_->warn("Attempted to unsubscribe from a signal not subscribed: {}", signal_name);
@@ -122,20 +128,24 @@ void WebSocketSessionMessageManager::handleStringMessage(const std::string& mess
 
     switch (it->second)
     {
-        case MessageType::Subscribe:
-            handleSubscribe(incoming);
+        case MessageType::Signal_Subscribe_Message:
+            handleSignalSubscribe(incoming);
             break;
 
-        case MessageType::Unsubscribe:
-            handleUnsubscribe(incoming);
+        case MessageType::Signal_Unsubscribe_Message:
+            handleSignalUnsubscribe(incoming);
             break;
 
-        case MessageType::Text:
+        case MessageType::Signal_Value_Request_Message:
+            handleSignalValueRequest(incoming);
+            break;
+
+        case MessageType::Text_Message:
             handleTextMessage(incoming);
             break;
 
-        case MessageType::Signal:
-            handleSignalMessage(incoming);
+        case MessageType::Signal_Value_Message:
+            handleSignalValueMessage(incoming);
             break;
 
         default:
@@ -144,18 +154,26 @@ void WebSocketSessionMessageManager::handleStringMessage(const std::string& mess
     }
 }
 
-void WebSocketSessionMessageManager::handleSubscribe(const json& incoming)
+void WebSocketSessionMessageManager::handleSignalSubscribe(const json& incoming)
 {
     logger_->info("Handle subscribe message.");
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
-        if(subscribeToSignal(incoming["signal"]))
+        auto signal = SignalManager::getInstance().getSharedSignalByName(incoming["signal"].get<std::string>());
+        if(signal)
         {
-            sendEchoResponse("Successfully Subscribed to " + incoming["signal"].get<std::string>());
+            logger_->info("1");
+            if(subscribeToSignal(incoming["signal"]))
+            {
+                logger_->info("2");
+                signal->handleWebSocketValueRequest();
+            }
+            logger_->info("3");
         }
         else
         {
-            sendEchoResponse("Already subscribed to " + incoming["signal"].get<std::string>());
+            logger_->warn("Signal \"{}\" not found.", incoming["signal"].get<std::string>());
+            sendEchoResponse("Signal \"" + incoming["signal"].get<std::string>() + "\" not found.");
         }
     }
     else
@@ -165,24 +183,78 @@ void WebSocketSessionMessageManager::handleSubscribe(const json& incoming)
     }
 }
 
-void WebSocketSessionMessageManager::handleUnsubscribe(const json& incoming)
+void WebSocketSessionMessageManager::handleSignalUnsubscribe(const json& incoming)
 {
     logger_->info("Handle unsubscribe message.");
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
-        if(unsubscribeFromSignal(incoming["signal"]))
+        auto signal = SignalManager::getInstance().getSharedSignalByName(incoming["signal"].get<std::string>());
+        if(signal)
         {
-            sendEchoResponse("Successfully unsubscribed from " + incoming["signal"].get<std::string>());
+            if(unsubscribeFromSignal(incoming["signal"]))
+            {
+                sendEchoResponse("Successfully Subscribed to " + incoming["signal"].get<std::string>());
+            }
+            else
+            {
+                sendEchoResponse("Already unsubscribed to " + incoming["signal"].get<std::string>());
+            }
         }
         else
         {
-            sendEchoResponse("Already unsubscribed from " + incoming["signal"].get<std::string>());
+            std::string response = "Signal \"" + incoming["signal"].get<std::string>() + "\" not found.";
+            logger_->warn(response);
+            sendEchoResponse(response);
+            if(unsubscribeFromSignal(incoming["signal"]))
+            {
+                response = "Successfully unsubscribed from " + incoming["signal"].get<std::string>();
+                sendEchoResponse(response);
+            }
+            else
+            {
+                sendEchoResponse(response);
+            }
         }
     }
     else
     {
         logger_->warn("Unsubscribe message without signal.");
         sendEchoResponse("Unsubscribe message missing signal");
+    }
+}
+
+void WebSocketSessionMessageManager::handleSignalValueRequest(const json& incoming)
+{
+    logger_->info("Handle signal value request message.");
+    if(incoming.contains("signal") && incoming["signal"].is_string())
+    {
+        std::string signal_name = incoming["request"].get<std::string>();
+        if(isSubscribedToSignal(signal_name))
+        {
+            auto signal = SignalManager::getInstance().getSharedSignalByName(signal_name);
+            if(signal)
+            {
+                signal->handleWebSocketValueRequest();
+            }
+            else
+            {   
+                std::string response = "Signal \"" + signal_name + "\" not found.";
+                logger_->warn(response);
+                sendEchoResponse(response);
+            }
+        }
+        else
+        {
+            std::string response = "Not subscribed to signal \"" + signal_name + "\".";
+            logger_->warn(response);
+            sendEchoResponse(response);
+        }
+    }
+    else
+    {
+        std::string response = "Signal value request message missing signal.";
+        logger_->warn(response);
+        sendEchoResponse(response);
     }
 }
 
@@ -197,7 +269,7 @@ void WebSocketSessionMessageManager::handleTextMessage(const json& incoming)
     logger_->warn("Received text message: {} Not Yet Handled.", incoming.dump());
 }
 
-void WebSocketSessionMessageManager::handleSignalMessage(const json& incoming)
+void WebSocketSessionMessageManager::handleSignalValueMessage(const json& incoming)
 {
     if(incoming.contains("signal") && incoming["signal"].is_string())
     {
@@ -237,7 +309,7 @@ void WebSocketSessionMessageManager::handleSignalMessage(const json& incoming)
 std::string WebSocketSessionMessageManager::createEchoResponse(const std::string& message)
 {
     json response;
-    response["type"] = MessageTypeHelper::type_to_string_.at(MessageTypeHelper::MessageType::Echo);
+    response["type"] = MessageTypeHelper::type_to_string_.at(MessageTypeHelper::MessageType::Echo_Message);
     response["message"] = message;
     return response.dump();
 }

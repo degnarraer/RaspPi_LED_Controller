@@ -18,11 +18,15 @@ class SignalName
                                            , logger_(initializeLogger("Signal " + name + "Logger", spdlog::level::info)) {}
 
         virtual ~SignalName() = default;
-        virtual bool setValueFromJSON(const json& j) = 0;
         const std::string& getName() const
         {
             return name_;
         }
+
+        //Functions to handle at Signal Name Level
+        virtual bool setValueFromJSON(const json& j) = 0;
+        virtual bool handleWebSocketValueRequest() const = 0;
+
     protected:
         const std::string name_;
         std::shared_ptr<spdlog::logger> logger_;
@@ -41,8 +45,12 @@ class SignalValue: public SignalName
             void* arg;
         };
         virtual bool setValue(const T& value, void* arg = nullptr);
-        //virtual bool setValueFromString(const std::string& value_str);
         virtual bool setValueFromJSON(const json& j) override;
+        virtual bool handleWebSocketValueRequest() const override
+        {
+            this->logger_->debug("SignalValue: Value requested for signal {} not handled", this->name_);
+            return false;
+        }
         virtual T getValue() const;
         virtual std::shared_ptr<T> GetData() const
         {
@@ -97,12 +105,11 @@ class Signal : public SignalValue<T>
         {
             return this->name_;
         }
-        void onValueRequest() const override
+
+        bool handleWebSocketValueRequest() const override
         {
-            if (this->logger_)
-            {
-                this->logger_->debug("WebSocketServerNotificationClient: Value requested for signal {}", this->name_);
-            }
+            this->logger_->info("Handle Value requeste for signal \"{}\"", this->name_);
+            return notifyWebSocket();
         }
     private:
         std::weak_ptr<WebSocketServer> webSocketServer_;
@@ -111,8 +118,8 @@ class Signal : public SignalValue<T>
         MessagePriority priority_;
         bool should_retry_;
         bool isUsingWebSocket_;
-        void notifyClients(void* arg);
-        void notifyWebSocket();
+        bool notifyClients(void* arg) const;
+        bool notifyWebSocket() const;
 };
 
 class SignalManager
