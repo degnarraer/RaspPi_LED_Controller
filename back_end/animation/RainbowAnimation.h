@@ -21,7 +21,7 @@ private:
     std::shared_ptr<Signal<ColorMappingType>> colorMappingTypeSignal_;
     BinData leftBinData_;
     BinData rightBinData_;
-    ColorMappingType colorMappingType_ = ColorMappingType::Linear;
+    ColorMappingType colorMappingType_ = ColorMappingType::Log2;
     std::mutex mutex_;
     std::shared_ptr<spdlog::logger> logger_;
 

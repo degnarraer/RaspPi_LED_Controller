@@ -8,6 +8,39 @@
 #include "Encoder_String.h"
 #include "../../websocket_session.h"
 
+//************** ColorMappingType //***************/
+enum class ColorMappingType
+{
+    Linear,
+    Log2,
+    Log10,
+};
+
+inline std::ostream& operator<<(std::ostream& os, ColorMappingType type)
+{
+    switch (type)
+    {
+        case ColorMappingType::Linear: os << "Linear"; break;
+        case ColorMappingType::Log2:   os << "Log2";   break;
+        case ColorMappingType::Log10:  os << "Log10";  break;
+        default:                       os.setstate(std::ios::failbit); break;
+    }
+    return os;
+}
+
+inline std::istream& operator>>(std::istream& is, ColorMappingType& type)
+{
+    std::string token;
+    is >> token;
+
+    if (token == "Linear")       type = ColorMappingType::Linear;
+    else if (token == "Log2")    type = ColorMappingType::Log2;
+    else if (token == "Log10")   type = ColorMappingType::Log10;
+    else                         is.setstate(std::ios::failbit);
+
+    return is;
+}
+
 template<typename T>
 JsonEncoder<T> get_signal_and_value_encoder()
 {
@@ -108,38 +141,6 @@ inline std::istream& operator>>(std::istream& is, Color& c)
     }
 
     is.setstate(std::ios::failbit);
-    return is;
-}
-
-enum class ColorMappingType
-{
-    Linear,
-    Log2,
-    Log10,
-};
-
-inline std::ostream& operator<<(std::ostream& os, ColorMappingType type)
-{
-    switch (type)
-    {
-        case ColorMappingType::Linear: os << "Linear"; break;
-        case ColorMappingType::Log2:   os << "Log2";   break;
-        case ColorMappingType::Log10:  os << "Log10";  break;
-        default:                       os.setstate(std::ios::failbit); break;
-    }
-    return os;
-}
-
-inline std::istream& operator>>(std::istream& is, ColorMappingType& type)
-{
-    std::string token;
-    is >> token;
-
-    if (token == "Linear")       type = ColorMappingType::Linear;
-    else if (token == "Log2")    type = ColorMappingType::Log2;
-    else if (token == "Log10")   type = ColorMappingType::Log10;
-    else                         is.setstate(std::ios::failbit);
-
     return is;
 }
 

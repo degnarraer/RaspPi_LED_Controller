@@ -39,7 +39,7 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     {
         colorMappingTypeSignal_->registerSignalValueCallback([this](const ColorMappingType& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
-            this->logger_->debug("Color Mapping Type Signal Callback.");
+            this->logger_->info("Color Mapping Type Signal Callback.");
             this->colorMappingType_ = value;
         }, this);
     }
@@ -61,7 +61,7 @@ void RainbowAnimation::AnimateFrame()
     float normalized = leftBinData_.normalizedMaxValue;
 
     // Get bright rainbow color
-    RGB color = ColorMapper::normalizedToRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized);
+    RGB color = ColorMapper::normalizedToRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized, colorMappingType_);
 
     // Scroll all rows down
     for (int y = 0; y < height - 1; ++y)
