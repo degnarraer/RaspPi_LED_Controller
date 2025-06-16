@@ -64,6 +64,7 @@ export default class ValueSelector extends Component<ValueSelectorProps, ValueSe
     }
 
     handleSignalValue = (message: WebSocketMessage) => {
+        console.log('Received signal value message:', message);
         if (message.type === 'signal value message') {
             const val = message.value;
             if (typeof val === 'string') {
