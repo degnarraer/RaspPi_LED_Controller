@@ -177,7 +177,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Left Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
               max={1}
               flipX={true}
@@ -189,7 +189,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Right Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
               max={1}
               flipX={false}
@@ -210,7 +210,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Left Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
               max={1}
               flipX={true}
@@ -224,7 +224,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Right Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
               max={1}
               flipX={false}

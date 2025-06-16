@@ -2,57 +2,52 @@
 
 RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 100)
+    , leftBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Bin Data")))
+    , rightBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Bin Data")))
+    , colorMappingTypeSignal_(std::dynamic_pointer_cast<Signal<ColorMappingType>>(SignalManager::getInstance().getSharedSignalByName("Color Mapping Type")))
+    , logger_(initializeLogger("Rainbow Animation Logger", spdlog::level::info))
 {    
-    auto leftBinDataBase_ = SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Bin Data");
-    auto rightBinDataBase_ = SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Bin Data");
-    leftBinDataSignal_ = std::dynamic_pointer_cast<Signal<BinData>>(leftBinDataBase_);
-    rightBinDataSignal_ = std::dynamic_pointer_cast<Signal<BinData>>(rightBinDataBase_);
     if (leftBinDataSignal_)
     {
         leftBinDataSignal_->registerSignalValueCallback([this](const BinData& value, void* arg) {
-            OnLeftBinDataUpdate(value, nullptr);
+            std::lock_guard<std::mutex> lock(this->mutex_);
+            this->logger_->debug("Left Bin Data Signal Callback.");
+            this->leftBinData_ = value;
         }, this);
+    }
+    else
+    {
+        logger_->warn("Left Bin Data Signal not found, using default value.");
+        leftBinData_ = {0, 0, 0, 0.0f, 0.0f}; // Default initialization
     }
 
     if (rightBinDataSignal_)
     {
         rightBinDataSignal_->registerSignalValueCallback([this](const BinData& value, void* arg) {
-            OnRightBinDataUpdate(value, nullptr);
+            std::lock_guard<std::mutex> lock(this->mutex_);
+            this->logger_->debug("Right Bin Data Signal Callback.");
+            this->rightBinData_ = value;
         }, this);
     }
-}
+    else
+    {
+        logger_->warn("Right Bin Data Signal not found, using default value.");
+        rightBinData_ = {0, 0, 0, 0.0f, 0.0f};
+    }
 
-void RainbowAnimation::OnLeftBinDataUpdate(const BinData& value, void* arg)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    leftBinData_ = value;
-}
-
-void RainbowAnimation::OnRightBinDataUpdate(const BinData& value, void* arg)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    rightBinData_ = value;
-}
-
-RGB RainbowAnimation::HSVtoRGB(float h, float s, float v)
-{
-    float c = v * s;
-    float x = c * (1 - std::fabs(fmod(h / 60.0f, 2) - 1));
-    float m = v - c;
-
-    float r1, g1, b1;
-    if (h < 60)      { r1 = c; g1 = x; b1 = 0; }
-    else if (h < 120){ r1 = x; g1 = c; b1 = 0; }
-    else if (h < 180){ r1 = 0; g1 = c; b1 = x; }
-    else if (h < 240){ r1 = 0; g1 = x; b1 = c; }
-    else if (h < 300){ r1 = x; g1 = 0; b1 = c; }
-    else             { r1 = c; g1 = 0; b1 = x; }
-
-    return {
-        static_cast<uint8_t>((r1 + m) * 255),
-        static_cast<uint8_t>((g1 + m) * 255),
-        static_cast<uint8_t>((b1 + m) * 255)
-    };
+    if (colorMappingTypeSignal_)
+    {
+        colorMappingTypeSignal_->registerSignalValueCallback([this](const ColorMappingType& value, void* arg) {
+            std::lock_guard<std::mutex> lock(this->mutex_);
+            this->logger_->debug("Color Mapping Type Signal Callback.");
+            this->colorMappingType_ = value;
+        }, this);
+    }
+    else
+    {
+        logger_->warn("Color Mapping Type Signal not found, using default value: Linear.");
+        colorMappingType_ = ColorMappingType::Linear;
+    }
 }
 
 void RainbowAnimation::AnimateFrame()
@@ -66,7 +61,7 @@ void RainbowAnimation::AnimateFrame()
     float normalized = leftBinData_.normalizedMaxValue;
 
     // Get bright rainbow color
-    RGB color = BinToRainbowRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized);
+    RGB color = ColorMapper::normalizedToRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized);
 
     // Scroll all rows down
     for (int y = 0; y < height - 1; ++y)
