@@ -36,7 +36,7 @@ const MENU_STRUCTURE = {
   settings: {
     label: 'Settings',
     items: [
-      { key: 'brightness', targetScreen: SCREENS.SETTING_BRIGHTNESS, label: 'Brightness', icon: <BulbOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'Sensitivity', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Sensitivity', icon: <BulbOutlined style={{ fontSize: '40px' }} /> },
       { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }} /> },
     ],
   },

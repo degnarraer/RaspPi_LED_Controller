@@ -18,7 +18,7 @@ protected:
 private:
     std::shared_ptr<Signal<BinData>> rightBinDataSignal_;
     std::shared_ptr<Signal<BinData>> leftBinDataSignal_;
-    std::shared_ptr<Signal<ColorMappingType>> colorMappingTypeSignal_;
+    std::shared_ptr<Signal<std::string>> colorMappingTypeSignal_;
     BinData leftBinData_;
     BinData rightBinData_;
     ColorMappingType colorMappingType_ = ColorMappingType::Log2;

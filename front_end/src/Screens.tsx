@@ -10,7 +10,7 @@ import LedRow from './components/LedRow';
 import HorizontalGauge from './components/HorizontalGauge';
 import { WebSocketContextType } from './components/WebSocketContext';
 import Incrementer from './components/Incrementer';
-
+import ValueSelector from './components/ValueSelector';
 export type ScreenType = (typeof SCREENS)[keyof typeof SCREENS];
 
 interface ScreenProps {
@@ -30,7 +30,7 @@ export const SCREENS = {
   WAVE_SCREEN: 'wave screen',
   SCROLLING_HEAT_MAP: 'scrolling heat map screen',
   SCROLLING_HEAT_MAP_RAINBOW: 'scrolling heat map rainbow',
-  SETTING_BRIGHTNESS: 'setting brightness',
+  SETTING_SENSITIVITY: 'setting sensitivity',
 } as const;
 
 export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
@@ -49,7 +49,7 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
           return <ScrollingHeatMapRainbowScreen socket={socket} />;
         case SCREENS.SCROLLING_HEAT_MAP:
           return <ScrollingHeatMapScreen socket={socket} />;
-        case SCREENS.SETTING_BRIGHTNESS:
+        case SCREENS.SETTING_SENSITIVITY:
           return <SettingBrightnessScreen socket={socket} />;
         default:
         return <HomeScreen />;
@@ -262,6 +262,25 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
         boxSizing: 'border-box',
       }}
     >
+      {/* Row for Render Type dB Threshold */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
+        <ValueSelector
+          signal="Color Mapping Type"
+          socket={socket}
+          options={['Linear', 'Log2', 'Log10']}
+          label="Color Mapping Type"
+          onChange={(val) => console.log('Selected:', val)}
+        />
+      </div>
+
       {/* Row for Minimum dB Threshold */}
       <div
         style={{
@@ -344,4 +363,3 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
     </div>
   );
 }
-

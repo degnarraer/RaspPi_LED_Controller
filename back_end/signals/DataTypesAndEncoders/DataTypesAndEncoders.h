@@ -16,6 +16,17 @@ enum class ColorMappingType
     Log10,
 };
 
+inline std::string to_string(ColorMappingType type)
+{
+    switch (type)
+    {
+        case ColorMappingType::Linear: return "Linear";
+        case ColorMappingType::Log2:   return "Log2";
+        case ColorMappingType::Log10:  return "Log10";
+        default: throw std::invalid_argument("Unknown ColorMappingType");
+    }
+}
+
 inline std::ostream& operator<<(std::ostream& os, ColorMappingType type)
 {
     switch (type)

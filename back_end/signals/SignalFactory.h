@@ -34,6 +34,6 @@ public:
 
         signalManager.createSignal<float>("Min db", webSocketServer, get_signal_and_value_encoder<float>());
         signalManager.createSignal<float>("Max db", webSocketServer, get_signal_and_value_encoder<float>());
-        signalManager.createSignal<ColorMappingType>("Color Mapping Type", nullptr, get_signal_and_value_encoder<ColorMappingType>());
+        signalManager.createSignal<std::string>("Color Mapping Type", nullptr, get_signal_and_value_encoder<std::string>());
     }
 };

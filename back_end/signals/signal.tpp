@@ -46,7 +46,8 @@ bool SignalValue<T>::setValueFromJSON(const json& j)
 {
     try
     {
-        this->setValue(j.get<T>());
+        this->logger_->debug("SetValueFromJSON: {}", j.dump());
+        this->setValue(j.get<T>(), this);
         return true;
     }
     catch(const std::exception& e)

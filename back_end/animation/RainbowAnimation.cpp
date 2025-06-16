@@ -4,7 +4,7 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 100)
     , leftBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Bin Data")))
     , rightBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Bin Data")))
-    , colorMappingTypeSignal_(std::dynamic_pointer_cast<Signal<ColorMappingType>>(SignalManager::getInstance().getSharedSignalByName("Color Mapping Type")))
+    , colorMappingTypeSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Color Mapping Type")))
     , logger_(initializeLogger("Rainbow Animation Logger", spdlog::level::info))
 {    
     if (leftBinDataSignal_)
@@ -37,10 +37,17 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
 
     if (colorMappingTypeSignal_)
     {
-        colorMappingTypeSignal_->registerSignalValueCallback([this](const ColorMappingType& value, void* arg) {
+        colorMappingTypeSignal_->registerSignalValueCallback([this](const std::string& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
-            this->logger_->info("Color Mapping Type Signal Callback.");
-            this->colorMappingType_ = value;
+            this->logger_->info("Color Mapping Type Signal Callback: {}", value);
+            try
+            {
+                this->colorMappingType_ = from_string<ColorMappingType>(value);
+            }
+            catch (const std::exception& e)
+            {
+                logger_->error("Invalid color mapping value '{}': {}", value, e.what());
+            }
         }, this);
     }
     else

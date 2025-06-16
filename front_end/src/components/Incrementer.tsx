@@ -41,7 +41,6 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             pendingUpdate: false,
             hasRequested: false,
         };
-
     }
 
     componentDidMount() {
@@ -55,7 +54,6 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
 
     setupSocket() {
         const { socket, signal } = this.props;
-        if (!socket) return;
 
         this._incrementerOnOpen = () => {
             socket.subscribe(signal, this.handleSignalValue);
@@ -69,7 +67,6 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
 
     teardownSocket() {
         const { socket, signal } = this.props;
-        if (!socket) return;
 
         socket.unsubscribe(signal, this.handleSignalValue);
 
@@ -100,44 +97,45 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
 
     sendValue(value: number) {
         const { socket, signal } = this.props;
-        if (socket?.isOpen?.()) {
+        if (socket.isOpen?.()) {
             socket.sendMessage({
                 type: 'signal value message',
                 signal,
                 value,
             });
-            this.setState({ requestedValue: value });
+            this.setState({
+                requestedValue: value,
+                pendingUpdate: true,
+                hasRequested: true,
+            });
+            this.props.onChange?.(value);
         }
     }
 
     changeValue(delta: number) {
-        const newValue = Math.min(
-            this.props.max!,
-            Math.max(this.props.min!, this.state.value + delta)
-        );
+        const { min, max } = this.props;
+        const { value } = this.state;
 
-        if (newValue !== this.state.requestedValue) {
-            this.setState(
-                {
-                    requestedValue: newValue,
-                    pendingUpdate: true,
-                    hasRequested: true,
-                },
-                () => this.sendValue(newValue)
-            );
+        const newValue = Math.min(max!, Math.max(min!, value + delta));
+
+        if (newValue !== value) {
+            this.sendValue(newValue);
         }
     }
 
-
     startHold = (delta: number) => {
-        const { holdEnabled, holdIntervalMs } = this.props;
-
-        this.changeValue(delta); // immediate
-        if (!holdEnabled) return;
+        const { holdEnabled, holdIntervalMs, min, max } = this.props;
 
         this.clearHoldTimer();
+        this.changeValue(delta); // immediate
+
+        if (!holdEnabled) return;
+
         this.holdTimer = setInterval(() => {
-            this.changeValue(delta);
+            const nextValue = this.state.value + delta;
+            if (nextValue >= min! && nextValue <= max!) {
+                this.changeValue(delta);
+            }
         }, holdIntervalMs);
     };
 
@@ -150,7 +148,7 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
 
     render() {
         const { boxStyle, buttonStyle, step, min, max } = this.props;
-        const { value } = this.state;
+        const { value, pendingUpdate } = this.state;
 
         const defaultBoxStyle: React.CSSProperties = {
             display: 'flex',
@@ -164,6 +162,7 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             fontSize: 20,
             fontWeight: 'bold',
             backgroundColor: 'black',
+            transition: 'color 0.2s ease',
         };
 
         const defaultButtonStyle: React.CSSProperties = {
@@ -176,7 +175,7 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             userSelect: 'none',
         };
 
-        const textColor = this.state.pendingUpdate ? 'yellow' : 'white';
+        const textColor = pendingUpdate ? 'yellow' : 'white';
 
         return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
