@@ -46,7 +46,15 @@ private:
     uint8_t global_device_brightness_ = 31;  // hardware brightness (0-31) applied to all LEDs
 
     std::shared_ptr<spdlog::logger> logger_;
-    std::weak_ptr<Signal<float>> currentDrawSignal_;
+
+    // 0.0 to 1.0, used to set the rendered brightness of each pixel
+    std::weak_ptr<Signal<float>> brightnessSignal_;
+
+    // 0.0 to some maximum current, used to limit total current draw
+    std::weak_ptr<Signal<float>> currentLimitSignal_;
+    
+    // 1-31, used to limit driver draw
+    std::weak_ptr<Signal<std::uint8_t>> driverLimitSignal_;
 
     // Constants
     static constexpr const char* SPI_DEVICE = "/dev/spidev0.0";

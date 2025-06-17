@@ -12,6 +12,7 @@ interface IncrementerProps {
     boxStyle?: React.CSSProperties;
     buttonStyle?: React.CSSProperties;
     onChange?: (value: number) => void;
+    units?: string; // ✅ New optional prop
 }
 
 interface IncrementerState {
@@ -147,7 +148,7 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
     };
 
     render() {
-        const { boxStyle, buttonStyle, step, min, max } = this.props;
+        const { boxStyle, buttonStyle, step, min, max, units } = this.props;
         const { value, pendingUpdate } = this.state;
 
         const defaultBoxStyle: React.CSSProperties = {
@@ -156,7 +157,7 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
             justifyContent: 'center',
             border: '1px solid white',
             borderRadius: 4,
-            width: 80,
+            width: 100, // fixed to avoid jitter
             height: 40,
             userSelect: 'none',
             fontSize: 20,
@@ -200,7 +201,7 @@ export default class Incrementer extends Component<IncrementerProps, Incrementer
                     aria-valuenow={value}
                     aria-live="polite"
                 >
-                    {value}
+                    {value} {units}
                 </div>
 
                 <button

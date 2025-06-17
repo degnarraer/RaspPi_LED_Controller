@@ -6,16 +6,21 @@ interface SignalValueTextBoxProps {
     socket: WebSocketContextType;
     placeholder?: string;
     className?: string;
+
+    decimalPlaces?: number;  // Optional, defaults to 2
+    units?: string;          // Optional, defaults to ''
 }
 
 interface SignalValueTextBoxState {
-    value: string;
+    rawValue: number | null;
+    value: string;  // fallback string (placeholder or raw string)
 }
 
 export default class SignalValueTextBox extends Component<SignalValueTextBoxProps, SignalValueTextBoxState> {
     constructor(props: SignalValueTextBoxProps) {
         super(props);
         this.state = {
+            rawValue: null,
             value: props.placeholder || '—',
         };
     }
@@ -46,8 +51,24 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
         if (message.type === 'signal value message') {
             const value = message.value;
 
-            if (typeof value === 'string' || typeof value === 'number') {
-                this.setState({ value: String(value) });
+            if (typeof value === 'number') {
+                this.setState({
+                    rawValue: value,
+                    value: '',
+                });
+            } else if (typeof value === 'string') {
+                const num = Number(value);
+                if (!isNaN(num)) {
+                    this.setState({
+                        rawValue: num,
+                        value: '',
+                    });
+                } else {
+                    this.setState({
+                        rawValue: null,
+                        value,
+                    });
+                }
             } else if (value != null) {
                 console.error('Invalid non-primitive signal value format:', value);
             } else {
@@ -62,25 +83,33 @@ export default class SignalValueTextBox extends Component<SignalValueTextBoxProp
     };
 
     render() {
-        const { value } = this.state;
-        const { className } = this.props;
+        const { rawValue, value } = this.state;
+        const { className, decimalPlaces = 2, units = '' } = this.props;
+
+        let displayValue = value;
+
+        if (rawValue !== null) {
+            displayValue = rawValue.toFixed(decimalPlaces) + (units ? ` ${units}` : '');
+        }
 
         return (
             <div
                 className={className}
-                style={{
-                    color: 'black',
+                style={{    color: 'black',
                     padding: '8px 12px',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
                     backgroundColor: '#f9f9f9',
                     fontFamily: 'monospace',
                     fontSize: '1rem',
-                    minWidth: '80px',
+                    width: '20ch',
                     textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                 }}
             >
-                {value}
+                {displayValue}
             </div>
         );
     }

@@ -247,63 +247,105 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', 
-        color: 'white', flexDirection: 'column', gap: 20, padding: 20, boxSizing: 'border-box', }}>
-      
-      {/* Row for Render Type dB Threshold */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,}} >
-        <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
-          <ValueSelector signal="Color Mapping Type" socket={socket} options={['Linear', 'Log2', 'Log10']} label="Color Mapping Type"
+        <div style={{ 
+        display: 'flex', 
+        height: '100vh', 
+        width: '100vw', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#111', 
+        color: 'white', 
+        flexDirection: 'column', 
+        gap: 20, 
+        padding: 20, 
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+    }}>
+      {/* Row container to keep things consistently aligned */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Row for Color Mapping */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
+          </div>
+          <ValueSelector
+            signal="Color Mapping Type"
+            socket={socket}
+            options={['Linear', 'Log2', 'Log10']}
+            label="Color Mapping Type"
             onChange={(val) => console.log('Selected:', val)}
-        />
-      </div>
+          />
+        </div>
 
-      {/* Row for Minimum dB Threshold */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, }}>
-        <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
-        <Incrementer signal="Min db" socket={socket} min={-80} max={30} step={1} holdEnabled={true} holdIntervalMs={100}/>
-      </div>
+        {/* Minimum dB Threshold */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
+          </div>
+          <Incrementer signal="Min db" socket={socket} min={-80} max={30} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
+        </div>
 
-      {/* Row for Maximum dB Threshold */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, }}>
-        <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
-        <Incrementer signal="Max db" socket={socket} min={0} max={140} step={1} holdEnabled={true} holdIntervalMs={100}/>
-      </div>
+        {/* Maximum dB Threshold */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
+          </div>
+          <Incrementer signal="Max db" socket={socket} min={0} max={140} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
+        </div>
 
-      {/* Row for Calculated Current Draw */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, }}>
-        <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
-        <SignalValueTextBox signal="Calculated Current" socket={socket} />
-      </div>
+        {/* Current Draw */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
+          </div>
+          <SignalValueTextBox signal="Calculated Current" socket={socket} decimalPlaces={2} units="mA" />
+        </div>
 
-      {/* Reference Table */}
-      <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 400, backgroundColor: '#222', color: 'white', fontSize: 14, }}>
-        <thead>
-          <tr>
-            <th style={cellStyle}>dB Level</th>
-            <th style={cellStyle}>Example Sound</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[
-            ['-80 dB', 'Noise floor'],
-            ['0 dB', 'Threshold of hearing'],
-            ['30 dB', 'Whisper'],
-            ['50 dB', 'Quiet conversation'],
-            ['70 dB', 'Vacuum cleaner'],
-            ['85 dB', 'City traffic (inside car)'],
-            ['110 dB', 'Jackhammer'],
-            ['120 dB', 'Ambulance siren'],
-            ['130 dB', 'Pain threshold'],
-            ['140 dB', 'Jet engine at takeoff'],
-          ].map(([level, example]) => (
-            <tr key={level}>
-              <td style={cellStyle}>{level}</td>
-              <td style={cellStyle}>{example}</td>
+        {/* Current Limit */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Limit</h2>
+          </div>
+          <Incrementer signal="Current Limit" socket={socket} min={500} max={100000} step={500} units="mA" holdEnabled={true} holdIntervalMs={10} />
+        </div>
+
+        {/* Reference Table */}
+        <table style={{
+          borderCollapse: 'collapse',
+          width: '100%',
+          backgroundColor: '#222',
+          color: 'white',
+          fontSize: 14,
+          marginTop: 20
+        }}>
+          <thead>
+            <tr>
+              <th style={cellStyle}>dB Level</th>
+              <th style={cellStyle}>Example Sound</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {[
+              ['-80 dB', 'Noise floor'],
+              ['0 dB', 'Threshold of hearing'],
+              ['30 dB', 'Whisper'],
+              ['50 dB', 'Quiet conversation'],
+              ['70 dB', 'Vacuum cleaner'],
+              ['85 dB', 'City traffic (inside car)'],
+              ['110 dB', 'Jackhammer'],
+              ['120 dB', 'Ambulance siren'],
+              ['130 dB', 'Pain threshold'],
+              ['140 dB', 'Jet engine at takeoff'],
+            ].map(([level, example]) => (
+              <tr key={level}>
+                <td style={cellStyle}>{level}</td>
+                <td style={cellStyle}>{example}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

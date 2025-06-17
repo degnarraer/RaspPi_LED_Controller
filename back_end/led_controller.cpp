@@ -12,13 +12,13 @@
 LED_Controller::LED_Controller(int ledCount)
     : ledCount_(ledCount)
     , logger_(initializeLogger("LED Logger", spdlog::level::info))
-    , currentDrawSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Calculated Current")))
+    , currentLimitSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Calculated Current")))
     , running_(false)
     , render_in_progress_(false)
     , ledStrip_(ledCount)
 {
     logger_->info("LED_Controller initialized with {} LEDs.", ledCount_);
-    if(!currentDrawSignal_.lock())
+    if(!currentLimitSignal_.lock())
     {
         logger_->error("Failed to get current draw signal, it may not be initialized.");
     }
@@ -122,7 +122,7 @@ void LED_Controller::renderLoop()
         std::string currentDrawStr = fmt::format("Estimated total current draw: {:.2f} mA", current_draw_mA);
         logger_->debug(currentDrawStr);
 
-        if (auto signal = currentDrawSignal_.lock())
+        if (auto signal = currentLimitSignal_.lock())
         {
             signal->setValue(current_draw_mA);
         }
