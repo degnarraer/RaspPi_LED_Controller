@@ -7,14 +7,25 @@
 #include <cstring>
 #include <chrono>
 
+#define LED_CURRENT 20.0f // mA per LED, adjust as needed
+
 LED_Controller::LED_Controller(int ledCount)
     : ledCount_(ledCount)
+    , logger_(initializeLogger("LED Logger", spdlog::level::info))
+    , currentDrawSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Calculated Current")))
     , running_(false)
     , render_in_progress_(false)
     , ledStrip_(ledCount)
 {
-    logger_ = initializeLogger("LED Logger", spdlog::level::info);
     logger_->info("LED_Controller initialized with {} LEDs.", ledCount_);
+    if(!currentDrawSignal_.lock())
+    {
+        logger_->error("Failed to get current draw signal, it may not be initialized.");
+    }
+    else
+    {
+        logger_->info("Current draw signal initialized successfully.");
+    }
 }
 
 LED_Controller::~LED_Controller()
@@ -61,12 +72,15 @@ void LED_Controller::renderLoop()
 
     while (true)
     {
+        float current_draw_mA = 0.0f;
+
         {
             std::lock_guard<std::mutex> lock(led_mutex_);
             if (!running_)
             {
                 break;
             }
+
             render_in_progress_ = true;
 
             std::vector<uint8_t> frame;
@@ -74,28 +88,47 @@ void LED_Controller::renderLoop()
 
             for (const auto& pixel : ledStrip_)
             {
-                // Combine hardware brightness with APA102 format
-                uint8_t hw_brightness = (pixel.device_brightness * global_device_brightness_) / 31;
-                hw_brightness &= 0x1F;
-                uint8_t br = 0b11100000 | hw_brightness;
+                // Clamp device brightness to 0–31
+                uint8_t combined_brightness = static_cast<uint8_t>(
+                    std::clamp((pixel.device_brightness / 31.0f) * global_device_brightness_, 0.0f, 31.0f));
+                uint8_t br = 0b11100000 | combined_brightness;
 
-                // Color scaled by user animation brightness and global brightness
-                uint8_t r = static_cast<uint8_t>(pixel.color.r * pixel.brightness * global_user_brightness_);
-                uint8_t g = static_cast<uint8_t>(pixel.color.g * pixel.brightness * global_user_brightness_);
-                uint8_t b = static_cast<uint8_t>(pixel.color.b * pixel.brightness * global_user_brightness_);
+                auto scaleColor = [](float val) -> uint8_t {
+                    return static_cast<uint8_t>(std::clamp(val, 0.0f, 255.0f));
+                };
+
+                uint8_t r = scaleColor(pixel.color.r * pixel.brightness * global_user_brightness_);
+                uint8_t g = scaleColor(pixel.color.g * pixel.brightness * global_user_brightness_);
+                uint8_t b = scaleColor(pixel.color.b * pixel.brightness * global_user_brightness_);
 
                 frame.push_back(br);
                 frame.push_back(b);
                 frame.push_back(g);
                 frame.push_back(r);
+
+                // Estimate current draw from this pixel
+                float intensity = (pixel.color.r + pixel.color.g + pixel.color.b) / (255.0f * 3.0f);
+                current_draw_mA += intensity * pixel.brightness * global_user_brightness_ * 3.0f * LED_CURRENT;
             }
 
             int endFrameBytes = (ledCount_ + 15) / 16;
             frame.insert(frame.end(), endFrameBytes, 0xFF); // End frame
 
             sendLEDFrame(fd, frame);
-
             render_in_progress_ = false;
+        }
+
+        // Logging and signal update outside lock
+        std::string currentDrawStr = fmt::format("Estimated total current draw: {:.2f} mA", current_draw_mA);
+        logger_->debug(currentDrawStr);
+
+        if (auto signal = currentDrawSignal_.lock())
+        {
+            signal->setValue(current_draw_mA);
+        }
+        else
+        {
+            logger_->error("Current draw signal is not initialized, cannot update.");
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -144,19 +177,6 @@ void LED_Controller::clear()
         pixel.device_brightness = 31;
     }
     logger_->info("LEDs cleared.");
-}
-
-void LED_Controller::calculateCurrent()
-{
-    float current_draw_mA = 0.0f;
-    std::lock_guard<std::mutex> lock(led_mutex_);
-    for (const auto& px : ledStrip_)
-    {
-        // Simple estimation: total color intensity scaled by animation brightness times 20mA max per LED
-        float intensity = (px.color.r + px.color.g + px.color.b) / 255.0f;
-        current_draw_mA += intensity * px.brightness * 20.0f;
-    }
-    logger_->info("Estimated total current draw: {:.2f} mA", current_draw_mA);
 }
 
 void LED_Controller::setUserGlobalBrightness(float brightness)

@@ -6,7 +6,7 @@
 #include <memory>
 #include <cstdint>
 #include <spdlog/spdlog.h>
-#include "signals/DataTypesAndEncoders/DataTypesAndEncoders.h"
+#include "signals/signal.h"
 
 class LED_Controller
 {
@@ -27,8 +27,6 @@ public:
     // Set global device brightness (0-31)
     void setDeviceGlobalBrightness(uint8_t brightness);
 
-    void calculateCurrent();
-
 private:
     void renderLoop();
 
@@ -48,6 +46,7 @@ private:
     uint8_t global_device_brightness_ = 31;  // hardware brightness (0-31) applied to all LEDs
 
     std::shared_ptr<spdlog::logger> logger_;
+    std::weak_ptr<Signal<float>> currentDrawSignal_;
 
     // Constants
     static constexpr const char* SPI_DEVICE = "/dev/spidev0.0";

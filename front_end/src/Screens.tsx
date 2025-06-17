@@ -6,7 +6,7 @@ import ScrollingHeatmap from './components/ScrollingHeatMap';
 import { RenderTickProvider } from './components/RenderingTick';
 import LEDBoardTempGauge from './components/LEDBoardTempGauge';
 import LedRow from './components/LedRow';
-//import SignalValueTextBox from './components/SignalValueTextbox';
+import SignalValueTextBox from './components/SignalValueTextbox';
 import HorizontalGauge from './components/HorizontalGauge';
 import { WebSocketContextType } from './components/WebSocketContext';
 import Incrementer from './components/Incrementer';
@@ -247,93 +247,37 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100%',
-        width: '100%',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#111',
-        color: 'white',
-        flexDirection: 'column',
-        gap: 20,
-        padding: 20,
-        boxSizing: 'border-box',
-      }}
-    >
+    <div style={{ display: 'flex', height: '100%', width: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', 
+        color: 'white', flexDirection: 'column', gap: 20, padding: 20, boxSizing: 'border-box', }}>
+      
       {/* Row for Render Type dB Threshold */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,}} >
         <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
-        <ValueSelector
-          signal="Color Mapping Type"
-          socket={socket}
-          options={['Linear', 'Log2', 'Log10']}
-          label="Color Mapping Type"
-          onChange={(val) => console.log('Selected:', val)}
+          <ValueSelector signal="Color Mapping Type" socket={socket} options={['Linear', 'Log2', 'Log10']} label="Color Mapping Type"
+            onChange={(val) => console.log('Selected:', val)}
         />
       </div>
 
       {/* Row for Minimum dB Threshold */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, }}>
         <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
-        <Incrementer
-          signal="Min db"
-          socket={socket}
-          min={-80}
-          max={30}
-          step={1}
-          holdEnabled={true}
-          holdIntervalMs={100}
-        />
+        <Incrementer signal="Min db" socket={socket} min={-80} max={30} step={1} holdEnabled={true} holdIntervalMs={100}/>
       </div>
 
       {/* Row for Maximum dB Threshold */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, }}>
         <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
-        <Incrementer
-          signal="Max db"
-          socket={socket}
-          min={0}
-          max={140}
-          step={1}
-          holdEnabled={true}
-          holdIntervalMs={100}
-        />
+        <Incrementer signal="Max db" socket={socket} min={0} max={140} step={1} holdEnabled={true} holdIntervalMs={100}/>
+      </div>
+
+      {/* Row for Calculated Current Draw */}
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, }}>
+        <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
+        <SignalValueTextBox signal="Calculated Current" socket={socket} />
       </div>
 
       {/* Reference Table */}
-      <table
-        style={{
-          borderCollapse: 'collapse',
-          width: '100%',
-          maxWidth: 400,
-          backgroundColor: '#222',
-          color: 'white',
-          fontSize: 14,
-        }}
-      >
+      <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 400, backgroundColor: '#222', color: 'white', fontSize: 14, }}>
         <thead>
           <tr>
             <th style={cellStyle}>dB Level</th>

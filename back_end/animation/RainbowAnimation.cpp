@@ -68,6 +68,7 @@ void RainbowAnimation::AnimateFrame()
     float normalized = leftBinData_.normalizedMaxValue;
 
     // Get bright rainbow color
+    
     RGB color = ColorMapper::normalizedToRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized, colorMappingType_);
 
     // Scroll all rows down
