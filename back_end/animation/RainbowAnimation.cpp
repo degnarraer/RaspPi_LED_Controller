@@ -6,10 +6,12 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     , rightBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Bin Data")))
     , colorMappingTypeSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Color Mapping Type")))
     , logger_(initializeLogger("Rainbow Animation Logger", spdlog::level::info))
-{    
-    if (leftBinDataSignal_)
+{   
+    auto leftBinDataSignal = leftBinDataSignal_.lock();
+    if (leftBinDataSignal)
     {
-        leftBinDataSignal_->registerSignalValueCallback([this](const BinData& value, void* arg) {
+        logger_->info("FFT Bands Left Bin Data signal initialized successfully.");
+        leftBinDataSignal->registerSignalValueCallback([this](const BinData& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
             this->logger_->debug("Left Bin Data Signal Callback.");
             this->leftBinData_ = value;
@@ -21,9 +23,11 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
         leftBinData_ = {0, 0, 0, 0.0f, 0.0f}; // Default initialization
     }
 
-    if (rightBinDataSignal_)
+    auto rightBinDataSignal = rightBinDataSignal_.lock();
+    if (rightBinDataSignal)
     {
-        rightBinDataSignal_->registerSignalValueCallback([this](const BinData& value, void* arg) {
+        logger_->info("FFT Bands Right Bin Data signal initialized successfully.");
+        rightBinDataSignal->registerSignalValueCallback([this](const BinData& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
             this->logger_->debug("Right Bin Data Signal Callback.");
             this->rightBinData_ = value;
@@ -35,9 +39,12 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
         rightBinData_ = {0, 0, 0, 0.0f, 0.0f};
     }
 
-    if (colorMappingTypeSignal_)
+    auto colorMappingTypeSignal = colorMappingTypeSignal_.lock();
+    if (colorMappingTypeSignal)
     {
-        colorMappingTypeSignal_->registerSignalValueCallback([this](const std::string& value, void* arg) {
+        logger_->info("Color Mapping Type signal initialized successfully.");
+        colorMappingType_ = from_string<ColorMappingType>(colorMappingTypeSignal->getValue());
+        colorMappingTypeSignal->registerSignalValueCallback([this](const std::string& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
             this->logger_->info("Color Mapping Type Signal Callback: {}", value);
             try
@@ -68,7 +75,7 @@ void RainbowAnimation::AnimateFrame()
     float normalized = leftBinData_.normalizedMaxValue;
 
     // Get bright rainbow color
-    
+
     RGB color = ColorMapper::normalizedToRGB(leftBinData_.maxBin, leftBinData_.totalBins, normalized, colorMappingType_);
 
     // Scroll all rows down

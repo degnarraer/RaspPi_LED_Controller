@@ -125,13 +125,14 @@ void LED_Controller::renderLoop()
             {
                 uint8_t ledControlByte = 0b11100000 | globalLedDriverLimit_;
 
-                auto scaleColor = [](float val) -> uint8_t {
-                    return static_cast<uint8_t>(std::clamp(val, 0.0f, 1.0f) * 255.0f);
+                auto scaleColor = [](uint8_t color, float pixelBrightness, float globalBrightness) -> uint8_t {
+                    float scaled = static_cast<float>(color) * pixelBrightness * globalBrightness;
+                    return static_cast<uint8_t>(std::round(std::clamp(scaled, 0.0f, 255.0f)));
                 };
 
-                uint8_t r = scaleColor(pixel.color.r * pixel.brightness * globalUserBrightness_);
-                uint8_t g = scaleColor(pixel.color.g * pixel.brightness * globalUserBrightness_);
-                uint8_t b = scaleColor(pixel.color.b * pixel.brightness * globalUserBrightness_);
+                uint8_t r = scaleColor(pixel.color.r, pixel.brightness, globalUserBrightness_);
+                uint8_t g = scaleColor(pixel.color.g, pixel.brightness, globalUserBrightness_);
+                uint8_t b = scaleColor(pixel.color.b, pixel.brightness, globalUserBrightness_);
 
                 frame.push_back(ledControlByte);
                 frame.push_back(b);
@@ -193,7 +194,7 @@ void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float 
     }
 
     ledStrip_[index].color = {r, g, b};
-    ledStrip_[index].brightness = brightness;
+    ledStrip_[index].brightness = std::clamp(brightness, 0.0f, 1.0f);
 }
 
 void LED_Controller::clear()
@@ -210,17 +211,34 @@ void LED_Controller::clear()
 void LED_Controller::setUserGlobalBrightness(float brightness)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
-    logger_->info("User global brightness set to {}", globalUserBrightness_);
+
     globalUserBrightness_ = std::clamp(brightness, 0.0f, 1.0f);
-    globalUserBrightnessSignal_.lock()->setValue(globalUserBrightness_);
+    logger_->info("User global brightness set to {}", globalUserBrightness_);
+
+    if (auto signal = globalUserBrightnessSignal_.lock())
+    {
+        signal->setValue(globalUserBrightness_);
+    }
+    else
+    {
+        logger_->warn("Failed to set user global brightness: signal is expired.");
+    }
 }
+
 
 void LED_Controller::setGlobalLedDriverLimit(uint8_t limit)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
     logger_->info("Device global brightness set to {}", globalLedDriverLimit_);
     globalLedDriverLimit_ = std::clamp<uint8_t>(limit, 0, 31);
-    globalLedDriverLimitSignal_.lock()->setValue(globalLedDriverLimit_);
+    if (auto signal = globalLedDriverLimitSignal_.lock())
+    {
+        signal->setValue(globalLedDriverLimit_);
+    }
+    else
+    {
+        logger_->warn("Failed to set global LED driver limit: signal is expired.");
+    }
 }
 
 int LED_Controller::openSPI()

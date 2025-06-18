@@ -40,7 +40,7 @@ public:
         signalManager.createSignal<std::string>("Uptime", webSocketServer, get_signal_and_value_encoder<std::string>());
 
         //Rendering Signals        
-        signalManager.createSignal<std::string>("Color Mapping Type", webSocketServer, get_signal_and_value_encoder<std::string>());
+        signalManager.createSignal<std::string>("Color Mapping Type", webSocketServer, get_signal_and_value_encoder<std::string>())->setValue(to_string(ColorMappingType::Linear));
 
         //Sensitivity and Threshold Signals
         signalManager.createSignal<float>("Min db", webSocketServer, get_signal_and_value_encoder<float>());

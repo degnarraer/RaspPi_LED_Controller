@@ -16,12 +16,15 @@ protected:
     void AnimateFrame() override;
 
 private:
-    std::shared_ptr<Signal<BinData>> rightBinDataSignal_;
-    std::shared_ptr<Signal<BinData>> leftBinDataSignal_;
-    std::shared_ptr<Signal<std::string>> colorMappingTypeSignal_;
     BinData leftBinData_;
+    std::weak_ptr<Signal<BinData>> leftBinDataSignal_;
+    
     BinData rightBinData_;
-    ColorMappingType colorMappingType_ = ColorMappingType::Log2;
+    std::weak_ptr<Signal<BinData>> rightBinDataSignal_;
+    
+    ColorMappingType colorMappingType_ = ColorMappingType::Linear;
+    std::weak_ptr<Signal<std::string>> colorMappingTypeSignal_;
+    
     std::mutex mutex_;
     std::shared_ptr<spdlog::logger> logger_;
 

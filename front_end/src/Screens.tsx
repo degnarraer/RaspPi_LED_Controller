@@ -315,7 +315,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>LED Driver Limit</h2>
           </div>
-          <Incrementer signal="LED Driver Limit" socket={socket} min={1} max={31} step={1} units="Gain" holdEnabled={true} holdIntervalMs={100} />
+          <Incrementer signal="LED Driver Limit" socket={socket} min={1} max={31} step={1} holdEnabled={true} holdIntervalMs={100} />
         </div>
 
         {/* Reference Table */}
