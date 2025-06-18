@@ -34,8 +34,8 @@ public:
     void run();
     void stop();
 
-    void setColor(uint32_t color, float brightness);
-    void setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float brightness = 1.0f);
+    void setColor(uint32_t color);
+    void setPixel(int index, uint8_t r, uint8_t g, uint8_t b);
     void clear();
 
     // Set global user brightness (0.0 - 1.0)

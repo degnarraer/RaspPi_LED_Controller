@@ -125,14 +125,14 @@ void LED_Controller::renderLoop()
             {
                 uint8_t ledControlByte = 0b11100000 | globalLedDriverLimit_;
 
-                auto scaleColor = [](uint8_t color, float pixelBrightness, float globalBrightness) -> uint8_t {
-                    float scaled = static_cast<float>(color) * pixelBrightness * globalBrightness;
+                auto scaleColor = [](uint8_t color, float globalBrightness) -> uint8_t {
+                    float scaled = static_cast<float>(color) * globalBrightness;
                     return static_cast<uint8_t>(std::round(std::clamp(scaled, 0.0f, 255.0f)));
                 };
 
-                uint8_t r = scaleColor(pixel.color.r, pixel.brightness, globalUserBrightness_);
-                uint8_t g = scaleColor(pixel.color.g, pixel.brightness, globalUserBrightness_);
-                uint8_t b = scaleColor(pixel.color.b, pixel.brightness, globalUserBrightness_);
+                uint8_t r = scaleColor(pixel.color.r, globalUserBrightness_);
+                uint8_t g = scaleColor(pixel.color.g, globalUserBrightness_);
+                uint8_t b = scaleColor(pixel.color.b, globalUserBrightness_);
 
                 frame.push_back(ledControlByte);
                 frame.push_back(b);
@@ -169,7 +169,7 @@ void LED_Controller::renderLoop()
     logger_->info("LED render thread stopped.");
 }
 
-void LED_Controller::setColor(uint32_t color, float brightness)
+void LED_Controller::setColor(uint32_t color)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
     uint8_t r = (color >> 16) & 0xFF;
@@ -179,12 +179,11 @@ void LED_Controller::setColor(uint32_t color, float brightness)
     for (auto& pixel : ledStrip_)
     {
         pixel.color = {r, g, b};
-        pixel.brightness = brightness;
     }
     logger_->info("All LEDs set to color: #{:06X}", color & 0xFFFFFF);
 }
 
-void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float brightness)
+void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
     if (index < 0 || index >= ledCount_)
@@ -194,7 +193,6 @@ void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float 
     }
 
     ledStrip_[index].color = {r, g, b};
-    ledStrip_[index].brightness = std::clamp(brightness, 0.0f, 1.0f);
 }
 
 void LED_Controller::clear()
@@ -203,7 +201,6 @@ void LED_Controller::clear()
     for (auto& pixel : ledStrip_)
     {
         pixel.color = {0, 0, 0};
-        pixel.brightness = 0.0f;
     }
     logger_->info("LEDs cleared.");
 }

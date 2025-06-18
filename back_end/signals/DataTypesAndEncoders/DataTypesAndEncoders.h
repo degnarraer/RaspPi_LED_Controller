@@ -158,13 +158,11 @@ inline std::istream& operator>>(std::istream& is, Color& c)
 struct Pixel
 {
     Color color;
-    float brightness = 1.0f;        // 0.0 to 1.0
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Pixel& p)
 {
     os << "{color=" << p.color
-       << ", brightness=" << p.brightness
        << '}';
     return os;
 }
@@ -180,27 +178,6 @@ inline std::istream& operator>>(std::istream& is, Pixel& p)
     }
 
     if (!(is >> p.color))
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    if (!(is >> token) || token != ",")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    if (!(is >> token) || token.substr(0, 11) != "brightness=")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    // parse brightness value after =
-    std::string brightnessStr = token.substr(11);
-    std::istringstream brightnessStream(brightnessStr);
-    if (!(brightnessStream >> p.brightness))
     {
         is.setstate(std::ios::failbit);
         return is;

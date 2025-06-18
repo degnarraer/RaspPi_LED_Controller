@@ -22,7 +22,7 @@ void PixelGridSignal::setPixel(size_t x, size_t y, RGB color)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    ledController_->setPixel(y, color.r, color.g, color.b, 1.0);
+    ledController_->setPixel(y, color.r, color.g, color.b);
     if (x < width_ && y < height_)
     {
         pixels_[y][x] = color;
