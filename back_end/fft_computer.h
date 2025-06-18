@@ -179,7 +179,7 @@ class FFTComputer
         std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
         
         std::shared_ptr<Signal<float>> minDbSignal_;
-        float minDbValue_ = -10.0f;
+        float minDbValue_ = 0.0f;
         std::shared_ptr<Signal<float>> maxDbSignal_;
         float maxDbValue_ = 40.0f;
         std::function<void(const float&, void*)> minDbSignalCallback_;

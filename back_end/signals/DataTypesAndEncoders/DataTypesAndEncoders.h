@@ -159,14 +159,12 @@ struct Pixel
 {
     Color color;
     float brightness = 1.0f;        // 0.0 to 1.0
-    uint8_t device_brightness = 31; // 0-31
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Pixel& p)
 {
     os << "{color=" << p.color
        << ", brightness=" << p.brightness
-       << ", device_brightness=" << static_cast<int>(p.device_brightness)
        << '}';
     return os;
 }
@@ -207,28 +205,6 @@ inline std::istream& operator>>(std::istream& is, Pixel& p)
         is.setstate(std::ios::failbit);
         return is;
     }
-
-    if (!(is >> token) || token != ",")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    if (!(is >> token) || token.substr(0, 17) != "device_brightness=")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    std::string deviceBrightnessStr = token.substr(17);
-    int devBrightInt;
-    std::istringstream deviceBrightnessStream(deviceBrightnessStr);
-    if (!(deviceBrightnessStream >> devBrightInt))
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    p.device_brightness = static_cast<uint8_t>(devBrightInt);
 
     if (!(is >> token) || token != "}")
     {

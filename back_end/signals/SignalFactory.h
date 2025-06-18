@@ -48,9 +48,9 @@ public:
 
         //Brightness and Current Signals
         signalManager.createSignal<float>("Calculated Current", webSocketServer, get_signal_and_value_encoder<float>());
-        signalManager.createSignal<float>("Current Limit", webSocketServer, get_signal_and_value_encoder<float>());
+        signalManager.createSignal<uint32_t>("Current Limit", webSocketServer, get_signal_and_value_encoder<uint32_t>());
         signalManager.createSignal<float>("Brightness", webSocketServer, get_signal_and_value_encoder<float>());
-        signalManager.createSignal<std::uint8_t>("LED Driver Limit", webSocketServer, get_signal_and_value_encoder<std::uint8_t>());
+        signalManager.createSignal<uint8_t>("LED Driver Limit", webSocketServer, get_signal_and_value_encoder<std::uint8_t>());
 
         //Render Frequency Signals
         signalManager.createSignal<float>("Minimum Render Frequency", webSocketServer, get_signal_and_value_encoder<float>());
