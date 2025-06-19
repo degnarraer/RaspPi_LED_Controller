@@ -31,6 +31,8 @@ export const SCREENS = {
   SCROLLING_HEAT_MAP: 'scrolling heat map screen',
   SCROLLING_HEAT_MAP_RAINBOW: 'scrolling heat map rainbow',
   SETTING_SENSITIVITY: 'setting sensitivity',
+  SETTING_CURRENT_LIMIT: 'setting current limit',
+  SETTING_RENDERING: 'setting rendering',
 } as const;
 
 export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
@@ -51,6 +53,10 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
           return <ScrollingHeatMapScreen socket={socket} />;
         case SCREENS.SETTING_SENSITIVITY:
           return <SettingBrightnessScreen socket={socket} />;
+        case SCREENS.SETTING_CURRENT_LIMIT:
+          return <SettingCurrentLimitScreen socket={socket} />;
+        case SCREENS.SETTING_RENDERING:
+          return <SettingRenderingScreen socket={socket} />;
         default:
         return <HomeScreen />;
     }
@@ -239,13 +245,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
     );
 }
 
-export function SettingBrightnessScreen({ socket }: ScreenProps) {
-  const cellStyle: React.CSSProperties = {
-    border: '1px solid #444',
-    padding: '8px',
-    textAlign: 'left',
-  };
-
+export function SettingRenderingScreen({ socket }: ScreenProps) {
   return (
         <div style={{ 
         display: 'flex', 
@@ -277,6 +277,35 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
             onChange={(val) => console.log('Selected:', val)}
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function SettingBrightnessScreen({ socket }: ScreenProps) {
+  const cellStyle: React.CSSProperties = {
+    border: '1px solid #444',
+    padding: '8px',
+    textAlign: 'left',
+  };
+
+  return (
+        <div style={{ 
+        display: 'flex', 
+        height: '100vh', 
+        width: '100vw', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#111', 
+        color: 'white', 
+        flexDirection: 'column', 
+        gap: 20, 
+        padding: 20, 
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+    }}>
+      {/* Row container to keep things consistently aligned */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Minimum dB Threshold */}
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
@@ -292,30 +321,6 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
             <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
           </div>
           <Incrementer signal="Max db" socket={socket} min={0} max={140} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
-        </div>
-
-        {/* Current Draw */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
-          </div>
-          <SignalValueTextBox signal="Calculated Current" socket={socket} decimalPlaces={2} units="mA" />
-        </div>
-
-        {/* Current Limit */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Limit</h2>
-          </div>
-          <Incrementer signal="Current Limit" socket={socket} min={500} max={100000} step={500} units="mA" holdEnabled={true} holdIntervalMs={10} />
-        </div>
-
-        {/* LED Driver Limit */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>LED Driver Limit</h2>
-          </div>
-          <Incrementer signal="LED Driver Limit" socket={socket} min={1} max={31} step={1} holdEnabled={true} holdIntervalMs={100} />
         </div>
 
         {/* Reference Table */}
@@ -353,6 +358,52 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
+  return (
+        <div style={{ 
+        display: 'flex', 
+        height: '100vh', 
+        width: '100vw', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#111', 
+        color: 'white', 
+        flexDirection: 'column', 
+        gap: 20, 
+        padding: 20, 
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+    }}>
+      {/* Row container to keep things consistently aligned */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Current Draw */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
+          </div>
+          <SignalValueTextBox signal="Calculated Current" socket={socket} decimalPlaces={2} units="mA" />
+        </div>
+
+        {/* Current Limit */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Limit</h2>
+          </div>
+          <Incrementer signal="Current Limit" socket={socket} min={500} max={100000} step={500} units="mA" holdEnabled={true} holdIntervalMs={10} />
+        </div>
+
+        {/* LED Driver Limit */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>LED Driver Limit</h2>
+          </div>
+          <Incrementer signal="LED Driver Limit" socket={socket} min={1} max={31} step={1} holdEnabled={true} holdIntervalMs={100} />
+        </div>
       </div>
     </div>
   );
