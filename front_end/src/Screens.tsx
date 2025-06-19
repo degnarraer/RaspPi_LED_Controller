@@ -2,6 +2,7 @@
 import LiveBarChart from './components/LiveBarChart';
 import MirroredVerticalBarChart from './components/MirroredVerticalBarChart';
 import StreamingScatterPlot from './components/StreamingScatterPlot';
+import DualSignalPlot from './components/DualSignalPlot';
 import ScrollingHeatmap from './components/ScrollingHeatMap';
 import { RenderTickProvider } from './components/RenderingTick';
 import LEDBoardTempGauge from './components/LEDBoardTempGauge';
@@ -283,55 +284,131 @@ export function SettingRenderingScreen({ socket }: ScreenProps) {
 }
 
 export function SettingBrightnessScreen({ socket }: ScreenProps) {
+  const containerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: '100vh',
+    width: '100vw',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'black',
+    color: 'white',
+    padding: 20,
+    boxSizing: 'border-box',
+    overflowY: 'auto',
+    gap: 20,
+  };
+
+  const sectionStyle: React.CSSProperties = {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
+  };
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    width: 200,
+    textAlign: 'right',
+    fontSize: 16,
+    fontWeight: 'bold',
+    userSelect: 'none',
+    whiteSpace: 'nowrap',
+  };
+
+  const chartRowStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    height: '40vh',
+    width: '100%',
+  };
+
   const cellStyle: React.CSSProperties = {
     border: '1px solid #444',
-    padding: '8px',
+    padding: '8px 12px',
     textAlign: 'left',
   };
 
-  return (
-        <div style={{ 
-        display: 'flex', 
-        height: '100vh', 
-        width: '100vw', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        backgroundColor: '#111', 
-        color: 'white', 
-        flexDirection: 'column', 
-        gap: 20, 
-        padding: 20, 
-        boxSizing: 'border-box',
-        overflowY: 'auto',
-    }}>
-      {/* Row container to keep things consistently aligned */}
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+  const tableStyle: React.CSSProperties = {
+    borderCollapse: 'collapse',
+    width: '100%',
+    backgroundColor: '#222',
+    color: 'white',
+    fontSize: 14,
+    marginTop: 20,
+  };
 
-        {/* Minimum dB Threshold */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
+  return (
+    <div style={containerStyle}>
+      <div style={sectionStyle}>
+        {/* FFT Graphs */}
+        <div style={chartRowStyle}>
+          <div style={{ width: '50%', height: '100%' }}>
+            <LiveBarChart
+              signal="FFT Bands Left Channel"
+              yLabelPosition="left"
+              barColor="rgba(54, 162, 235, 0.6)"
+              xLabelMinRotation={90}
+              xLabelMaxRotation={90}
+              flipX={true}
+              socket={socket}
+            />
           </div>
-          <Incrementer signal="Min db" socket={socket} min={-80} max={30} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
+          <div style={{ width: '50%', height: '100%' }}>
+            <LiveBarChart
+              signal="FFT Bands Right Channel"
+              yLabelPosition="right"
+              barColor="rgba(255, 99, 132, 0.6)"
+              xLabelMinRotation={90}
+              xLabelMaxRotation={90}
+              flipX={false}
+              socket={socket}
+            />
+          </div>
         </div>
 
-        {/* Maximum dB Threshold */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
-          </div>
-          <Incrementer signal="Max db" socket={socket} min={0} max={140} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
+        {/* Min dB */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Minimum dB Threshold</div>
+          <Incrementer
+            signal="Min db"
+            socket={socket}
+            min={-80}
+            max={30}
+            step={1}
+            units="dB"
+            holdEnabled={true}
+            holdIntervalMs={100}
+          />
+        </div>
+
+        {/* Max dB */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Maximum dB Threshold</div>
+          <Incrementer
+            signal="Max db"
+            socket={socket}
+            min={0}
+            max={140}
+            step={1}
+            units="dB"
+            holdEnabled={true}
+            holdIntervalMs={100}
+          />
         </div>
 
         {/* Reference Table */}
-        <table style={{
-          borderCollapse: 'collapse',
-          width: '100%',
-          backgroundColor: '#222',
-          color: 'white',
-          fontSize: 14,
-          marginTop: 20
-        }}>
+        <table style={tableStyle}>
           <thead>
             <tr>
               <th style={cellStyle}>dB Level</th>
@@ -364,47 +441,103 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
 }
 
 export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
-  return (
-        <div style={{ 
-        display: 'flex', 
-        height: '100vh', 
-        width: '100vw', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        backgroundColor: '#111', 
-        color: 'white', 
-        flexDirection: 'column', 
-        gap: 20, 
-        padding: 20, 
-        boxSizing: 'border-box',
-        overflowY: 'auto',
-    }}>
-      {/* Row container to keep things consistently aligned */}
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Current Draw */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
-          </div>
-          <SignalValueTextBox signal="Calculated Current" socket={socket} decimalPlaces={2} units="mA" />
-        </div>
+    return (
+        <div
+            style={{
+                display: 'flex',
+                height: '100vh',
+                width: '100vw',
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: '#111',
+                color: 'white',
+                flexDirection: 'column',
+                gap: 20,
+                padding: 20,
+                boxSizing: 'border-box',
+                overflowY: 'auto',
+            }}
+        >
+            <DualSignalPlot
+                signal1="Calculated Current"
+                bufferSize={2000}
+                socket={socket}
+                color="cyan"
+                horizontalMinSignal="Current Limit"
+            />
 
-        {/* Current Limit */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Limit</h2>
-          </div>
-          <Incrementer signal="Current Limit" socket={socket} min={500} max={100000} step={500} units="mA" holdEnabled={true} holdIntervalMs={10} />
-        </div>
+            <div
+                style={{
+                    width: '100%',
+                    maxWidth: 800,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 20,
+                    marginTop: 20,
+                }}
+            >
+                {/* Current Draw */}
+                <SettingRow label="Current Draw">
+                    <SignalValueTextBox
+                        signal="Calculated Current"
+                        socket={socket}
+                        decimalPlaces={2}
+                        units="mA"
+                    />
+                </SettingRow>
 
-        {/* LED Driver Limit */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-          <div style={{ width: 200, textAlign: 'right' }}>
-            <h2 style={{ margin: 0, userSelect: 'none' }}>LED Driver Limit</h2>
-          </div>
-          <Incrementer signal="LED Driver Limit" socket={socket} min={1} max={31} step={1} holdEnabled={true} holdIntervalMs={100} />
+                {/* Current Limit */}
+                <SettingRow label="Current Limit">
+                    <Incrementer
+                        signal="Current Limit"
+                        socket={socket}
+                        min={500}
+                        max={100000}
+                        step={500}
+                        units="mA"
+                        holdEnabled={true}
+                        holdIntervalMs={10}
+                    />
+                </SettingRow>
+
+                {/* LED Driver Limit */}
+                <SettingRow label="LED Driver Limit">
+                    <Incrementer
+                        signal="LED Driver Limit"
+                        socket={socket}
+                        min={1}
+                        max={31}
+                        step={1}
+                        holdEnabled={true}
+                        holdIntervalMs={100}
+                    />
+                </SettingRow>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
+}
+
+function SettingRow({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                justifyContent: 'center',
+            }}
+        >
+            <div style={{ width: 200, textAlign: 'right' }}>
+                <h2 style={{ margin: 0, userSelect: 'none' }}>{label}</h2>
+            </div>
+            {children}
+        </div>
+    );
 }
