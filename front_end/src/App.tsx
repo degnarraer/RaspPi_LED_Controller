@@ -94,7 +94,6 @@ function App() {
     if ('targetScreen' in item && item.targetScreen) {
       setScreen(item.targetScreen);
       setVisible(false);
-      setMenuStack(['main']);
     } else if ('targetMenu' in item && item.targetMenu) {
       if (item.label.toLowerCase() === 'back') {
         setMenuStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));

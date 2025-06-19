@@ -265,7 +265,7 @@ export function SettingRenderingScreen({ socket }: ScreenProps) {
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Row for Color Mapping */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
           </div>
@@ -308,7 +308,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Minimum dB Threshold */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
           </div>
@@ -316,7 +316,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
         </div>
 
         {/* Maximum dB Threshold */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
           </div>
@@ -382,7 +382,7 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
       {/* Row container to keep things consistently aligned */}
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Current Draw */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
           </div>
@@ -390,7 +390,7 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
         </div>
 
         {/* Current Limit */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>Current Limit</h2>
           </div>
@@ -398,7 +398,7 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
         </div>
 
         {/* LED Driver Limit */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>LED Driver Limit</h2>
           </div>
