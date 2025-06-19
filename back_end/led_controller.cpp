@@ -7,14 +7,56 @@
 #include <cstring>
 #include <chrono>
 
+#define LED_CURRENT 20.0f // mA per LED, adjust as needed
+#define BASE_LED_CURRENT 1.0f // mA per LED, adjust as needed
+
 LED_Controller::LED_Controller(int ledCount)
     : ledCount_(ledCount)
+    , logger_(initializeLogger("LED Logger", spdlog::level::info))
+    , calculatedCurrentSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Calculated Current")))
+    , currentLimitSignal_(std::dynamic_pointer_cast<Signal<uint32_t>>(SignalManager::getInstance().getSharedSignalByName("Current Limit")))
+    , globalLedDriverLimitSignal_(std::dynamic_pointer_cast<Signal<uint8_t>>(SignalManager::getInstance().getSharedSignalByName("LED Driver Limit")))
     , running_(false)
     , render_in_progress_(false)
     , ledStrip_(ledCount)
 {
-    logger_ = initializeLogger("LED Logger", spdlog::level::info);
     logger_->info("LED_Controller initialized with {} LEDs.", ledCount_);
+    auto calculatedCurrentSignal = calculatedCurrentSignal_.lock();
+    if(!calculatedCurrentSignal)
+    {
+        logger_->error("Failed to get current draw signal, it may not be initialized.");
+    }
+    else
+    {
+        logger_->info("Current draw signal initialized successfully.");
+    }
+
+    auto currentLimitSignal = currentLimitSignal_.lock();
+    if(!currentLimitSignal)
+    {
+        logger_->error("Failed to get current draw signal, it may not be initialized.");
+    }
+    else
+    {
+        logger_->info("Current draw signal initialized successfully.");
+        currentLimitSignal->setValue(currentLimit_);
+    }
+
+    auto globalLedDriverLimitSignal = globalLedDriverLimitSignal_.lock();
+    if(!globalLedDriverLimitSignal)
+    {
+        logger_->error("Failed to get Global LED Driver Limit signal, it may not be initialized.");
+    }
+    else
+    {
+        logger_->info("Global LED Driver Limit signal initialized successfully.");
+        globalLedDriverLimitSignal->setValue(globalLedDriverLimit_);
+        globalLedDriverLimitSignal->registerSignalValueCallback([this](const std::uint8_t& value, void* arg) {
+            std::lock_guard<std::mutex> lock(this->led_mutex_);
+            this->logger_->info("LED Driver Limit Signal Callback: {}", value);
+            this->globalLedDriverLimit_ = std::clamp<uint8_t>(value, 0, 31);
+        }, this);
+    }
 }
 
 LED_Controller::~LED_Controller()
@@ -59,43 +101,65 @@ void LED_Controller::renderLoop()
         return;
     }
 
+    std::vector<uint8_t> frame;
+    frame.reserve(4 + ledCount_ * 4 + (ledCount_ + 15) / 16);
+
     while (true)
     {
+        float current_draw_mA = 0.0f;
+
         {
             std::lock_guard<std::mutex> lock(led_mutex_);
             if (!running_)
             {
                 break;
             }
-            render_in_progress_ = true;
 
-            std::vector<uint8_t> frame;
+            render_in_progress_ = true;
+            RenderGuard renderGuard(render_in_progress_);
+
+            frame.clear();
             frame.insert(frame.end(), {0x00, 0x00, 0x00, 0x00}); // Start frame
 
             for (const auto& pixel : ledStrip_)
             {
-                // Combine hardware brightness with APA102 format
-                uint8_t hw_brightness = (pixel.device_brightness * global_device_brightness_) / 31;
-                hw_brightness &= 0x1F;
-                uint8_t br = 0b11100000 | hw_brightness;
+                uint8_t ledControlByte = 0b11100000 | globalLedDriverLimit_;
 
-                // Color scaled by user animation brightness and global brightness
-                uint8_t r = static_cast<uint8_t>(pixel.color.r * pixel.brightness * global_user_brightness_);
-                uint8_t g = static_cast<uint8_t>(pixel.color.g * pixel.brightness * global_user_brightness_);
-                uint8_t b = static_cast<uint8_t>(pixel.color.b * pixel.brightness * global_user_brightness_);
+                auto scaleColor = [](uint8_t color, float globalBrightness) -> uint8_t {
+                    float scaled = static_cast<float>(color) * globalBrightness;
+                    return static_cast<uint8_t>(std::round(std::clamp(scaled, 0.0f, 255.0f)));
+                };
 
-                frame.push_back(br);
+                uint8_t r = scaleColor(pixel.color.r, globalUserBrightness_);
+                uint8_t g = scaleColor(pixel.color.g, globalUserBrightness_);
+                uint8_t b = scaleColor(pixel.color.b, globalUserBrightness_);
+
+                frame.push_back(ledControlByte);
                 frame.push_back(b);
                 frame.push_back(g);
                 frame.push_back(r);
+
+                float intensity = (r + g + b) / (255.0f * 3.0f); // Normalize intensity to [0,1]
+                float driver_limit_scalar = static_cast<float>(globalLedDriverLimit_) / 31.0f;
+                float pixel_dynamic_mA = intensity * driver_limit_scalar * 3.0f * LED_CURRENT;
+                current_draw_mA += pixel_dynamic_mA + BASE_LED_CURRENT;
             }
 
             int endFrameBytes = (ledCount_ + 15) / 16;
             frame.insert(frame.end(), endFrameBytes, 0xFF); // End frame
-
             sendLEDFrame(fd, frame);
+        }
 
-            render_in_progress_ = false;
+        // Logging and signal update outside lock
+        logger_->debug("Estimated total current draw: {:.2f} mA", current_draw_mA);
+
+        if (auto signal = calculatedCurrentSignal_.lock())
+        {
+            signal->setValue(current_draw_mA);
+        }
+        else
+        {
+            logger_->error("Current draw signal is not initialized, cannot update.");
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -115,12 +179,11 @@ void LED_Controller::setColor(uint32_t color)
     for (auto& pixel : ledStrip_)
     {
         pixel.color = {r, g, b};
-        pixel.brightness = 1.0f;       // Full animation brightness by default
     }
     logger_->info("All LEDs set to color: #{:06X}", color & 0xFFFFFF);
 }
 
-void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float brightness)
+void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
     if (index < 0 || index >= ledCount_)
@@ -130,8 +193,6 @@ void LED_Controller::setPixel(int index, uint8_t r, uint8_t g, uint8_t b, float 
     }
 
     ledStrip_[index].color = {r, g, b};
-    ledStrip_[index].brightness = brightness;
-    // device_brightness left unchanged here; controlled by current limiter
 }
 
 void LED_Controller::clear()
@@ -140,40 +201,41 @@ void LED_Controller::clear()
     for (auto& pixel : ledStrip_)
     {
         pixel.color = {0, 0, 0};
-        pixel.brightness = 0.0f;
-        pixel.device_brightness = 31;
     }
     logger_->info("LEDs cleared.");
-}
-
-void LED_Controller::calculateCurrent()
-{
-    float current_draw_mA = 0.0f;
-    std::lock_guard<std::mutex> lock(led_mutex_);
-    for (const auto& px : ledStrip_)
-    {
-        // Simple estimation: total color intensity scaled by animation brightness times 20mA max per LED
-        float intensity = (px.color.r + px.color.g + px.color.b) / 255.0f;
-        current_draw_mA += intensity * px.brightness * 20.0f;
-    }
-    logger_->info("Estimated total current draw: {:.2f} mA", current_draw_mA);
 }
 
 void LED_Controller::setUserGlobalBrightness(float brightness)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
-    if (brightness < 0.0f) brightness = 0.0f;
-    if (brightness > 1.0f) brightness = 1.0f;
-    global_user_brightness_ = brightness;
-    logger_->info("User global brightness set to {:.2f}", global_user_brightness_);
+
+    globalUserBrightness_ = std::clamp(brightness, 0.0f, 1.0f);
+    logger_->info("User global brightness set to {}", globalUserBrightness_);
+
+    if (auto signal = globalUserBrightnessSignal_.lock())
+    {
+        signal->setValue(globalUserBrightness_);
+    }
+    else
+    {
+        logger_->warn("Failed to set user global brightness: signal is expired.");
+    }
 }
 
-void LED_Controller::setDeviceGlobalBrightness(uint8_t brightness)
+
+void LED_Controller::setGlobalLedDriverLimit(uint8_t limit)
 {
     std::lock_guard<std::mutex> lock(led_mutex_);
-    if (brightness > 31) brightness = 31;
-    global_device_brightness_ = brightness;
-    logger_->info("Device global brightness set to {}", global_device_brightness_);
+    logger_->info("Device global brightness set to {}", globalLedDriverLimit_);
+    globalLedDriverLimit_ = std::clamp<uint8_t>(limit, 0, 31);
+    if (auto signal = globalLedDriverLimitSignal_.lock())
+    {
+        signal->setValue(globalLedDriverLimit_);
+    }
+    else
+    {
+        logger_->warn("Failed to set global LED driver limit: signal is expired.");
+    }
 }
 
 int LED_Controller::openSPI()
@@ -206,9 +268,31 @@ int LED_Controller::openSPI()
 
 void LED_Controller::sendLEDFrame(int fd, const std::vector<uint8_t>& data)
 {
-    ssize_t written = write(fd, data.data(), data.size());
-    if (written != static_cast<ssize_t>(data.size()))
+    size_t totalWritten = 0;
+    const uint8_t* buffer = data.data();
+    size_t remaining = data.size();
+
+    while (remaining > 0)
     {
-        logger_->error("SPI write incomplete: wrote {} of {} bytes", written, data.size());
+        ssize_t written = write(fd, buffer + totalWritten, remaining);
+        if (written < 0)
+        {
+            if (errno == EINTR)
+            {
+                continue; // Retry interrupted syscall
+            }
+
+            logger_->error("SPI write failed: {}", strerror(errno));
+            return;
+        }
+
+        totalWritten += static_cast<size_t>(written);
+        remaining -= static_cast<size_t>(written);
+    }
+
+    if (totalWritten != data.size())
+    {
+        logger_->error("SPI write incomplete: wrote {} of {} bytes", totalWritten, data.size());
     }
 }
+

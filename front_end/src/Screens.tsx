@@ -6,11 +6,11 @@ import ScrollingHeatmap from './components/ScrollingHeatMap';
 import { RenderTickProvider } from './components/RenderingTick';
 import LEDBoardTempGauge from './components/LEDBoardTempGauge';
 import LedRow from './components/LedRow';
-//import SignalValueTextBox from './components/SignalValueTextbox';
+import SignalValueTextBox from './components/SignalValueTextbox';
 import HorizontalGauge from './components/HorizontalGauge';
 import { WebSocketContextType } from './components/WebSocketContext';
 import Incrementer from './components/Incrementer';
-
+import ValueSelector from './components/ValueSelector';
 export type ScreenType = (typeof SCREENS)[keyof typeof SCREENS];
 
 interface ScreenProps {
@@ -30,7 +30,9 @@ export const SCREENS = {
   WAVE_SCREEN: 'wave screen',
   SCROLLING_HEAT_MAP: 'scrolling heat map screen',
   SCROLLING_HEAT_MAP_RAINBOW: 'scrolling heat map rainbow',
-  SETTING_BRIGHTNESS: 'setting brightness',
+  SETTING_SENSITIVITY: 'setting sensitivity',
+  SETTING_CURRENT_LIMIT: 'setting current limit',
+  SETTING_RENDERING: 'setting rendering',
 } as const;
 
 export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
@@ -49,8 +51,12 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
           return <ScrollingHeatMapRainbowScreen socket={socket} />;
         case SCREENS.SCROLLING_HEAT_MAP:
           return <ScrollingHeatMapScreen socket={socket} />;
-        case SCREENS.SETTING_BRIGHTNESS:
+        case SCREENS.SETTING_SENSITIVITY:
           return <SettingBrightnessScreen socket={socket} />;
+        case SCREENS.SETTING_CURRENT_LIMIT:
+          return <SettingCurrentLimitScreen socket={socket} />;
+        case SCREENS.SETTING_RENDERING:
+          return <SettingRenderingScreen socket={socket} />;
         default:
         return <HomeScreen />;
     }
@@ -177,9 +183,9 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Left Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
-              max={10}
+              max={1}
               flipX={true}
               mode={'Rainbow'}
               socket={socket}
@@ -189,9 +195,9 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Right Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
-              max={10}
+              max={1}
               flipX={false}
               mode={'Rainbow'}
               socket={socket}
@@ -210,9 +216,9 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Left Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
-              max={10}
+              max={1}
               flipX={true}
               minColor={'#000000'}
               midColor={'#0000ff'}
@@ -224,9 +230,9 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
             <ScrollingHeatmap
               signal="FFT Bands Right Channel"
               dataWidth={32}
-              dataHeight={240}
+              dataHeight={1000}
               min={0}
-              max={10}
+              max={1}
               flipX={false}
               minColor={'#000000'}
               midColor={'#ff0000'}
@@ -239,6 +245,43 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
     );
 }
 
+export function SettingRenderingScreen({ socket }: ScreenProps) {
+  return (
+        <div style={{ 
+        display: 'flex', 
+        height: '100vh', 
+        width: '100vw', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#111', 
+        color: 'white', 
+        flexDirection: 'column', 
+        gap: 20, 
+        padding: 20, 
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+    }}>
+      {/* Row container to keep things consistently aligned */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Row for Color Mapping */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
+          </div>
+          <ValueSelector
+            signal="Color Mapping Type"
+            socket={socket}
+            options={['Linear', 'Log2', 'Log10']}
+            label="Color Mapping Type"
+            onChange={(val) => console.log('Selected:', val)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SettingBrightnessScreen({ socket }: ScreenProps) {
   const cellStyle: React.CSSProperties = {
     border: '1px solid #444',
@@ -247,101 +290,121 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100%',
-        width: '100%',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#111',
-        color: 'white',
-        flexDirection: 'column',
-        gap: 20,
-        padding: 20,
+        <div style={{ 
+        display: 'flex', 
+        height: '100vh', 
+        width: '100vw', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#111', 
+        color: 'white', 
+        flexDirection: 'column', 
+        gap: 20, 
+        padding: 20, 
         boxSizing: 'border-box',
-      }}
-    >
-      {/* Row for Minimum dB Threshold */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
-        <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
-        <Incrementer
-          signal="Min db"
-          socket={socket}
-          min={-80}
-          max={30}
-          step={1}
-          holdEnabled={true}
-          holdIntervalMs={100}
-        />
-      </div>
+        overflowY: 'auto',
+    }}>
+      {/* Row container to keep things consistently aligned */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Row for Maximum dB Threshold */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
-        <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
-        <Incrementer
-          signal="Max db"
-          socket={socket}
-          min={0}
-          max={140}
-          step={1}
-          holdEnabled={true}
-          holdIntervalMs={100}
-        />
-      </div>
+        {/* Minimum dB Threshold */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Minimum dB Threshold</h2>
+          </div>
+          <Incrementer signal="Min db" socket={socket} min={-80} max={30} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
+        </div>
 
-      {/* Reference Table */}
-      <table
-        style={{
+        {/* Maximum dB Threshold */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Maximum dB Threshold</h2>
+          </div>
+          <Incrementer signal="Max db" socket={socket} min={0} max={140} step={1} units="dB" holdEnabled={true} holdIntervalMs={100} />
+        </div>
+
+        {/* Reference Table */}
+        <table style={{
           borderCollapse: 'collapse',
           width: '100%',
-          maxWidth: 400,
           backgroundColor: '#222',
           color: 'white',
           fontSize: 14,
-        }}
-      >
-        <thead>
-          <tr>
-            <th style={cellStyle}>dB Level</th>
-            <th style={cellStyle}>Example Sound</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[
-            ['-80 dB', 'Noise floor'],
-            ['0 dB', 'Threshold of hearing'],
-            ['30 dB', 'Whisper'],
-            ['50 dB', 'Quiet conversation'],
-            ['70 dB', 'Vacuum cleaner'],
-            ['85 dB', 'City traffic (inside car)'],
-            ['110 dB', 'Jackhammer'],
-            ['120 dB', 'Ambulance siren'],
-            ['130 dB', 'Pain threshold'],
-            ['140 dB', 'Jet engine at takeoff'],
-          ].map(([level, example]) => (
-            <tr key={level}>
-              <td style={cellStyle}>{level}</td>
-              <td style={cellStyle}>{example}</td>
+          marginTop: 20
+        }}>
+          <thead>
+            <tr>
+              <th style={cellStyle}>dB Level</th>
+              <th style={cellStyle}>Example Sound</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {[
+              ['-80 dB', 'Noise floor'],
+              ['0 dB', 'Threshold of hearing'],
+              ['30 dB', 'Whisper'],
+              ['50 dB', 'Quiet conversation'],
+              ['70 dB', 'Vacuum cleaner'],
+              ['85 dB', 'City traffic (inside car)'],
+              ['110 dB', 'Jackhammer'],
+              ['120 dB', 'Ambulance siren'],
+              ['130 dB', 'Pain threshold'],
+              ['140 dB', 'Jet engine at takeoff'],
+            ].map(([level, example]) => (
+              <tr key={level}>
+                <td style={cellStyle}>{level}</td>
+                <td style={cellStyle}>{example}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
+export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
+  return (
+        <div style={{ 
+        display: 'flex', 
+        height: '100vh', 
+        width: '100vw', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#111', 
+        color: 'white', 
+        flexDirection: 'column', 
+        gap: 20, 
+        padding: 20, 
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+    }}>
+      {/* Row container to keep things consistently aligned */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Current Draw */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Draw</h2>
+          </div>
+          <SignalValueTextBox signal="Calculated Current" socket={socket} decimalPlaces={2} units="mA" />
+        </div>
+
+        {/* Current Limit */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>Current Limit</h2>
+          </div>
+          <Incrementer signal="Current Limit" socket={socket} min={500} max={100000} step={500} units="mA" holdEnabled={true} holdIntervalMs={10} />
+        </div>
+
+        {/* LED Driver Limit */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+          <div style={{ width: 200, textAlign: 'right' }}>
+            <h2 style={{ margin: 0, userSelect: 'none' }}>LED Driver Limit</h2>
+          </div>
+          <Incrementer signal="LED Driver Limit" socket={socket} min={1} max={31} step={1} holdEnabled={true} holdIntervalMs={100} />
+        </div>
+      </div>
+    </div>
+  );
+}

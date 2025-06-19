@@ -3,6 +3,7 @@
 #include "signal.h"
 #include "IntVectorSignal.h"
 #include "../websocket_server.h"
+#include "DataTypesAndEncoders/DataTypesAndEncoders.h"
 
 class SignalFactory
 {
@@ -13,13 +14,20 @@ public:
         {
             throw std::invalid_argument("WebSocketServer cannot be null");
         }
+        
+        SignalManager& signalManager = SignalManager::getInstance();
+
+        //Microphone Signals
         IntVectorSignal("Microphone", webSocketServer);
         IntVectorSignal("Microphone Left Channel", webSocketServer);
         IntVectorSignal("Microphone Right Channel", webSocketServer);
-        SignalManager& signalManager = SignalManager::getInstance();
+
+        //Audio Signals
         signalManager.createSignal<std::vector<float>>("FFT Bands", webSocketServer, get_fft_bands_encoder());
         signalManager.createSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, get_fft_bands_encoder());
         signalManager.createSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, get_fft_bands_encoder());
+
+        //System Signals
         signalManager.createSignal<std::string>("CPU Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("CPU Memory Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("CPU Temp", webSocketServer, get_signal_and_value_encoder<std::string>());
@@ -31,7 +39,21 @@ public:
         signalManager.createSignal<std::string>("Load Avg", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("Uptime", webSocketServer, get_signal_and_value_encoder<std::string>());
 
+        //Rendering Signals        
+        signalManager.createSignal<std::string>("Color Mapping Type", webSocketServer, get_signal_and_value_encoder<std::string>())->setValue(to_string(ColorMappingType::Linear));
+
+        //Sensitivity and Threshold Signals
         signalManager.createSignal<float>("Min db", webSocketServer, get_signal_and_value_encoder<float>());
         signalManager.createSignal<float>("Max db", webSocketServer, get_signal_and_value_encoder<float>());
+
+        //Brightness and Current Signals
+        signalManager.createSignal<float>("Calculated Current", webSocketServer, get_signal_and_value_encoder<float>());
+        signalManager.createSignal<uint32_t>("Current Limit", webSocketServer, get_signal_and_value_encoder<uint32_t>());
+        signalManager.createSignal<float>("Brightness", webSocketServer, get_signal_and_value_encoder<float>());
+        signalManager.createSignal<uint8_t>("LED Driver Limit", webSocketServer, get_signal_and_value_encoder<std::uint8_t>());
+
+        //Render Frequency Signals
+        signalManager.createSignal<float>("Minimum Render Frequency", webSocketServer, get_signal_and_value_encoder<float>());
+        signalManager.createSignal<float>("Maximum Render Frequency", webSocketServer, get_signal_and_value_encoder<float>());
     }
 };

@@ -95,8 +95,8 @@ export default class MirroredVerticalBarChart extends Component<
                 maintainAspectRatio: false,
                 scales: {
                     x: {
-                        min: -10,
-                        max: 10,
+                        min: -1,
+                        max: 1,
                         beginAtZero: true,
                         ticks: {
                             callback: (val: number) => Math.abs(val).toString(),

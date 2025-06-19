@@ -2,6 +2,9 @@ import { useState, useContext, useEffect } from 'react';
 import { Button, Drawer, Menu } from 'antd';
 import { WebSocketContext } from './components/WebSocketContext';
 import { renderScreen, ScreenType, SCREENS } from './Screens.tsx';
+import Current from './assets/current.png';
+import Color from './assets/color.png';
+import Microphone from './assets/microphone.png';
 
 import {
   MenuOutlined,
@@ -11,7 +14,6 @@ import {
   TableOutlined,
   HeatMapOutlined,
   LineChartOutlined,
-  BulbOutlined,
   PlayCircleOutlined,
   ArrowLeftOutlined,
 } from '@ant-design/icons';
@@ -28,35 +30,37 @@ const MENU_STRUCTURE = {
   main: {
     label: 'Navigation',
     items: [
-      { key: 'home', targetScreen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'settings', targetMenu: 'settings', label: 'Settings', icon: <SettingOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'animations', targetMenu: 'animations', label: 'Animations', icon: <PlayCircleOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'home', targetScreen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'settings', targetMenu: 'settings', label: 'Settings', icon: <SettingOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'animations', targetMenu: 'animations', label: 'Animations', icon: <PlayCircleOutlined style={{ fontSize: '50px' }} /> },
     ],
   },
   settings: {
     label: 'Settings',
     items: [
-      { key: 'brightness', targetScreen: SCREENS.SETTING_BRIGHTNESS, label: 'Brightness', icon: <BulbOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'Color', targetScreen: SCREENS.SETTING_RENDERING, label: 'Color', icon: <img src={Color} alt="Color" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} />  },
+      { key: 'Current Limit', targetScreen: SCREENS.SETTING_CURRENT_LIMIT, label: 'Current Limit', icon: <img src={Current} alt="Current Limit" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
+      { key: 'Microphone', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Microphone', icon: <img src={Microphone} alt="Microphone" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
+      { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '50px' }} /> },
     ],
   },
   animations: {
     label: 'Animations',
     items: [
-      { key: 'tower screen', targetScreen: SCREENS.TOWER_SCREEN, label: 'Tower Screen', icon: <TableOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'horizontal stereo spectrum', targetScreen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'vertical stereo spectrum', targetScreen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '40px', transform: 'scaleX(-1) rotate(-90deg)' }} /> },
-      { key: 'wave screen', targetScreen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <LineChartOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'heat map', targetMenu: 'heatmap', label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'tower screen', targetScreen: SCREENS.TOWER_SCREEN, label: 'Tower Screen', icon: <TableOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'horizontal stereo spectrum', targetScreen: SCREENS.HORIZONTAL_STEREO_SPECTRUM, label: 'Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'vertical stereo spectrum', targetScreen: SCREENS.VERTICAL_STEREO_SPECTRUM, label: 'Vertical Stereo Spectrum', icon: <BarChartOutlined style={{ fontSize: '50px', transform: 'scaleX(-1) rotate(-90deg)' }} /> },
+      { key: 'wave screen', targetScreen: SCREENS.WAVE_SCREEN, label: 'Wave Screen', icon: <LineChartOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'heat map', targetMenu: 'heatmap', label: 'Heat Map', icon: <HeatMapOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '50px' }} /> },
     ],
   },
   heatmap: {
     label: 'Heat Map',
     items: [
-      { key: 'scrolling heat map screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP, label: 'Normal', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'scrolling heat map rainbow screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP_RAINBOW, label: 'Rainbow', icon: <HeatMapOutlined style={{ fontSize: '40px' }} /> },
-      { key: 'back', targetMenu: 'animations', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '40px' }} /> },
+      { key: 'scrolling heat map screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP, label: 'Normal', icon: <HeatMapOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'scrolling heat map rainbow screen', targetScreen: SCREENS.SCROLLING_HEAT_MAP_RAINBOW, label: 'Rainbow', icon: <HeatMapOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'back', targetMenu: 'animations', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '50px' }} /> },
     ],
   },
 } as const;
@@ -90,7 +94,6 @@ function App() {
     if ('targetScreen' in item && item.targetScreen) {
       setScreen(item.targetScreen);
       setVisible(false);
-      setMenuStack(['main']);
     } else if ('targetMenu' in item && item.targetMenu) {
       if (item.label.toLowerCase() === 'back') {
         setMenuStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
@@ -113,7 +116,19 @@ function App() {
       >
         <Menu style={{ zIndex: 20001 }}>
           {currentMenu.items.map(item => (
-            <Menu.Item key={item.key} icon={item.icon} onClick={() => handleMenuClick(item)}>
+            <Menu.Item 
+              key={item.key} 
+              icon={item.icon}
+              onClick={() => handleMenuClick(item)}
+              style={{ 
+                height: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                paddingTop: '5px',
+                paddingBottom: '5px',
+                whiteSpace: 'normal',
+              }}
+            >
               {item.label}
             </Menu.Item>
           ))}

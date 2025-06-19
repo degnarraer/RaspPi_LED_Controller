@@ -162,13 +162,10 @@ void WebSocketSessionMessageManager::handleSignalSubscribe(const json& incoming)
         auto signal = SignalManager::getInstance().getSharedSignalByName(incoming["signal"].get<std::string>());
         if(signal)
         {
-            logger_->info("1");
             if(subscribeToSignal(incoming["signal"]))
             {
-                logger_->info("2");
                 signal->handleWebSocketValueRequest();
             }
-            logger_->info("3");
         }
         else
         {

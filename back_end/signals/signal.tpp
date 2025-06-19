@@ -12,15 +12,11 @@ template<typename T>
 T SignalValue<T>::getValue() const
 {
     std::lock_guard<std::mutex> lock(dataMutex_);
+    this->logger_->debug("GetValue");
     if (!data_)
     {
         this->logger_->error("Data is not initialized!");
         return T();
-    }
-
-    if (this->logger_)
-    {
-        this->logger_->debug("GetValue");
     }
     return *data_;
 }
@@ -50,7 +46,8 @@ bool SignalValue<T>::setValueFromJSON(const json& j)
 {
     try
     {
-        this->setValue(j.get<T>());
+        this->logger_->info("SetValueFromJSON: {}", j.dump());
+        this->setValue(j.get<T>(), this);
         return true;
     }
     catch(const std::exception& e)
@@ -64,28 +61,19 @@ template<typename T>
 void SignalValue<T>::registerSignalValueCallback(SignalValueCallback cb, void* arg)
 {
     std::lock_guard<std::mutex> lock(callbackMutex_);
-    if (this->logger_)
-    {
-        this->logger_->debug("Register Callback");
-    }
+    this->logger_->debug("Register Callback");
 
     auto it = std::find_if(this->callbacks_.begin(), this->callbacks_.end(),
         [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; });
 
     if (it != this->callbacks_.end())
     {
-        if (this->logger_)
-        {
-            this->logger_->debug("Existing Callback Updated.");
-        }
+        this->logger_->info("Existing Callback Updated.");
         it->callback = std::move(cb);
     }
     else
     {
-        if (this->logger_)
-        {
-            this->logger_->debug("New Callback Registered.");
-        }
+        this->logger_->info("New Callback Registered.");
         this->callbacks_.emplace_back(typename SignalValue<T>::SignalValueCallbackData{std::move(cb), arg});
     }
 }
@@ -94,11 +82,7 @@ template<typename T>
 void SignalValue<T>::unregisterSignalValueCallbackByArg(void* arg)
 {
     std::lock_guard<std::mutex> lock(callbackMutex_);
-    if (this->logger_)
-    {
-        this->logger_->debug("Callback Unregistered.");
-    }
-
+    this->logger_->debug("Callback Unregistered.");
     this->callbacks_.erase(std::remove_if(this->callbacks_.begin(), this->callbacks_.end(),
         [arg](const typename SignalValue<T>::SignalValueCallbackData& data) { return data.arg == arg; }), this->callbacks_.end());
 }

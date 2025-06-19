@@ -8,6 +8,50 @@
 #include "Encoder_String.h"
 #include "../../websocket_session.h"
 
+//************** ColorMappingType //***************/
+enum class ColorMappingType
+{
+    Linear,
+    Log2,
+    Log10,
+};
+
+inline std::string to_string(ColorMappingType type)
+{
+    switch (type)
+    {
+        case ColorMappingType::Linear: return "Linear";
+        case ColorMappingType::Log2:   return "Log2";
+        case ColorMappingType::Log10:  return "Log10";
+        default: throw std::invalid_argument("Unknown ColorMappingType");
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ColorMappingType type)
+{
+    switch (type)
+    {
+        case ColorMappingType::Linear: os << "Linear"; break;
+        case ColorMappingType::Log2:   os << "Log2";   break;
+        case ColorMappingType::Log10:  os << "Log10";  break;
+        default:                       os.setstate(std::ios::failbit); break;
+    }
+    return os;
+}
+
+inline std::istream& operator>>(std::istream& is, ColorMappingType& type)
+{
+    std::string token;
+    is >> token;
+
+    if (token == "Linear")       type = ColorMappingType::Linear;
+    else if (token == "Log2")    type = ColorMappingType::Log2;
+    else if (token == "Log10")   type = ColorMappingType::Log10;
+    else                         is.setstate(std::ios::failbit);
+
+    return is;
+}
+
 template<typename T>
 JsonEncoder<T> get_signal_and_value_encoder()
 {
@@ -114,15 +158,11 @@ inline std::istream& operator>>(std::istream& is, Color& c)
 struct Pixel
 {
     Color color;
-    float brightness = 1.0f;        // 0.0 to 1.0
-    uint8_t device_brightness = 31; // 0-31
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Pixel& p)
 {
     os << "{color=" << p.color
-       << ", brightness=" << p.brightness
-       << ", device_brightness=" << static_cast<int>(p.device_brightness)
        << '}';
     return os;
 }
@@ -142,49 +182,6 @@ inline std::istream& operator>>(std::istream& is, Pixel& p)
         is.setstate(std::ios::failbit);
         return is;
     }
-
-    if (!(is >> token) || token != ",")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    if (!(is >> token) || token.substr(0, 11) != "brightness=")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    // parse brightness value after =
-    std::string brightnessStr = token.substr(11);
-    std::istringstream brightnessStream(brightnessStr);
-    if (!(brightnessStream >> p.brightness))
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    if (!(is >> token) || token != ",")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    if (!(is >> token) || token.substr(0, 17) != "device_brightness=")
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-
-    std::string deviceBrightnessStr = token.substr(17);
-    int devBrightInt;
-    std::istringstream deviceBrightnessStream(deviceBrightnessStr);
-    if (!(deviceBrightnessStream >> devBrightInt))
-    {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    p.device_brightness = static_cast<uint8_t>(devBrightInt);
 
     if (!(is >> token) || token != "}")
     {

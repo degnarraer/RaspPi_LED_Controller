@@ -4,6 +4,7 @@
 #include "../signals/signal.h"
 #include <vector>
 #include <mutex>
+#include "ColorFunctions.h"
 
 class RainbowAnimation : public PixelGridAnimation
 {
@@ -15,23 +16,16 @@ protected:
     void AnimateFrame() override;
 
 private:
-    std::shared_ptr<Signal<BinData>> rightBinDataSignal_;
-    std::shared_ptr<Signal<BinData>> leftBinDataSignal_;
     BinData leftBinData_;
+    std::weak_ptr<Signal<BinData>> leftBinDataSignal_;
+    
     BinData rightBinData_;
+    std::weak_ptr<Signal<BinData>> rightBinDataSignal_;
+    
+    ColorMappingType colorMappingType_ = ColorMappingType::Linear;
+    std::weak_ptr<Signal<std::string>> colorMappingTypeSignal_;
+    
     std::mutex mutex_;
+    std::shared_ptr<spdlog::logger> logger_;
 
-    void OnLeftBinDataUpdate(const BinData& value, void* arg);
-    void OnRightBinDataUpdate(const BinData& value, void* arg);
-    RGB HSVtoRGB(float h, float s, float v);
-    RGB BinToRainbowRGB(int bin, int totalBins, float amplitudeNormalized)
-    {
-        // Avoid log(0)
-        float binLog = std::log2(static_cast<float>(bin + 1));
-        float totalLog = std::log2(static_cast<float>(totalBins));
-
-        float hue = (binLog / totalLog) * 360.0f;
-
-        return HSVtoRGB(hue, 1.0f, amplitudeNormalized);
-    }
 };
