@@ -12,6 +12,7 @@ import HorizontalGauge from './components/HorizontalGauge';
 import { WebSocketContextType } from './components/WebSocketContext';
 import Incrementer from './components/Incrementer';
 import ValueSelector from './components/ValueSelector';
+import ltop from './assets/ltop.png';
 export type ScreenType = (typeof SCREENS)[keyof typeof SCREENS];
 
 interface ScreenProps {
@@ -64,7 +65,47 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
 };
 
 export function HomeScreen() {
-    return(<div style={{ width: '100%', height: '100%' }}/>)
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#111',
+        color: 'white',
+        padding: '20px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <h1 style={{ fontSize: '3em', margin: 0 }}>LED Tower of Power</h1>
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '600px',
+          height: '300px',
+          marginTop: '20px'
+        }}
+      >
+        <img
+          src={ltop}
+          alt="LED Tower of Power"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain'
+          }}
+        />
+      </div>
+
+      <p style={{ fontSize: '1.5em', marginTop: '20px' }}>
+        Select a screen from the menu to get started.
+      </p>
+    </div>
+  );
 }
 
 export function TowerScreen({ socket }: ScreenProps) {
@@ -250,8 +291,8 @@ export function SettingRenderingScreen({ socket }: ScreenProps) {
   return (
         <div style={{ 
         display: 'flex', 
-        height: '100vh', 
-        width: '100vw', 
+        height: '100%', 
+        width: '100', 
         justifyContent: 'center', 
         alignItems: 'center', 
         backgroundColor: '#111', 
@@ -287,8 +328,8 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
   const containerStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
-    minHeight: '100vh',
-    width: '100vw',
+    minHeight: '100%',
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'black',
@@ -440,104 +481,95 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
   );
 }
 
+function SettingRow({ label, children, heightPercent }: { label: string; children: React.ReactNode; heightPercent?: number }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: heightPercent ? `${heightPercent}%` : 'auto',
+        boxSizing: 'border-box',
+      }}
+    >
+      <label style={{ marginBottom: 6, fontWeight: 'bold', color: 'white' }}>{label}</label>
+      <div style={{ flex: 1, width: '100%' }}>{children}</div>
+    </div>
+  );
+}
+
 export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
-    return (
-        <div
-            style={{
-                display: 'flex',
-                height: '100vh',
-                width: '100vw',
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: '#111',
-                color: 'white',
-                flexDirection: 'column',
-                gap: 20,
-                padding: 20,
-                boxSizing: 'border-box',
-                overflowY: 'auto',
-            }}
-        >
-            <DualSignalPlot
-                signal1="Calculated Current"
-                bufferSize={2000}
-                socket={socket}
-                color="cyan"
-                horizontalMinSignal="Current Limit"
-            />
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        width: '100%',
+        backgroundColor: 'black',
+        color: 'white',
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Top row: DualSignalPlot, taller */}
+      <div style={{ flex: 5, width: '100%', marginBottom: 20 }}>
+        <DualSignalPlot
+          signal1="Calculated Current"
+          bufferSize={2000}
+          socket={socket}
+          color="cyan"
+          horizontalMinSignal="Current Limit"
+          minimumYAxisUpperLimit={2000}
+        />
+      </div>
 
-            <div
-                style={{
-                    width: '100%',
-                    maxWidth: 800,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 20,
-                    marginTop: 20,
-                }}
-            >
-                {/* Current Draw */}
-                <SettingRow label="Current Draw">
-                    <SignalValueTextBox
-                        signal="Calculated Current"
-                        socket={socket}
-                        decimalPlaces={2}
-                        units="mA"
-                    />
-                </SettingRow>
+      {/* Bottom row: settings, stacked vertically */}
+      <div
+        style={{
+          flex: 5,
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          overflowY: 'auto',
+        }}
+      >
+        <SettingRow label="Current Draw" heightPercent={33}>
+          <SignalValueTextBox
+            signal="Calculated Current"
+            socket={socket}
+            decimalPlaces={2}
+            units="mA"
+          />
+        </SettingRow>
 
-                {/* Current Limit */}
-                <SettingRow label="Current Limit">
-                    <Incrementer
-                        signal="Current Limit"
-                        socket={socket}
-                        min={500}
-                        max={100000}
-                        step={500}
-                        units="mA"
-                        holdEnabled={true}
-                        holdIntervalMs={10}
-                    />
-                </SettingRow>
+        <SettingRow label="Current Limit" heightPercent={33}>
+          <Incrementer
+            signal="Current Limit"
+            socket={socket}
+            min={500}
+            max={100000}
+            step={500}
+            units="mA"
+            holdEnabled={true}
+            holdIntervalMs={10}
+          />
+        </SettingRow>
 
-                {/* LED Driver Limit */}
-                <SettingRow label="LED Driver Limit">
-                    <Incrementer
-                        signal="LED Driver Limit"
-                        socket={socket}
-                        min={1}
-                        max={31}
-                        step={1}
-                        holdEnabled={true}
-                        holdIntervalMs={100}
-                    />
-                </SettingRow>
-            </div>
-        </div>
-    );
+        <SettingRow label="LED Driver Limit" heightPercent={33}>
+          <Incrementer
+            signal="LED Driver Limit"
+            socket={socket}
+            min={1}
+            max={31}
+            step={1}
+            holdEnabled={true}
+            holdIntervalMs={100}
+          />
+        </SettingRow>
+      </div>
+    </div>
+  );
 }
 
-function SettingRow({
-    label,
-    children,
-}: {
-    label: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                justifyContent: 'center',
-            }}
-        >
-            <div style={{ width: 200, textAlign: 'right' }}>
-                <h2 style={{ margin: 0, userSelect: 'none' }}>{label}</h2>
-            </div>
-            {children}
-        </div>
-    );
-}

@@ -10,6 +10,7 @@
 #include "logger.h"
 #include "signals/IntVectorSignal.h"
 #include "websocket_server.h"
+#include "guarddog.h"
 
 class I2SMicrophone 
 {
@@ -42,6 +43,7 @@ class I2SMicrophone
         unsigned int channels_;
         unsigned int numFrames_;
         std::shared_ptr<WebSocketServer> webSocketServer_;
+        std::shared_ptr<GuardDog> guarddog_;
         snd_pcm_t* handle_ = nullptr;
         std::atomic<bool> stopReading_;
         std::thread readingThread_;

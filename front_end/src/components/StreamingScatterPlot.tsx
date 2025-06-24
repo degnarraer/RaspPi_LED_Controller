@@ -34,20 +34,31 @@ export default class StreamingScatterPlot extends Component<StreamingScatterPlot
         };
     }
 
-    async componentDidMount() {
-        try {
-            await this.loadChartLibrary();
-            this.createChart();
-            this.setupSocket();
-        } catch (error) {
-            console.error('Error initializing chart:', error);
-        }
+    async componentDidMount() { 
+        await this.loadChartLibrary();
+        this.createChart();
+        this.setupSocket();
+        this.resizeCanvas();
+        window.addEventListener('resize', this.resizeCanvas);
     }
 
     componentWillUnmount() {
         this.teardownSocket();
         if (this.chart) this.chart.destroy();
     }
+
+    resizeCanvas = () => {
+        const canvas = this.canvasRef.current;
+        if (canvas) {
+        const parent = canvas.parentElement;
+        if (parent) {
+            const rect = parent.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            // Optionally redraw chart here after resize
+        }
+        }
+    };
 
     async loadChartLibrary() {
         const module = await import('chart.js');

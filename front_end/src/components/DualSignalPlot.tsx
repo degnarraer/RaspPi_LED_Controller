@@ -9,6 +9,8 @@ interface StreamingScatterPlotProps {
   bufferSize?: number;
   horizontalMinSignal?: string;
   horizontalMaxSignal?: string;
+  minimumYAxisUpperLimit?: number;
+  minimumYAxisLowerLimit?: number;
 }
 
 interface StreamingScatterPlotState {
@@ -16,6 +18,8 @@ interface StreamingScatterPlotState {
   values2: number[];
   horizontalMin?: number;
   horizontalMax?: number;
+  minimumYAxisUpperLimit?: number;
+  minimumYAxisLowerLimit?: number;
 }
 
 class RingBuffer {
@@ -72,26 +76,39 @@ export default class DualSignalPlot extends Component<StreamingScatterPlotProps,
     };
   }
 
-  async componentDidMount() {
-    try {
-      await this.loadChartLibrary();
-      this.createChart();
-      this.setupSocket();
-    } catch (error) {
-      console.error('Error initializing chart:', error);
-    }
-  }
+async loadChartLibrary() {
+  const module = await import('chart.js');
+  this.ChartJS = module.Chart;
+  this.ChartJS.register(...module.registerables);
+}
 
-  componentWillUnmount() {
-    this.teardownSocket();
-    if (this.chart) this.chart.destroy();
-  }
+async componentDidMount() {
+  try {
+    await this.loadChartLibrary();
+    this.createChart();
+    this.setupSocket();
 
-  async loadChartLibrary() {
-    const module = await import('chart.js');
-    this.ChartJS = module.Chart;
-    this.ChartJS.register(...module.registerables);
+    // Add resize listener
+    window.addEventListener('resize', this.handleResize);
+  } catch (error) {
+    console.error('Error initializing chart:', error);
   }
+}
+
+componentWillUnmount() {
+  this.teardownSocket();
+  if (this.chart) this.chart.destroy();
+
+  // Remove resize listener
+  window.removeEventListener('resize', this.handleResize);
+}
+
+handleResize = () => {
+  if (this.chart) {
+    this.chart.resize();
+    this.chart.update('none'); // optional, to force update without animation
+  }
+};
 
   createChart() {
     const ctx = this.canvasRef.current?.getContext('2d');
@@ -150,8 +167,8 @@ export default class DualSignalPlot extends Component<StreamingScatterPlotProps,
             grid: { display: false },
           },
           y: {
-            min: -2000,
-            max: 2000,
+            min: this.state.minimumYAxisLowerLimit ?? this.props.minimumYAxisLowerLimit ?? 0,
+            max: this.state.minimumYAxisUpperLimit ?? this.props.minimumYAxisUpperLimit ?? 0,
             ticks: { color: 'white' },
             grid: { display: false },
           },
@@ -225,7 +242,6 @@ extractJsonValue(message: WebSocketMessage): number | undefined {
 
   handleSignal(message: WebSocketMessage, ring: RingBuffer, stateKey: 'values1' | 'values2') {
     const val = this.extractJsonValue(message);
-    console.log('Signal value:', val);
     if (typeof val === 'number') {
       ring.push([val]);
       this.setState({ [stateKey]: ring.getValues() } as any, this.updateChart);
@@ -234,13 +250,11 @@ extractJsonValue(message: WebSocketMessage): number | undefined {
 
   handleMinSignal = (msg: WebSocketMessage) => {
     const val = this.extractJsonValue(msg);
-    console.log('Min signal value:', val);
     if (val !== undefined) this.setState({ horizontalMin: val }, this.updateChart);
   };
 
   handleMaxSignal = (msg: WebSocketMessage) => {
     const val = this.extractJsonValue(msg);
-    console.log('Max signal value:', val);
     if (val !== undefined) this.setState({ horizontalMax: val }, this.updateChart);
   };
 
@@ -250,40 +264,43 @@ extractJsonValue(message: WebSocketMessage): number | undefined {
     const { values1, values2, horizontalMin, horizontalMax } = this.state;
 
     if (
-      values1.length === 0 &&
-      values2.length === 0 &&
-      horizontalMin === undefined &&
-      horizontalMax === undefined
+        values1.length === 0 &&
+        values2.length === 0 &&
+        horizontalMin === undefined &&
+        horizontalMax === undefined
     ) return;
 
     const allValues = [...values1, ...values2];
-    let min = Math.min(...allValues);
-    let max = Math.max(...allValues);
-    const minRange = 4000;
 
-    if (min === max) {
-      min = -2000;
-      max = 2000;
-    } else if (max - min < minRange) {
-      const center = (min + max) / 2;
-      min = center - minRange / 2;
-      max = center + minRange / 2;
+    // Calculate raw data min/max (fallback to 0 if empty)
+    let dataMin = allValues.length > 0 ? Math.min(...allValues) : 0;
+    let dataMax = allValues.length > 0 ? Math.max(...allValues) : 0;
+
+    // If min === max, make a small default range to avoid zero height
+    if (dataMin === dataMax) {
+        dataMin -= 1;
+        dataMax += 1;
     }
+
+    // Now apply your minimum limits from props, but only as boundaries
+    // i.e. make sure min is NOT less than minimumYAxisLowerLimit (if set)
+    // and max is NOT less than minimumYAxisUpperLimit (if set)
+    const minLimit = this.props.minimumYAxisLowerLimit;
+    const maxLimit = this.props.minimumYAxisUpperLimit;
+
+    const min = minLimit !== undefined ? Math.min(dataMin, minLimit) : dataMin;
+    const max = maxLimit !== undefined ? Math.max(dataMax, maxLimit) : dataMax;
 
     this.chart.options.scales.y.min = min;
     this.chart.options.scales.y.max = max;
 
     this.chart.data.datasets[0].data = values1.map((y, x) => ({ x, y }));
     this.chart.data.datasets[1].data = values2.map((y, x) => ({ x, y }));
-    this.chart.data.datasets[2].data = horizontalMin !== undefined
-      ? values1.map((_, x) => ({ x, y: horizontalMin }))
-      : [];
-    this.chart.data.datasets[3].data = horizontalMax !== undefined
-      ? values1.map((_, x) => ({ x, y: horizontalMax }))
-      : [];
+    this.chart.data.datasets[2].data = horizontalMin !== undefined ? values1.map((_, x) => ({ x, y: horizontalMin })) : [];
+    this.chart.data.datasets[3].data = horizontalMax !== undefined ? values1.map((_, x) => ({ x, y: horizontalMax })) : [];
 
     this.chart.update('none');
-  };
+};
 
   render() {
     return (

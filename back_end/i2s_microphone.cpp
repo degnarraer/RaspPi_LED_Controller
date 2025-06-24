@@ -23,6 +23,9 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     , minDbSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db")))
     , maxDbSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Max db")))
 {
+    auto& handler = GuardDogHandler::getInstance();
+    guarddog_ = handler.createGuardDog(5);
+
     // Retrieve existing logger or create a new one
     logger_ = initializeLogger("I2s Microphone", spdlog::level::info);
     if (snd_pcm_open(&handle_, find_device(targetDevice).c_str(), SND_PCM_STREAM_CAPTURE, 0) < 0)
@@ -164,12 +167,14 @@ std::vector<int32_t> I2SMicrophone::readAudioData()
 void I2SMicrophone::startReadingMicrophone()
 {
     logger_->debug("Device {}: StartReading", targetDevice_);
+    GuardDogHandler::getInstance().startMonitoringGuardDog(guarddog_);
     stopReading();
     stopReading_ = false;
     readingThread_ = std::thread([this]()
     {
         while (!stopReading_)
         {
+            this->guarddog_->feed();
             std::vector<int32_t> buffer = readAudioData();
             if (!buffer.empty())
             {
@@ -224,7 +229,6 @@ void I2SMicrophone::startReadingSineWave(double frequency)
 
 void I2SMicrophone::stopReading()
 {
-
     stopReading_ = true;
     if (sineWaveThread_.joinable())
     {
@@ -233,6 +237,10 @@ void I2SMicrophone::stopReading()
     if (readingThread_.joinable())
     {
         readingThread_.join();
+        if(guarddog_)
+        {
+            GuardDogHandler::getInstance().stopMonitoringGuardDog(guarddog_);
+        }
     }
 }
 

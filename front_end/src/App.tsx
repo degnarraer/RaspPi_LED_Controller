@@ -69,7 +69,7 @@ const MENU_STRUCTURE = {
 function App() {
   const socket = useContext(WebSocketContext);
   const [visible, setVisible] = useState(false);
-  const [screen, setScreen] = useState<ScreenType>(SCREENS.HORIZONTAL_STEREO_SPECTRUM);
+  const [screen, setScreen] = useState<ScreenType>(SCREENS.HOME);
   const menuKeys = Object.keys(MENU_STRUCTURE) as Array<keyof typeof MENU_STRUCTURE>;
   const [menuStack, setMenuStack] = useState<(keyof typeof MENU_STRUCTURE)[]>([menuKeys[0]]);
   const currentMenuKey = menuStack[menuStack.length - 1];
@@ -103,30 +103,127 @@ function App() {
     }
   };
 
+  function useWindowHeight() {
+    const [height, setHeight] = useState(window.innerHeight);
+
+    useEffect(() => {
+      const handleResize = () => setHeight(window.innerHeight);
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('orientationchange', handleResize);
+      };
+    }, []);
+
+    return height;
+  }
+  const height = useWindowHeight();
+
   return (
-    <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+    <div
+      style={{
+        width: '100vw',
+        height: height,
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'linear-gradient(135deg,rgb(104, 104, 104),rgb(0, 0, 0))',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header with Notched Menu Button */}
+      <div
+        style={{
+          height: '40px',
+          flexShrink: 0,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          padding: '0 20px',
+          backgroundColor: '#1c1c1c',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.4)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <Button
+          type="primary"
+          onClick={openDrawer}
+          aria-label="Open Menu"
+          icon={<MenuOutlined style={{ fontSize: '18px' }} />}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            height: '40px',
+            padding: '0 16px',
+            backgroundColor: '#1890ff',
+            borderColor: '#1890ff',
+            color: 'white',
+            fontWeight: 'bold',
+            borderRadius: 0,
+            clipPath: 'polygon(0 0, 100% 0, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+            boxSizing: 'border-box',
+          }}
+        >
+          Menu
+        </Button>
+
+      </div>
+
+      {/* Main Screen Content */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 0 12px rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(4px)',
+            animation: 'fadeIn 0.4s ease-in-out',
+            boxSizing: 'border-box',
+            overflow: 'hidden',
+          }}
+        >
+          {renderScreen({ socket, screen })}
+        </div>
+      </div>
+
+      {/* Drawer Menu - keep it inside layout to avoid scroll */}
       <Drawer
         title={currentMenu.label}
         placement="right"
-        onClose={() => {
-          setVisible(false);
-          setMenuStack(['main']);
-        }}
+        onClose={() => setVisible(false)}
         open={visible}
+        bodyStyle={{ padding: 0 }}
+        style={{ position: 'absolute' }}
+        getContainer={false} // render inside this component, not the body
       >
-        <Menu style={{ zIndex: 20001 }}>
-          {currentMenu.items.map(item => (
-            <Menu.Item 
-              key={item.key} 
+        <Menu mode="vertical" style={{ borderRight: 0 }}>
+          {currentMenu.items.map((item) => (
+            <Menu.Item
+              key={item.key}
               icon={item.icon}
               onClick={() => handleMenuClick(item)}
-              style={{ 
-                height: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                paddingTop: '5px',
-                paddingBottom: '5px',
+              style={{
+                padding: '10px 16px',
+                fontSize: '16px',
                 whiteSpace: 'normal',
+                boxSizing: 'border-box',
+                height: '60px',
               }}
             >
               {item.label}
@@ -135,26 +232,20 @@ function App() {
         </Menu>
       </Drawer>
 
-      {renderScreen({ socket, screen })}
-
-      <Button
-        type="primary"
-        onClick={openDrawer}
-        style={{
-          position: 'fixed',
-          top: '10px',
-          right: '10px',
-          zIndex: 10000,
-          opacity: 0.25,
-        }}
-        icon={
-          <span style={{ padding: '4px' }}>
-            <MenuOutlined style={{ fontSize: '20px' }} />
-          </span>
-        }
-      >
-        Menu
-      </Button>
+      <style>
+        {`
+          html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}
+      </style>
     </div>
   );
 }
