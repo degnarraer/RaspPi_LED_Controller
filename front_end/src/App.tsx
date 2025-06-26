@@ -191,16 +191,26 @@ function App() {
             width: '100%',
             height: '100%',
             backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            borderRadius: '16px',
-            padding: '24px',
-            boxShadow: '0 0 12px rgba(0,0,0,0.3)',
-            backdropFilter: 'blur(4px)',
-            animation: 'fadeIn 0.4s ease-in-out',
+            padding: '10px',
             boxSizing: 'border-box',
-            overflow: 'auto',
+            overflow: 'cutoff',
           }}
         >
-          {renderScreen({ socket, screen })}
+          <div
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: '16px',
+            padding: '0px',
+            boxSizing: 'border-box',
+            boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+            overflow: 'auto',
+            backdropFilter: 'blur(4px)',
+            animation: 'fadeIn 0.4s ease-in-out',
+          }}
+          >
+            {renderScreen({ socket, screen })}
+          </div>
         </div>
       </div>
 
