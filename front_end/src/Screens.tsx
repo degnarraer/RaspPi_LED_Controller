@@ -5,7 +5,6 @@ import StreamingScatterPlot from './components/StreamingScatterPlot';
 import DualSignalPlot from './components/DualSignalPlot';
 import ScrollingHeatmap from './components/ScrollingHeatMap';
 import { RenderTickProvider } from './components/RenderingTick';
-import LEDBoardTempGauge from './components/LEDBoardTempGauge';
 import LedRow from './components/LedRow';
 import SignalValueTextBox from './components/SignalValueTextbox';
 import HorizontalGauge from './components/HorizontalGauge';
@@ -116,16 +115,21 @@ export function TowerScreen({ socket }: ScreenProps) {
         width: '100%',
         height:'100%',
         display: 'grid',
-        gridTemplateColumns: 'auto auto',
-        gridTemplateRows: 'auto auto',
+        gridTemplateColumns: 'auto',
+        gridTemplateRows: 'auto',
         rowGap: '0px',
         columnGap: '0px',
         backgroundColor: 'black',
         padding: '0px',
     };
+
+    const rowStyle = {
+      backgroundColor: 'darkgray',
+    };
   
     const itemStyle = {
       backgroundColor: 'darkgray',
+      height:'20px',
     };
   
     /*const textStyle = {
@@ -137,11 +141,8 @@ export function TowerScreen({ socket }: ScreenProps) {
       <div style={gridStyle}>
         {Array.from({ length: 144 }, (_, i) => (
           <>
-            <div key={`led-${i}`} style={itemStyle}>
+            <div key={`led-${i}`} style={rowStyle}>
               <LedRow ledCount={5} signal="Pixel Grid" rowIndex={i} socket={socket} randomMode={false} />
-            </div>
-            <div key={`gauge-${i}`} style={itemStyle}>
-              <LEDBoardTempGauge signalName={"Temp Signal {i}"} socket={socket} />
             </div>
           </>
         ))}

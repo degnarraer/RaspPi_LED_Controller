@@ -191,7 +191,8 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                     style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${ledColors.length}, 1fr)`,
-                        gap: '0px',
+                        rowGap: '0px',
+                        columnGap: '0px',
                         width: '100%',
                         height: '100%',
                         backgroundColor: 'black',
@@ -204,7 +205,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                             style={{
                                 backgroundColor: color,
                                 border: '0px solid black',
-                                borderRadius: '0.1em',
+                                borderRadius: '0px',
                                 boxSizing: 'border-box',
                                 width: '100%',
                                 height: '100%',
