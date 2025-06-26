@@ -35,6 +35,7 @@ export const SCREENS = {
   SETTING_SENSITIVITY: 'setting sensitivity',
   SETTING_CURRENT_LIMIT: 'setting current limit',
   SETTING_RENDERING: 'setting rendering',
+  SETTING_FREQUENCY_RENDERING: 'setting frequency rendering',
 } as const;
 
 export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
@@ -59,6 +60,8 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
           return <SettingCurrentLimitScreen socket={socket} />;
         case SCREENS.SETTING_RENDERING:
           return <SettingRenderingScreen socket={socket} />;
+        case SCREENS.SETTING_FREQUENCY_RENDERING:
+          return <SettingFrequencyRenderingScreen socket={socket} />;
         default:
         return <HomeScreen />;
     }
@@ -115,7 +118,8 @@ export function TowerScreen({ socket }: ScreenProps) {
         display: 'grid',
         gridTemplateColumns: 'auto auto',
         gridTemplateRows: 'auto auto',
-        gap: '0px',
+        rowGap: '0px',
+        columnGap: '0px',
         backgroundColor: 'black',
         padding: '0px',
     };
@@ -288,11 +292,25 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
 }
 
 export function SettingRenderingScreen({ socket }: ScreenProps) {
+  const gridStyle = {
+      width: '100%',
+      height:'100%',
+      display: 'grid',
+      gridTemplateColumns: 'auto',
+      gridTemplateRows: 'auto',
+      rowGap: '0px',
+      columnGap: '0px',
+      backgroundColor: 'black',
+      padding: '0px',
+  };
+  const itemStyle = {
+    backgroundColor: 'darkgray',
+  };
   return (
-        <div style={{ 
+        <div style={{
         display: 'flex', 
         height: '100%', 
-        width: '100', 
+        width: '100%', 
         justifyContent: 'center', 
         alignItems: 'center', 
         backgroundColor: '#111', 
@@ -303,11 +321,20 @@ export function SettingRenderingScreen({ socket }: ScreenProps) {
         boxSizing: 'border-box',
         overflowY: 'auto',
     }}>
+      
       {/* Row container to keep things consistently aligned */}
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{...gridStyle, flex: '1', minHeight:0, overflowY: 'auto',}}>
+          {Array.from({ length: 144 }, (_, i) => (
+            <>
+              <div key={`led-${i}`} style={itemStyle}>
+                <LedRow ledCount={5} signal="Pixel Grid" rowIndex={i} socket={socket} randomMode={false} />
+              </div>
+            </>
+          ))}
+        </div>
         {/* Row for Color Mapping */}
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <div style={{ width: 200, textAlign: 'right' }}>
             <h2 style={{ margin: 0, userSelect: 'none' }}>Color Mapping</h2>
           </div>
@@ -555,7 +582,7 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
             step={500}
             units="mA"
             holdEnabled={true}
-            holdIntervalMs={10}
+            holdIntervalMs={100}
           />
         </SettingRow>
 
@@ -566,6 +593,92 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
             min={1}
             max={31}
             step={1}
+            holdEnabled={true}
+            holdIntervalMs={100}
+          />
+        </SettingRow>
+      </div>
+    </div>
+  );
+}
+
+export function SettingFrequencyRenderingScreen({ socket }: ScreenProps) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        width: '100%',
+        minHeight: 500,
+        minWidth: 250,
+        backgroundColor: 'black',
+        color: 'white',
+        padding: 20,
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+      }}
+    >
+      {/* Top row: FFT Plot, taller */}
+      <div style={{ flex: 5, display: 'flex', flexDirection: 'row', width: '100%', marginBottom: 20, gap: 12, minHeight: 100, minWidth: 500, }}>
+        <div style={{ flex: 1, marginBottom: 20, minHeight: 100, minWidth: 125, }}>
+          <LiveBarChart
+            signal="FFT Bands Left Channel"
+            yLabelPosition="left"
+            barColor="rgba(54, 162, 235, 0.6)"
+            xLabelMinRotation={90}
+            xLabelMaxRotation={90}
+            flipX={true}
+            socket={socket}
+          />
+        </div>
+        <div style={{ flex: 1, marginBottom: 20, minHeight: 100, minWidth: 125, }}>
+          <LiveBarChart
+            signal="FFT Bands Right Channel"
+            yLabelPosition="right"
+            barColor="rgba(54, 162, 235, 0.6)"
+            xLabelMinRotation={90}
+            xLabelMaxRotation={90}
+            flipX={false}
+            socket={socket}
+          />
+        </div>
+      </div>
+
+      {/* Bottom row: settings, stacked vertically */}
+      <div
+        style={{
+          flex: 5,
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          minHeight: 100,
+          minWidth: 250,
+          overflowY: 'auto',
+        }}
+      >
+        <SettingRow label="Minimum Render Frequency" heightPercent={33}>
+          <Incrementer
+            signal="Minimum Render Frequency"
+            socket={socket}
+            min={0}
+            max={1000}
+            step={20}
+            units="Hz"
+            holdEnabled={true}
+            holdIntervalMs={100}
+          />
+        </SettingRow>
+
+        <SettingRow label="Maximum Render Frequency" heightPercent={33}>
+          <Incrementer
+            signal="Maximum Render Frequency"
+            socket={socket}
+            min={4000}
+            max={20000}
+            step={100}
+            units="Hz"
             holdEnabled={true}
             holdIntervalMs={100}
           />

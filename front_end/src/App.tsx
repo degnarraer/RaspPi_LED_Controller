@@ -5,6 +5,7 @@ import { renderScreen, ScreenType, SCREENS } from './Screens.tsx';
 import Current from './assets/current.png';
 import Color from './assets/color.png';
 import Microphone from './assets/microphone.png';
+import FreqRange from './assets/frequency_range.png';
 
 import {
   MenuOutlined,
@@ -40,7 +41,8 @@ const MENU_STRUCTURE = {
     items: [
       { key: 'Color', targetScreen: SCREENS.SETTING_RENDERING, label: 'Color', icon: <img src={Color} alt="Color" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} />  },
       { key: 'Current Limit', targetScreen: SCREENS.SETTING_CURRENT_LIMIT, label: 'Current Limit', icon: <img src={Current} alt="Current Limit" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
-      { key: 'Microphone', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Microphone', icon: <img src={Microphone} alt="Microphone" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
+      { key: 'Sensitivity', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Sensitivity', icon: <img src={Microphone} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
+      { key: 'Frequency Range', targetScreen: SCREENS.SETTING_FREQUENCY_RENDERING, label: 'Frequency Range', icon: <img src={FreqRange} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
       { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '50px' }} /> },
     ],
   },

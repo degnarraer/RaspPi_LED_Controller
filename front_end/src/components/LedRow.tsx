@@ -203,7 +203,7 @@ export default class LEDRow extends Component<LEDRowProps, LEDRowState> {
                             key={index}
                             style={{
                                 backgroundColor: color,
-                                border: '1px solid black',
+                                border: '0px solid black',
                                 borderRadius: '0.1em',
                                 boxSizing: 'border-box',
                                 width: '100%',

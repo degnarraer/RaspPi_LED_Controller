@@ -94,7 +94,7 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 ],
             },
             options: {
-                responsive: false,
+                responsive: true,
                 maintainAspectRatio: false,
                 scales: {
                     y: {
@@ -135,8 +135,6 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
                 backgroundColor: 'black',
             },
         });
-
-        this.resizeCanvas();
     }
 
     updateChart() {
@@ -235,14 +233,6 @@ export default class LiveBarChart extends Component<LiveBarChartProps, LiveBarCh
     }
 
     resizeCanvas() {
-        const canvas = this.canvasRef.current;
-        const container = this.containerRef.current;
-        if (!canvas || !container) return;
-
-        const rect = container.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-
         if (this.chart) {
             this.chart.resize();
         }
