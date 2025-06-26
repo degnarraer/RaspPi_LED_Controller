@@ -131,7 +131,7 @@ function App() {
         color: 'white',
         fontFamily: 'Arial, sans-serif',
         boxSizing: 'border-box',
-        overflow: 'hidden',
+        overflow: 'auto',
       }}
     >
       {/* Header with Notched Menu Button */}
@@ -181,7 +181,7 @@ function App() {
           justifyContent: 'center',
           alignItems: 'center',
           boxSizing: 'border-box',
-          overflow: 'hidden',
+          overflow: 'auto',
         }}
       >
         <div
@@ -195,7 +195,7 @@ function App() {
             backdropFilter: 'blur(4px)',
             animation: 'fadeIn 0.4s ease-in-out',
             boxSizing: 'border-box',
-            overflow: 'hidden',
+            overflow: 'auto',
           }}
         >
           {renderScreen({ socket, screen })}
@@ -238,7 +238,7 @@ function App() {
             margin: 0;
             padding: 0;
             height: 100%;
-            overflow: hidden;
+            overflow: auto;
           }
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }

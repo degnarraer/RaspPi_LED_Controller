@@ -140,6 +140,11 @@ class FFTComputer
             fftCallback_ = callback;
         }
 
+        std::array<float, 32> GetFFTBandCenters() const
+        {
+            return ISO_32_BAND_CENTERS;
+        };
+
     private:
         struct DataPacket
         {
@@ -171,9 +176,9 @@ class FFTComputer
         Signal<std::vector<int32_t>>* inputSignal_;
         Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
         Signal<std::vector<int32_t>>* inputSignalRightChannel_;
-        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_, webSocketServer_, get_fft_bands_encoder());
-        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, get_fft_bands_encoder());
-        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, get_fft_bands_encoder());
+        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_, webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
+        std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
+        std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
         std::shared_ptr<Signal<BinData>> monoBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Mono Bin Data", webSocketServer_, get_bin_data_encoder());
         std::shared_ptr<Signal<BinData>> leftBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Left Bin Data", webSocketServer_, get_bin_data_encoder());
         std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
@@ -184,6 +189,28 @@ class FFTComputer
         float maxDbValue_ = 40.0f;
         std::function<void(const float&, void*)> minDbSignalCallback_;
         std::function<void(const float&, void*)> maxDbSignalCallback_;
+
+
+        static std::vector<std::string> GetIsoBandLabels()
+        {
+            std::vector<std::string> labels;
+            labels.reserve(ISO_32_BAND_CENTERS.size());
+
+            std::transform(
+                ISO_32_BAND_CENTERS.begin(),
+                ISO_32_BAND_CENTERS.end(),
+                std::back_inserter(labels),
+                [](float f)
+                {
+                    std::ostringstream oss;
+                    oss.precision(1);
+                    oss << std::fixed << f;
+                    return oss.str();
+                }
+            );
+
+            return labels;
+        }
 
         void registerCallbacks()
         {
@@ -401,8 +428,8 @@ class FFTComputer
 
         static constexpr std::array<float, 32> ISO_32_BAND_CENTERS =
         {
-            16, 20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630,
-            800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
+            16.0, 20.0, 25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0,
+            800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 20000.0
         };
 
         double getFFTFrequency(int binIndex)

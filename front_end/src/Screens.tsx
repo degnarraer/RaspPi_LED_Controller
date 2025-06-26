@@ -92,7 +92,7 @@ export function HomeScreen() {
       >
         <img
           src={ltop}
-          alt="LED Tower of Power"
+          alt="LTOP"
           style={{
             width: '100%',
             height: '100%',
@@ -489,6 +489,8 @@ function SettingRow({ label, children, heightPercent }: { label: string; childre
         flexDirection: 'column',
         width: '100%',
         height: heightPercent ? `${heightPercent}%` : 'auto',
+        minHeight: 'fit-content',
+        overflow: 'visible',
         boxSizing: 'border-box',
       }}
     >
@@ -510,6 +512,7 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
         color: 'white',
         padding: 20,
         boxSizing: 'border-box',
+        overflowY: 'auto',
       }}
     >
       {/* Top row: DualSignalPlot, taller */}
@@ -532,7 +535,6 @@ export function SettingCurrentLimitScreen({ socket }: ScreenProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: 12,
-          overflowY: 'auto',
         }}
       >
         <SettingRow label="Current Draw" heightPercent={33}>

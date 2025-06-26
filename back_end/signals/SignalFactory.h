@@ -22,11 +22,6 @@ public:
         IntVectorSignal("Microphone Left Channel", webSocketServer);
         IntVectorSignal("Microphone Right Channel", webSocketServer);
 
-        //Audio Signals
-        signalManager.createSignal<std::vector<float>>("FFT Bands", webSocketServer, get_fft_bands_encoder());
-        signalManager.createSignal<std::vector<float>>("FFT Bands Left Channel", webSocketServer, get_fft_bands_encoder());
-        signalManager.createSignal<std::vector<float>>("FFT Bands Right Channel", webSocketServer, get_fft_bands_encoder());
-
         //System Signals
         signalManager.createSignal<std::string>("CPU Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
         signalManager.createSignal<std::string>("CPU Memory Usage", webSocketServer, get_signal_and_value_encoder<std::string>());
