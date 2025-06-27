@@ -219,9 +219,8 @@ function App() {
         title={
           <div style={{ 
             color: 'white', 
-            fontSize: '24px', 
-            textAlign: 'left', 
-            backgroundColor: 'rgba(0, 0, 0, 0)', 
+            fontSize: '40px', 
+            textAlign: 'left',
             padding: '12px 0' 
           }}>
             {currentMenu.label}
@@ -232,11 +231,11 @@ function App() {
         open={visible}
         style={{ 
           position: 'absolute', 
-          backgroundColor: 'rgba(0, 0, 0, 0)',
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
         }}
         getContainer={false} // render inside this component, not the body
       >
-        <Menu mode="vertical" style={{ borderRight: 0 }}>
+        <Menu mode="vertical" style={{ borderRight: 0, backgroundColor: 'transparent', color: 'white' }}>
           {currentMenu.items.map((item) => (
             <Menu.Item
               key={item.key}
@@ -246,11 +245,11 @@ function App() {
                 display: 'flex',
                 alignItems: 'center',
                 padding: '10px 16px',
-                fontSize: '16px',
+                fontSize: '30px',
                 whiteSpace: 'normal',
+                color: 'white',
                 boxSizing: 'border-box',
                 height: '60px',
-                backgroundColor: 'rgba(0, 0, 0, 0.75)',
               }}
             >
               {item.label}
