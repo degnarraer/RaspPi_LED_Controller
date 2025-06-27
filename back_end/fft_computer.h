@@ -55,6 +55,8 @@ class FFTComputer
             , maxValue_(maxValue)
             , webSocketServer_(webSocketServer)
             , stopFlag_(false)
+            , minRenderFrequencySignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Minimum Render Frequency")))
+            , maxRenderFrequencySignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Maximum Render Frequency")))
         {
             // Retrieve existing logger_ or create a new one
             logger_ = initializeLogger("FFT Computer", spdlog::level::info);
@@ -73,39 +75,68 @@ class FFTComputer
             registerCallbacks();
             fftThread_ = std::thread(&FFTComputer::processQueue, this);
 
-            minDbSignalCallback_ = [](const float& value, void* arg)
-            {
-                FFTComputer* self = static_cast<FFTComputer*>(arg);
-                self->minDbValue_ = value;
-                self->logger_->info("FFT Computer: Received new Min Db value: {}", value);
-            };
             minDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db"));
             if (minDbSignal_)
             {
                 minDbSignal_->setValue(minDbValue_);
-                minDbSignal_->registerSignalValueCallback(minDbSignalCallback_, this);
+                minDbSignal_->registerSignalValueCallback([](const float& value, void* arg)
+                {
+                    FFTComputer* self = static_cast<FFTComputer*>(arg);
+                    self->minDbValue_ = value;
+                    self->logger_->info("FFT Computer: Received new Min Db value: {}", value);
+                }, this);
             }
             else
             {
                 logger_->warn("FFT Computer: Min db signal not found, using default value: {}", minDbValue_);
             }
 
-            maxDbSignalCallback_ = [](const float& value, void* arg)
-            {
-                FFTComputer* self = static_cast<FFTComputer*>(arg);
-                self->maxDbValue_ = value;
-                self->logger_->info("FFT Computer: Received new Max Db value: {}", value);
-            };
-
             maxDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Max db"));
             if (maxDbSignal_)
             {
                 maxDbSignal_->setValue(maxDbValue_);
-                maxDbSignal_->registerSignalValueCallback(maxDbSignalCallback_, this);
+                maxDbSignal_->registerSignalValueCallback([](const float& value, void* arg)
+                {
+                    FFTComputer* self = static_cast<FFTComputer*>(arg);
+                    self->maxDbValue_ = value;
+                    self->logger_->info("FFT Computer: Received new Max Db value: {}", value);
+                }, this);
             }
             else
             {
                 logger_->warn("FFT Computer: Max db signal not found, using default value: {}", maxDbValue_);
+            }
+            
+            auto minRenderFrequencySignal = minRenderFrequencySignal_.lock();
+            if (minRenderFrequencySignal)
+            {
+                logger_->info("Minimum Render Frequency signal initialized successfully.");
+                minRenderFrequencySignal->registerSignalValueCallback([this](const float& value, void* arg) {
+                    std::lock_guard<std::mutex> lock(this->mutex_);
+                    this->logger_->info("Minimum Render Frequency Signal Callback: {}", value);
+                    this->minRenderFrequency_ = value;
+                }, this);
+            }
+            else
+            {
+                logger_->warn("Minimum Render Frequency Signal not found, using default value: 0.0f");
+                minRenderFrequency_ = 0.0f; // Default initialization
+            }
+
+            auto maxRenderFrequencySignal = maxRenderFrequencySignal_.lock();
+            if (maxRenderFrequencySignal)
+            {
+                logger_->info("Maximum Render Frequency signal initialized successfully.");
+                maxRenderFrequencySignal->registerSignalValueCallback([this](const float& value, void* arg) {
+                    std::lock_guard<std::mutex> lock(this->mutex_);
+                    this->logger_->info("Maximum Render Frequency Signal Callback: {}", value);
+                    this->maxRenderFrequency_ = value;
+                }, this);
+            }
+            else
+            {
+                logger_->warn("Maximum Render Frequency Signal not found, using default value: 24000.0f");
+                maxRenderFrequency_ = 24000.0f; // Default initialization
             }
 
         }
@@ -129,7 +160,7 @@ class FFTComputer
         void addData(const std::vector<int32_t>& data, ChannelType channel)
         {
             {
-                std::lock_guard<std::mutex> lock(queueMutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
                 dataQueue_.emplace(data, channel);
             }
             cv_.notify_one();
@@ -164,7 +195,7 @@ class FFTComputer
 
         std::atomic<bool> stopFlag_;
         std::thread fftThread_;
-        std::mutex queueMutex_;
+        std::mutex mutex_;
         std::condition_variable cv_;
         std::queue<DataPacket> dataQueue_;
         kiss_fft_cfg fft_;
@@ -187,8 +218,12 @@ class FFTComputer
         float minDbValue_ = 0.0f;
         std::shared_ptr<Signal<float>> maxDbSignal_;
         float maxDbValue_ = 40.0f;
-        std::function<void(const float&, void*)> minDbSignalCallback_;
-        std::function<void(const float&, void*)> maxDbSignalCallback_;
+
+        float minRenderFrequency_ = 0.0f;
+        std::weak_ptr<Signal<float>> minRenderFrequencySignal_;
+
+        float maxRenderFrequency_ = 24000.0f;
+        std::weak_ptr<Signal<float>> maxRenderFrequencySignal_;
 
 
         static std::vector<std::string> GetIsoBandLabels()
@@ -247,7 +282,7 @@ class FFTComputer
             {
                 DataPacket dataPacket;
                 {
-                    std::unique_lock<std::mutex> lock(queueMutex_);
+                    std::unique_lock<std::mutex> lock(mutex_);
                     cv_.wait(lock, [this] { return !dataQueue_.empty() || stopFlag_; });
                     if (stopFlag_) break;
                     dataPacket = std::move(dataQueue_.front());
@@ -348,14 +383,20 @@ class FFTComputer
         {
             float freqResolution = static_cast<float>(sampleRate_) / fft_size_;
 
-            // Initialize min/max amplitude and bin indices
+            // Convert min/max frequency to bin range
+            size_t minAllowedBin = static_cast<size_t>(std::floor(minRenderFrequency_ / freqResolution));
+            size_t maxAllowedBin = static_cast<size_t>(std::ceil(maxRenderFrequency_ / freqResolution));
+            minAllowedBin = std::min(minAllowedBin, fft_size_ - 1);
+            maxAllowedBin = std::min(maxAllowedBin, fft_size_ - 1);
+
+            // Initialize binData
             binData.normalizedMinValue = std::numeric_limits<float>::max();
             binData.normalizedMaxValue = std::numeric_limits<float>::lowest();
-            binData.minBin = 0;
-            binData.maxBin = 0;
+            binData.minBin = minAllowedBin;
+            binData.maxBin = maxAllowedBin;
 
-            // Find min/max amplitude and their bin indices across all magnitudes
-            for (size_t i = 0; i < magnitudes.size(); ++i)
+            // Find min/max amplitude within allowed bin range
+            for (size_t i = minAllowedBin; i <= maxAllowedBin; ++i)
             {
                 if (magnitudes[i] < binData.normalizedMinValue)
                 {
@@ -373,7 +414,7 @@ class FFTComputer
             binData.normalizedMinValue = normalizeDb(binData.normalizedMinValue);
             binData.normalizedMaxValue = normalizeDb(binData.normalizedMaxValue);
 
-            // Compute SAE bands
+            // Compute all 32 SAE bands
             for (size_t i = 0; i < ISO_32_BAND_CENTERS.size(); ++i)
             {
                 float lowerFreq, upperFreq;
@@ -423,8 +464,10 @@ class FFTComputer
                 }
             }
 
-            binData.totalBins = static_cast<uint16_t>(fft_size_ / 2);
+            // totalBins now reflects only the bins within the min/max render frequency
+            binData.totalBins = static_cast<uint16_t>(maxAllowedBin - minAllowedBin + 1);
         }
+
 
         static constexpr std::array<float, 32> ISO_32_BAND_CENTERS =
         {

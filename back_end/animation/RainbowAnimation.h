@@ -24,7 +24,7 @@ private:
     
     ColorMappingType colorMappingType_ = ColorMappingType::Linear;
     std::weak_ptr<Signal<std::string>> colorMappingTypeSignal_;
-    
+
     std::mutex mutex_;
     std::shared_ptr<spdlog::logger> logger_;
 

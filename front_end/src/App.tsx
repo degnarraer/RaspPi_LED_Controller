@@ -231,7 +231,7 @@ function App() {
         open={visible}
         style={{ 
           position: 'absolute', 
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
         }}
         getContainer={false} // render inside this component, not the body
       >
