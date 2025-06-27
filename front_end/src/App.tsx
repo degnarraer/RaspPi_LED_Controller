@@ -39,7 +39,7 @@ const MENU_STRUCTURE = {
   settings: {
     label: 'Settings',
     items: [
-      { key: 'Color', targetScreen: SCREENS.SETTING_RENDERING, label: 'Color', icon: <img src={Color} alt="Color" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} />  },
+      { key: 'Color Mode', targetScreen: SCREENS.SETTING_RENDERING, label: 'Color Mode', icon: <img src={Color} alt="Color" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} />  },
       { key: 'Current Limit', targetScreen: SCREENS.SETTING_CURRENT_LIMIT, label: 'Current Limit', icon: <img src={Current} alt="Current Limit" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
       { key: 'Sensitivity', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Sensitivity', icon: <img src={Sensitivity} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
       { key: 'Frequency Range', targetScreen: SCREENS.SETTING_FREQUENCY_RENDERING, label: 'Frequency Range', icon: <img src={FreqRange} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
