@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+
+  <defs>
+    <linearGradient id="currentGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="green" stop-opacity="1"/>
+      <stop offset="100%" stop-color="red" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="180" stroke="#000" stroke-width="100" fill="none"/>
+  <circle cx="256" cy="256" r="180" stroke="#222" stroke-width="50" fill="none"/>
+  <!-- Lightning bolt -->
+  <path
+    d="M260 65 L180 245 L240 245 L160 445 L340 185 L280 185 L360 65 Z"
+    fill="#FFD700" stroke="#DAA520" stroke-width="10"
+  />
+  <!-- Gradient arc from bottom (6 o'clock) to ~45 degrees CCW -->
+<path
+  d="M256 436 A180 180 0 0 0 436 256"
+  fill="none"
+  stroke="url(#currentGradient)"
+  stroke-width="50"
+  stroke-linecap="round"
+/>
+
+  <!-- Red limiter arc -->
+  <path
+    d="M436 256 A180 180 0 0 1 410 340"
+    fill="none"
+    stroke="#FF0000"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-dasharray="10,10"
+  />
+
+  <!-- Needle -->
+  <line x1="256" y1="256" x2="410" y2="340" stroke="Red" stroke-width="30" stroke-linecap="round" />
+
+  <!-- Center pivot -->
+  <circle cx="256" cy="256" r="40" fill="Silver" />
+
+</svg>

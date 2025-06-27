@@ -2,10 +2,10 @@ import { useState, useContext, useEffect } from 'react';
 import { Button, Drawer, Menu } from 'antd';
 import { WebSocketContext } from './components/WebSocketContext';
 import { renderScreen, ScreenType, SCREENS } from './Screens.tsx';
-import Current from './assets/current.png';
-import Color from './assets/color.png';
-import Microphone from './assets/microphone.png';
-import FreqRange from './assets/frequency_range.png';
+import Current from './assets/current_limit.svg';
+import Color from './assets/color_mode.svg';
+import Sensitivity from './assets/sensitivity.svg';
+import FreqRange from './assets/frequency_range.svg';
 
 import {
   MenuOutlined,
@@ -41,7 +41,7 @@ const MENU_STRUCTURE = {
     items: [
       { key: 'Color', targetScreen: SCREENS.SETTING_RENDERING, label: 'Color', icon: <img src={Color} alt="Color" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} />  },
       { key: 'Current Limit', targetScreen: SCREENS.SETTING_CURRENT_LIMIT, label: 'Current Limit', icon: <img src={Current} alt="Current Limit" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
-      { key: 'Sensitivity', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Sensitivity', icon: <img src={Microphone} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
+      { key: 'Sensitivity', targetScreen: SCREENS.SETTING_SENSITIVITY, label: 'Sensitivity', icon: <img src={Sensitivity} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
       { key: 'Frequency Range', targetScreen: SCREENS.SETTING_FREQUENCY_RENDERING, label: 'Frequency Range', icon: <img src={FreqRange} alt="Sensitivity" style={{ maxWidth: '50px', maxHeight: '50px', objectFit: 'contain', }} /> },
       { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '50px' }} /> },
     ],
@@ -216,12 +216,24 @@ function App() {
 
       {/* Drawer Menu - keep it inside layout to avoid scroll */}
       <Drawer
-        title={currentMenu.label}
+        title={
+          <div style={{ 
+            color: 'white', 
+            fontSize: '24px', 
+            textAlign: 'left', 
+            backgroundColor: 'rgba(0, 0, 0, 0)', 
+            padding: '12px 0' 
+          }}>
+            {currentMenu.label}
+          </div>
+        }
         placement="right"
         onClose={() => setVisible(false)}
         open={visible}
-        bodyStyle={{ padding: 0 }}
-        style={{ position: 'absolute' }}
+        style={{ 
+          position: 'absolute', 
+          backgroundColor: 'rgba(0, 0, 0, 0)',
+        }}
         getContainer={false} // render inside this component, not the body
       >
         <Menu mode="vertical" style={{ borderRight: 0 }}>
@@ -231,11 +243,14 @@ function App() {
               icon={item.icon}
               onClick={() => handleMenuClick(item)}
               style={{
+                display: 'flex',
+                alignItems: 'center',
                 padding: '10px 16px',
                 fontSize: '16px',
                 whiteSpace: 'normal',
                 boxSizing: 'border-box',
                 height: '60px',
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
               }}
             >
               {item.label}

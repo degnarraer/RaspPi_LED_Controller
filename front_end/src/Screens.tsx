@@ -82,14 +82,15 @@ export function HomeScreen() {
         boxSizing: 'border-box'
       }}
     >
-      <h1 style={{ fontSize: '3em', margin: 0 }}>LED Tower of Power</h1>
+      <h1 style={{ fontSize: '3em', margin: 0, textAlign: 'center' }}>LED Tower of Power</h1>
 
       <div
         style={{
           width: '100%',
           maxWidth: '600px',
           height: '300px',
-          marginTop: '20px'
+          marginTop: '20px',
+          alignItems: 'center',
         }}
       >
         <img
@@ -103,7 +104,7 @@ export function HomeScreen() {
         />
       </div>
 
-      <p style={{ fontSize: '1.5em', marginTop: '20px' }}>
+      <p style={{ fontSize: '1.5em', marginTop: '20px', textAlign: 'center' }}>
         Select a screen from the menu to get started.
       </p>
     </div>
