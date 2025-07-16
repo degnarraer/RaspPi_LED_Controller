@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <unistd.h>
 
 // ---------------------- GuardDog ----------------------
 
@@ -35,12 +36,22 @@ GuardDogHandler& GuardDogHandler::getInstance()
 
 GuardDogHandler::GuardDogHandler()
 {
-    watchdog_stream_.open("/dev/watchdog");
-    if (!watchdog_stream_.is_open())
+    const std::string watchdogDevice = "/dev/watchdog";
+
+    // Check if device exists
+    if (access(watchdogDevice.c_str(), F_OK) == -1)
     {
-        std::cerr << "Failed to open /dev/watchdog" << std::endl;
+        std::cerr << "Watchdog device not found at " << watchdogDevice << std::endl;
         std::exit(1);
     }
+
+    watchdog_stream_.open(watchdogDevice);
+    if (!watchdog_stream_.is_open())
+    {
+        std::cerr << "Failed to open " << watchdogDevice << std::endl;
+        std::exit(1);
+    }
+
     startMonitoring();
 }
 

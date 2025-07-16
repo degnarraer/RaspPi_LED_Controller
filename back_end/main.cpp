@@ -11,11 +11,24 @@
 #include "signals/PixelGridSignal.h"
 #include "./animation/FFTAnimation.h"
 #include "./animation/RainbowAnimation.h"
+#include "RPIConfigEditor.h"
 
 int main()
 {
     std::shared_ptr<spdlog::logger> logger_;
     logger_ = initializeLogger("Main Logger", spdlog::level::info);
+    
+    auto configEditor = std::make_shared<RPiConfigEditor>();
+    std::vector<std::string> requiredDtparams = {
+        "dtparam=i2s=on",
+        "dtparam=spi=on",
+        "dtparam=watchdog=on"
+    };
+    std::vector<std::string> requiredDtoverlays = {
+        "dtoverlay=googlevoicehat-soundcard"
+    };
+
+    configEditor->ensureParametersEnabled(requiredDtparams, requiredDtoverlays);
 
     auto webSocketServer = std::make_shared<WebSocketServer>(8080);
     SignalFactory::CreateSignals(webSocketServer);
@@ -23,7 +36,7 @@ int main()
     auto fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
     auto deploymentManger = std::make_shared<DeploymentManager>();
     auto systemStatusMonitor = std::make_shared<SystemStatusMonitor>(webSocketServer);
-
+    
     deploymentManger->clearFolderContentsWithSudo("/var/www/html");
     deploymentManger->copyFolderContentsWithSudo("./www", "/var/www/html");
     webSocketServer->start();
