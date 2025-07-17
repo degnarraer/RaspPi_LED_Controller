@@ -78,5 +78,5 @@ private:
 
     // Constants
     static constexpr const char* SPI_DEVICE = "/dev/spidev0.0";
-    static constexpr uint32_t SPI_SPEED_HZ = 20000000;
+    static constexpr uint32_t SPI_SPEED_HZ = 10000000;
 };

@@ -17,11 +17,11 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     , numFrames_(numFrames)
     , webSocketServer_(webSocketServer)
     , stopReading_(false)
-    , inputSignal_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::getInstance().getSharedSignalByName("Microphone")))
-    , inputSignalLeftChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::getInstance().getSharedSignalByName("Microphone Left Channel")))
-    , inputSignalRightChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(SignalManager::getInstance().getSharedSignalByName("Microphone Right Channel")))
-    , minDbSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db")))
-    , maxDbSignal_(std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Max db")))
+    , inputSignal_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(signalManager_.getSharedSignalByName("Microphone")))
+    , inputSignalLeftChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(signalManager_.getSharedSignalByName("Microphone Left Channel")))
+    , inputSignalRightChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(signalManager_.getSharedSignalByName("Microphone Right Channel")))
+    , minDbSignal_(std::dynamic_pointer_cast<Signal<float>>(signalManager_.getSharedSignalByName("Min db")))
+    , maxDbSignal_(std::dynamic_pointer_cast<Signal<float>>(signalManager_.getSharedSignalByName("Max db")))
 {
     auto& handler = GuardDogHandler::getInstance();
     guarddog_ = handler.createGuardDog(5);
@@ -45,77 +45,68 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
             logger_->info("Device {}: Opened", targetDevice_);
         }
     }
-
-    microphoneSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
-    {
-        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-        self->logger_->debug("Device {}: Received new values:", self->targetDevice_);
-        for (int32_t v : value)
-        {
-            self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
-        }
-    };
     
     if (inputSignal_)
     {
-        inputSignal_->registerSignalValueCallback(microphoneSignalCallback_, this);
-    }
-    
-    microphoneLeftChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
-    {
-        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-        self->logger_->debug("Device {}: Received new Left Channel values:", self->targetDevice_);
-        for (int32_t v : value)
+        inputSignal_->registerSignalValueCallback([](const std::vector<int32_t>& value, void* arg)
         {
-            self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
-        }
-    };
+            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+            self->logger_->debug("Device {}: Received new values:", self->targetDevice_);
+            for (int32_t v : value)
+            {
+                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
+            }
+        }, this);
+    }
     
     if (inputSignalLeftChannel_)
     {
-        inputSignalLeftChannel_->registerSignalValueCallback(microphoneLeftChannelSignalCallback_, this);
-    }
-
-    microphoneRightChannelSignalCallback_ = [](const std::vector<int32_t>& value, void* arg)
-    {
-        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-        self->logger_->debug("Device {}: Received new Right Channel values:", self->targetDevice_);
-        for (int32_t v : value)
+        inputSignalLeftChannel_->registerSignalValueCallback([](const std::vector<int32_t>& value, void* arg)
         {
-            self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
-        }
-    };
+            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+            self->logger_->debug("Device {}: Received new Left Channel values:", self->targetDevice_);
+            for (int32_t v : value)
+            {
+                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
+            }
+        }, this);
+    }
     
     if (inputSignalRightChannel_)
     {
-        inputSignalRightChannel_->registerSignalValueCallback(microphoneRightChannelSignalCallback_, this);
+        inputSignalRightChannel_->registerSignalValueCallback([](const std::vector<int32_t>& value, void* arg)
+        {
+            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+            self->logger_->debug("Device {}: Received new Right Channel values:", self->targetDevice_);
+            for (int32_t v : value)
+            {
+                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
+            }
+        }, this);
     }
-
-    minDbSignalCallback_ = [](const float& value, void* arg)
-    {
-        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-        self->logger_->debug("Device {}: Received new Min Microphone Limit values:", self->targetDevice_);
-    };
 
     if (minDbSignal_)
     {
-        minDbSignal_->registerSignalValueCallback(minDbSignalCallback_, this);
+        minDbSignal_->registerSignalValueCallback([](const float& value, void* arg)
+        {
+            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+            self->logger_->debug("Device {}: Received new Min Microphone Limit values:", self->targetDevice_);
+        }, this);
     }
-
-    maxDbSignalCallback_ = [](const float& value, void* arg)
-    {
-        I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-        self->logger_->debug("Device {}: Received new Max Microphone Limit values:", self->targetDevice_);
-    };
 
     if (maxDbSignal_)
     {
-        maxDbSignal_->registerSignalValueCallback(maxDbSignalCallback_, this);
+        maxDbSignal_->registerSignalValueCallback([](const float& value, void* arg)
+        {
+            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
+            self->logger_->debug("Device {}: Received new Max Microphone Limit values:", self->targetDevice_);
+        }, this);
     }
 }
 
 I2SMicrophone::~I2SMicrophone()
 {
+    logger_->info("Device {}: I2SMicrophone destructor called", targetDevice_);
     stopReading();
     if (inputSignal_)
     {
@@ -129,10 +120,19 @@ I2SMicrophone::~I2SMicrophone()
     {
         inputSignalRightChannel_->unregisterSignalValueCallbackByArg(this);
     }
+    if (minDbSignal_)
+    {
+        minDbSignal_->unregisterSignalValueCallbackByArg(this);
+    }
+    if (maxDbSignal_)
+    {
+        maxDbSignal_->unregisterSignalValueCallbackByArg(this);
+    }
     if (handle_)
     {
         snd_pcm_close(handle_);
     }
+    logger_->info("Device {}: I2SMicrophone destroyed", targetDevice_);
 }
 
 std::vector<int32_t> I2SMicrophone::readAudioData()
