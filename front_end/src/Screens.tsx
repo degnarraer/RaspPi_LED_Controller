@@ -152,22 +152,21 @@ export function TowerScreen({ socket }: ScreenProps) {
   export function PerformanceScreen({ socket }: ScreenProps) {
     const itemStyle = {
       backgroundColor: 'darkgray',
-      height:'100px',
+      height:'50px',
       display: 'flex', 
       alignItems: 'center',
-      fontSize: '50px',
+      fontSize: '30px',
     };
     const iconstyle={
       ...itemStyle,
       justifyContent: 'center',
-      fontSize: '50px',
       lineHeight: '1',
     };
     return (
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'auto auto 3fr',
+          gridTemplateColumns: '1fr auto 4fr',
           gap: '8px',
           alignItems: 'center', // general vertical centering
         }}
