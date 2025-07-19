@@ -13,6 +13,7 @@ interface HorizontalGaugeProps {
     signal: string;
     zones: GaugeZone[];
     tickMarks?: number[]; // specific tick positions
+    tickMarkLabels?: string[]; // optional labels for each tick
     socket: WebSocketContextType;
 }
 
@@ -22,6 +23,7 @@ interface HorizontalGaugeState {
 
 export default class HorizontalGauge extends Component<HorizontalGaugeProps, HorizontalGaugeState> {
     private containerRef = createRef<HTMLDivElement>();
+    private resizeObserver?: ResizeObserver;
 
     constructor(props: HorizontalGaugeProps) {
         super(props);
@@ -32,21 +34,32 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
 
     componentDidMount() {
         this.setupSocket();
+
+        if (this.containerRef.current && 'ResizeObserver' in window) {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.forceUpdate(); // re-render on container resize to recalc ticks
+            });
+            this.resizeObserver.observe(this.containerRef.current);
+        }
     }
 
     componentWillUnmount() {
         this.teardownSocket();
+
+        if (this.resizeObserver && this.containerRef.current) {
+            this.resizeObserver.unobserve(this.containerRef.current);
+            this.resizeObserver.disconnect();
+            this.resizeObserver = undefined;
+        }
     }
-    
+
     setupSocket() {
-        console.log('Component: Setup Socket');
         const { socket, signal } = this.props;
         if (!socket) return;
         const onOpen = () => {
-            console.log(`Component: Subscribing to signal (via onOpen): ${signal}`);
             socket.subscribe(signal, this.handleSignalUpdate);
         };
-        (this as any)._liveBarChartOnOpen = onOpen;
+        (this as any)._onOpen = onOpen;
         socket.onOpen(onOpen);
         if (socket.isOpen?.()) {
             onOpen();
@@ -54,24 +67,22 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
     }
 
     teardownSocket() {
-        console.log('Component: Teardown Socket');
         const { socket, signal } = this.props;
         if (!socket) return;
-        console.log(`Component: Unsubscribing from signal: ${signal}`);
         socket.unsubscribe(signal, this.handleSignalUpdate);
-        const onOpen = (this as any)._liveBarChartOnOpen;
+        const onOpen = (this as any)._onOpen;
         if (onOpen && socket.removeOnOpen) {
             socket.removeOnOpen(onOpen);
         }
-        delete (this as any)._liveBarChartOnOpen;
+        delete (this as any)._onOpen;
     }
 
     handleSignalUpdate = (message: WebSocketMessage) => {
         if (message.type === 'signal value message') {
-            const value = message.value;
-            this.setState({ value: parseFloat(value.replace(/[^\d.-]/g, '')) || 0 });
-        } else if (message.type === 'binary') {
-            console.log('Received unsuported binary data.');
+            const value = parseFloat(message.value.replace(/[^\d.-]/g, ''));
+            if (!isNaN(value)) {
+                this.setState({ value });
+            }
         }
     };
 
@@ -104,30 +115,129 @@ export default class HorizontalGauge extends Component<HorizontalGaugeProps, Hor
             );
         });
     }
-
     renderTicks() {
-        const { tickMarks = [], min, max } = this.props;
+        const { tickMarks = [], tickMarkLabels = [], min, max } = this.props;
+        const containerWidth = this.containerRef.current?.offsetWidth || 0;
+        const labelBoxWidthPx = 50; // fixed width for label boxes
+        const paddingPx = 4;        // padding between boxes
 
-        return tickMarks.map((tick, index) => {
+        if (tickMarks.length === 0) return null;
+
+        // Calculate pixel positions of each tick mark
+        const tickPixelPositions = tickMarks.map(tick => {
             const clampedTick = this.clamp(tick);
-            const left = ((clampedTick - min) / (max - min)) * 100;
+            const percent = (clampedTick - min) / (max - min);
+            return percent * containerWidth;
+        });
+
+        const filteredTickIndices: number[] = [];
+
+        // We always render the first tick
+        filteredTickIndices.push(0);
+
+        // Calculate bounding box edges for the first tick
+        let prevBoxRight = tickPixelPositions[0] + labelBoxWidthPx;
+
+        // Iterate over middle ticks
+        for (let i = 1; i < tickMarks.length - 1; i++) {
+            const tickPosPx = tickPixelPositions[i];
+
+            // Center aligned box
+            const boxLeft = tickPosPx - labelBoxWidthPx / 2;
+            const boxRight = tickPosPx + labelBoxWidthPx / 2;
+
+            // Check overlap with previous box (plus padding)
+            if (boxLeft >= prevBoxRight + paddingPx) {
+                filteredTickIndices.push(i);
+                prevBoxRight = boxRight;
+            }
+            // else skip this tick because it overlaps previous
+        }
+
+        // Always render the last tick
+        const lastTickIndex = tickMarks.length - 1;
+        const lastTickPosPx = tickPixelPositions[lastTickIndex];
+
+        // Last tick is right aligned
+        const lastBoxLeft = lastTickPosPx - labelBoxWidthPx;
+
+        if (lastBoxLeft >= prevBoxRight + paddingPx) {
+            // No overlap, render last tick
+            filteredTickIndices.push(lastTickIndex);
+        } else {
+            // Overlaps previous, replace last rendered tick with last tick
+            filteredTickIndices[filteredTickIndices.length - 1] = lastTickIndex;
+        }
+
+        // Render the filtered ticks
+        return filteredTickIndices.map(index => {
+            const tick = tickMarks[index];
+            const clampedTick = this.clamp(tick);
+            const leftPercent = ((clampedTick - min) / (max - min)) * 100;
+            const label = tickMarkLabels[index];
+
+            // Determine alignment and transform
+            let transform = 'translateX(-50%)';
+            let alignItems = 'center';
+
+            if (index === 0) {
+                transform = 'none';       // left aligned
+                alignItems = 'flex-start';
+            } else if (index === lastTickIndex) {
+                transform = 'translateX(-100%)';  // right aligned
+                alignItems = 'flex-end';
+            }
+
             return (
                 <div
                     key={index}
                     style={{
                         position: 'absolute',
-                        left: `${left}%`,
+                        left: `${leftPercent}%`,
                         top: 0,
-                        height: '40%',
-                        width: '0.2em',
-                        backgroundColor: 'white',
-                        border: '1px solid black',
-                        borderBottomLeftRadius: '0.2em',
-                        borderBottomRightRadius: '0.2em',
-                        transform: 'translateX(-50%)',
+                        bottom: 0,
+                        transform: transform,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: alignItems,
                         zIndex: 3,
                     }}
-                />
+                >
+                    <div
+                        style={{
+                            height: '40%',
+                            width: '0.2em',
+                            backgroundColor: 'white',
+                            border: '1px solid black',
+                            borderBottomLeftRadius: '0.2em',
+                            borderBottomRightRadius: '0.2em',
+                        }}
+                    />
+                    {label !== undefined && (
+                        <div
+                            style={{
+                                marginTop: '0.2em',
+                                fontSize: '0.7em',
+                                whiteSpace: 'nowrap',
+                                color: 'white',
+                                textShadow: `
+                                    -1px -1px 0 #000,
+                                    1px -1px 0 #000,
+                                    -1px  1px 0 #000,
+                                    1px  1px 0 #000
+                                `,
+                                minWidth: labelBoxWidthPx,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                textAlign: 'center',
+                                border: '1px solid red', // red border for troubleshooting
+                            }}
+                            title={label}
+                        >
+                            {label}
+                        </div>
+                    )}
+                </div>
             );
         });
     }

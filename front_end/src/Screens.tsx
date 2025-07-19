@@ -187,7 +187,8 @@ export function TowerScreen({ socket }: ScreenProps) {
             signal={"CPU Usage"}
             socket={socket}
             zones={[{ from: 0, to: 100, color: 'green' }]}
-            tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90]}
+            tickMarks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+            tickMarkLabels={['0%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%']}
           />
         </div>
 
@@ -207,7 +208,8 @@ export function TowerScreen({ socket }: ScreenProps) {
             signal={"CPU Memory Usage"}
             socket={socket}
             zones={[{ from: 0, to: 100, color: 'green' }]}
-            tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90]}
+            tickMarks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+            tickMarkLabels={['0%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%']}
           />
         </div>
 
@@ -231,7 +233,8 @@ export function TowerScreen({ socket }: ScreenProps) {
               { from: 70, to: 80, color: 'yellow' },
               { from: 80, to: 90, color: 'red' },
             ]}
-            tickMarks={[40, 50, 60, 70, 80]}
+            tickMarks={[0, 20, 40, 50, 60, 70, 80, 90]}
+            tickMarkLabels={['0 °C', '20 °C', '40 °C', '50  °C', '60 °C', '70 °C', '80 °C']}
           />
         </div>
 
@@ -255,7 +258,8 @@ export function TowerScreen({ socket }: ScreenProps) {
               { from: 70, to: 90, color: 'yellow' },
               { from: 90, to: 120, color: 'red' },
             ]}
-            tickMarks={[40, 50, 60, 70, 80]}
+            tickMarks={[0, 20, 40, 60, 80, 100, 120]}
+            tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
           />
         </div>
         
@@ -279,7 +283,8 @@ export function TowerScreen({ socket }: ScreenProps) {
               { from: 70, to: 90, color: 'yellow' },
               { from: 90, to: 120, color: 'red' },
             ]}
-            tickMarks={[40, 50, 60, 70, 80]}
+            tickMarks={[0, 20, 40, 60, 80, 100, 120]}
+            tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
           />
         </div>
 
