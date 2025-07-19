@@ -17,7 +17,6 @@
 
 enum class ChannelType
 {
-    Mono,
     Left,
     Right
 };
@@ -26,8 +25,6 @@ std::string channelTypeToString(ChannelType channel)
 {
     switch (channel)
     {
-        case ChannelType::Mono:
-            return "Mono";
         case ChannelType::Left:
             return "Left";
         case ChannelType::Right:
@@ -60,12 +57,10 @@ class FFTComputer
         {
             // Retrieve existing logger_ or create a new one
             logger_ = initializeLogger("FFT Computer", spdlog::level::info);
-            inputSignal_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_));
-            if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_);
             inputSignalLeftChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_ + " Left Channel"));
-            if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Left Channel");
+            if(!inputSignalLeftChannel_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Left Channel");
             inputSignalRightChannel_ = dynamic_cast<Signal<std::vector<int32_t>>*>(SignalManager::getInstance().getSignalByName(input_signal_name_ + " Right Channel"));
-            if(!inputSignal_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Right Channel");
+            if(!inputSignalRightChannel_)throw std::runtime_error("Failed to get signal: " + input_signal_name_ + " Right Channel");
             fft_ = kiss_fft_alloc(fft_size_, 0, nullptr, nullptr);
             if (!fft_)
             {
@@ -181,7 +176,7 @@ class FFTComputer
         {
             std::vector<int32_t> data;
             ChannelType channel;
-            DataPacket() : data(), channel(ChannelType::Mono) {}
+            DataPacket() : data(), channel(ChannelType::Left) {}
             DataPacket(std::vector<int32_t> d, ChannelType c) : data(std::move(d)), channel(c) {}
         };
 
@@ -204,16 +199,16 @@ class FFTComputer
         const float sqrt2 = std::sqrt(2.0);
         std::shared_ptr<spdlog::logger> logger_;
 
-        Signal<std::vector<int32_t>>* inputSignal_;
         Signal<std::vector<int32_t>>* inputSignalLeftChannel_;
         Signal<std::vector<int32_t>>* inputSignalRightChannel_;
-        std::shared_ptr<Signal<std::vector<float>>> monoOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_, webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
         std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
         std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
+        std::shared_ptr<Signal<float>> leftLoudnessChannelSignal_ = SignalManager::getInstance().createSignal<float>(output_signal_name_ + " Left Loudness", webSocketServer_, get_signal_and_value_encoder<float>());
+        std::shared_ptr<Signal<float>> rightLoudnessChannelSignal_ = SignalManager::getInstance().createSignal<float>(output_signal_name_ + " Left Loudness", webSocketServer_, get_signal_and_value_encoder<float>());
         std::shared_ptr<Signal<BinData>> monoBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Mono Bin Data", webSocketServer_, get_bin_data_encoder());
         std::shared_ptr<Signal<BinData>> leftBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Left Bin Data", webSocketServer_, get_bin_data_encoder());
         std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
-        
+
         std::shared_ptr<Signal<float>> minDbSignal_;
         float minDbValue_ = 0.0f;
         std::shared_ptr<Signal<float>> maxDbSignal_;
@@ -224,7 +219,6 @@ class FFTComputer
 
         float maxRenderFrequency_ = 24000.0f;
         std::weak_ptr<Signal<float>> maxRenderFrequencySignal_;
-
 
         static std::vector<std::string> GetIsoBandLabels()
         {
@@ -256,14 +250,12 @@ class FFTComputer
                 self->addData(value, channel);
             };
 
-            inputSignal_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Mono); }, this );
             inputSignalLeftChannel_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Left); }, this );
             inputSignalRightChannel_->registerSignalValueCallback( [callback](const std::vector<int32_t>& value, void* arg) { callback(value, arg, ChannelType::Right); }, this );
         }
 
         void unregisterCallbacks()
         {
-            inputSignal_->unregisterSignalValueCallbackByArg(this);
             inputSignalLeftChannel_->unregisterSignalValueCallbackByArg(this);
             inputSignalRightChannel_->unregisterSignalValueCallbackByArg(this);
         }
@@ -293,7 +285,6 @@ class FFTComputer
                 std::vector<int32_t>* buffer = nullptr;
                 switch (dataPacket.channel)
                 {
-                    case ChannelType::Mono: buffer = &monoBuffer; break;
                     case ChannelType::Left: buffer = &leftBuffer; break;
                     case ChannelType::Right: buffer = &rightBuffer; break;
                     default: continue;
@@ -310,14 +301,32 @@ class FFTComputer
             }
         }
 
-
         void processFFT(const DataPacket& dataPacket)
         {
+            float loudnessDb = 0.0f;
             std::vector<kiss_fft_cpx> inputData(fft_size_);
-            for (size_t i = 0; i < std::min(fft_size_, dataPacket.data.size()); ++i)
+            std::vector<float> inputDataNormalized(fft_size_, 0.0f);
+            int count = std::min(fft_size_, dataPacket.data.size());
+            for (size_t i = 0; i < count; ++i)
             {
                 inputData[i].r = static_cast<float>(dataPacket.data[i]);
                 inputData[i].i = 0;
+                inputDataNormalized[i] = inputData[i].r / maxValue_;
+                loudnessDb += inputDataNormalized[i] * inputDataNormalized[i];
+            }
+
+            if (count > 0)
+            {
+                loudnessDb /= count; // mean square
+                loudnessDb = std::sqrt(loudnessDb); // RMS
+                loudnessDb = 20.0f * std::log10(loudnessDb + 1e-6f); // dBFS, +epsilon to avoid log(0)
+                
+                // Convert to approximate dB SPL using INMP441 sensitivity
+                loudnessDb += 120.0f;
+            }
+            else
+            {
+                loudnessDb = -120.0f; // or appropriate silence floor
             }
 
             kiss_fft(fft_, inputData.data(), fftOutput_.data());
@@ -340,20 +349,17 @@ class FFTComputer
             }
             switch(dataPacket.channel)
             {
-                case ChannelType::Mono:
-                    logger_->debug("Device {}: Set Mono Output Signal Value:", name_);
-                    monoOutputSignal_->setValue(saeBands);
-                    monoBinDataSignal_->setValue(binData);
-                break;
                 case ChannelType::Left:
                     logger_->debug("Device {}: Set Left Output Signal Value:", name_);
                     leftChannelOutputSignal_->setValue(saeBands);
                     leftBinDataSignal_->setValue(binData);
+                    leftLoudnessChannelSignal_->setValue(loudnessDb);
                 break;
                 case ChannelType::Right:
                     logger_->debug("Device {}: Set Right Output Signal Value:", name_);
                     rightChannelOutputSignal_->setValue(saeBands);
                     rightBinDataSignal_->setValue(binData);
+                    rightLoudnessChannelSignal_->setValue(loudnessDb);
                 break;
                 default:
                     logger_->error("Device {}: Unsupported channel type:", name_);
@@ -467,7 +473,6 @@ class FFTComputer
             // totalBins now reflects only the bins within the min/max render frequency
             binData.totalBins = static_cast<uint16_t>(maxAllowedBin - minAllowedBin + 1);
         }
-
 
         static constexpr std::array<float, 32> ISO_32_BAND_CENTERS =
         {

@@ -18,7 +18,6 @@ class I2SMicrophone
         I2SMicrophone( const std::string& targetDevice
                      , const std::string& signal_Name
                      , unsigned int sampleRate
-                     , unsigned int channels
                      , unsigned int numFrames
                      , _snd_pcm_format snd_pcm_format
                      , _snd_pcm_access snd_pcm_access
@@ -40,7 +39,6 @@ class I2SMicrophone
     private:
         std::string signal_Name_;
         unsigned int sampleRate_;
-        unsigned int channels_;
         unsigned int numFrames_;
         std::shared_ptr<WebSocketServer> webSocketServer_;
         std::shared_ptr<GuardDog> guarddog_;
@@ -49,7 +47,6 @@ class I2SMicrophone
         std::thread readingThread_;
         std::thread sineWaveThread_;
         SignalManager& signalManager_ = SignalManager::getInstance();
-        std::shared_ptr<Signal<std::vector<int32_t>>> inputSignal_;
         std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalLeftChannel_;
         std::shared_ptr<Signal<std::vector<int32_t>>> inputSignalRightChannel_;
         std::shared_ptr<Signal<float>> minDbSignal_;

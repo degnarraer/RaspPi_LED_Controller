@@ -3,7 +3,6 @@
 I2SMicrophone::I2SMicrophone( const std::string& targetDevice
                             , const std::string& signal_Name
                             , unsigned int sampleRate
-                            , unsigned int channels
                             , unsigned int numFrames
                             , _snd_pcm_format snd_pcm_format
                             , _snd_pcm_access snd_pcm_access
@@ -13,11 +12,9 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     : targetDevice_(targetDevice)
     , signal_Name_(signal_Name)
     , sampleRate_(sampleRate)
-    , channels_(channels)
     , numFrames_(numFrames)
     , webSocketServer_(webSocketServer)
     , stopReading_(false)
-    , inputSignal_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(signalManager_.getSharedSignalByName("Microphone")))
     , inputSignalLeftChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(signalManager_.getSharedSignalByName("Microphone Left Channel")))
     , inputSignalRightChannel_(std::dynamic_pointer_cast<Signal<std::vector<int32_t>>>(signalManager_.getSharedSignalByName("Microphone Right Channel")))
     , minDbSignal_(std::dynamic_pointer_cast<Signal<float>>(signalManager_.getSharedSignalByName("Min db")))
@@ -36,7 +33,7 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
     {
         logger_->info("Device {}: Opening device", targetDevice_);
         snd_pcm_hw_free(handle_);
-        if (snd_pcm_set_params(handle_, snd_pcm_format, snd_pcm_access, channels_, sampleRate_, allowResampling, latency ) < 0)
+        if (snd_pcm_set_params(handle_, snd_pcm_format, snd_pcm_access, 2, sampleRate_, allowResampling, latency ) < 0)
         {
             throw std::runtime_error("Failed to set ALSA parameters: " + std::string(snd_strerror(errno)));
         }
@@ -44,19 +41,6 @@ I2SMicrophone::I2SMicrophone( const std::string& targetDevice
         {
             logger_->info("Device {}: Opened", targetDevice_);
         }
-    }
-    
-    if (inputSignal_)
-    {
-        inputSignal_->registerSignalValueCallback([](const std::vector<int32_t>& value, void* arg)
-        {
-            I2SMicrophone* self = static_cast<I2SMicrophone*>(arg);
-            self->logger_->debug("Device {}: Received new values:", self->targetDevice_);
-            for (int32_t v : value)
-            {
-                self->logger_->trace("Device {}: Value:{}", self->targetDevice_, v);
-            }
-        }, this);
     }
     
     if (inputSignalLeftChannel_)
@@ -108,37 +92,38 @@ I2SMicrophone::~I2SMicrophone()
 {
     logger_->info("Device {}: I2SMicrophone destructor called", targetDevice_);
     stopReading();
-    if (inputSignal_)
-    {
-        inputSignal_->unregisterSignalValueCallbackByArg(this);
-    }
     if (inputSignalLeftChannel_)
     {
         inputSignalLeftChannel_->unregisterSignalValueCallbackByArg(this);
     }
+
     if (inputSignalRightChannel_)
     {
         inputSignalRightChannel_->unregisterSignalValueCallbackByArg(this);
     }
+
     if (minDbSignal_)
     {
         minDbSignal_->unregisterSignalValueCallbackByArg(this);
     }
+
     if (maxDbSignal_)
     {
         maxDbSignal_->unregisterSignalValueCallbackByArg(this);
     }
+
     if (handle_)
     {
         snd_pcm_close(handle_);
     }
+
     logger_->info("Device {}: I2SMicrophone destroyed", targetDevice_);
 }
 
 std::vector<int32_t> I2SMicrophone::readAudioData()
 {
     logger_->debug("Device {}: ReadAudioData: Start", targetDevice_);
-    std::vector<int32_t> buffer(numFrames_ * channels_);
+    std::vector<int32_t> buffer(numFrames_ * 2);
     int framesRead = snd_pcm_readi(handle_, buffer.data(), numFrames_);
     if (framesRead < 0)
     {
@@ -166,6 +151,7 @@ std::vector<int32_t> I2SMicrophone::readAudioData()
 
 void I2SMicrophone::startReadingMicrophone()
 {
+
     logger_->debug("Device {}: StartReading", targetDevice_);
     GuardDogHandler::getInstance().startMonitoringGuardDog(guarddog_);
     stopReading();
@@ -178,23 +164,7 @@ void I2SMicrophone::startReadingMicrophone()
             std::vector<int32_t> buffer = readAudioData();
             if (!buffer.empty())
             {
-                switch(channels_)
-                {
-                    case 1:
-                    {
-                        if (inputSignal_)
-                        {
-                            inputSignal_->setValue(buffer);
-                        }
-                    }
-                    break;
-                    case 2:
-                        splitAudioData(buffer);
-                    break;
-                    default:
-                        logger_->error("Device {}: Invalid channel config.", targetDevice_);
-                    break;
-                }
+                splitAudioData(buffer);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -218,10 +188,8 @@ void I2SMicrophone::startReadingSineWave(double frequency)
                 phase += phaseIncrement;
                 if (phase >= 2.0 * M_PI) phase -= 2.0 * M_PI;
             }
-            if (inputSignal_)
-            {
-                inputSignal_->setValue(buffer);
-            }
+            inputSignalLeftChannel_->setValue(buffer);
+            inputSignalRightChannel_->setValue(buffer);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
@@ -246,18 +214,14 @@ void I2SMicrophone::stopReading()
 
 void I2SMicrophone::splitAudioData(const std::vector<int32_t>& buffer)
 {
-    if (channels_ != 2)
-    {
-        return;
-    }
     logger_->debug("Device {}: Audio data split started", targetDevice_);
     std::vector<int32_t> leftChannel(numFrames_);
     std::vector<int32_t> rightChannel(numFrames_);
 
     for (size_t i = 0; i < numFrames_; ++i)
     {
-        leftChannel[i] = buffer[i * channels_];
-        rightChannel[i] = buffer[i * channels_ + 1];
+        leftChannel[i] = buffer[i * 2];
+        rightChannel[i] = buffer[i * 2 + 1];
     }
 
     if (inputSignalLeftChannel_)

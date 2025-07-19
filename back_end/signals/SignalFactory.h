@@ -18,7 +18,6 @@ public:
         SignalManager& signalManager = SignalManager::getInstance();
 
         //Microphone Signals
-        IntVectorSignal("Microphone", webSocketServer);
         IntVectorSignal("Microphone Left Channel", webSocketServer);
         IntVectorSignal("Microphone Right Channel", webSocketServer);
 
