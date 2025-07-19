@@ -204,7 +204,7 @@ class FFTComputer
         std::shared_ptr<Signal<std::vector<float>>> leftChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Left Channel", webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
         std::shared_ptr<Signal<std::vector<float>>> rightChannelOutputSignal_ = SignalManager::getInstance().createSignal<std::vector<float>>(output_signal_name_ + " Right Channel", webSocketServer_, get_fft_bands_encoder(GetIsoBandLabels()));
         std::shared_ptr<Signal<std::string>> leftLoudnessChannelSignal_ = SignalManager::getInstance().createSignal<std::string>(output_signal_name_ + " Left Channel Loudness", webSocketServer_, get_signal_and_value_encoder<std::string>());
-        std::shared_ptr<Signal<std::string>> rightLoudnessChannelSignal_ = SignalManager::getInstance().createSignal<std::string>(output_signal_name_ + " Left Channel Loudness", webSocketServer_, get_signal_and_value_encoder<std::string>());
+        std::shared_ptr<Signal<std::string>> rightLoudnessChannelSignal_ = SignalManager::getInstance().createSignal<std::string>(output_signal_name_ + " Right Channel Loudness", webSocketServer_, get_signal_and_value_encoder<std::string>());
         std::shared_ptr<Signal<BinData>> leftBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Left Bin Data", webSocketServer_, get_bin_data_encoder());
         std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = SignalManager::getInstance().createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
 
