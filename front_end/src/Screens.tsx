@@ -35,6 +35,7 @@ export const SCREENS = {
   SETTING_CURRENT_LIMIT: 'setting current limit',
   SETTING_RENDERING: 'setting rendering',
   SETTING_FREQUENCY_RENDERING: 'setting frequency rendering',
+  PERFORMANCE_SCREEN: 'performance screen',
 } as const;
 
 export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
@@ -61,6 +62,8 @@ export const renderScreen = ({ socket, screen }: RenderScreenParams) => {
           return <SettingRenderingScreen socket={socket} />;
         case SCREENS.SETTING_FREQUENCY_RENDERING:
           return <SettingFrequencyRenderingScreen socket={socket} />;
+        case SCREENS.PERFORMANCE_SCREEN:
+          return <PerformanceScreen socket={socket} />;
         default:
         return <HomeScreen />;
     }
@@ -128,11 +131,6 @@ export function TowerScreen({ socket }: ScreenProps) {
       backgroundColor: 'darkgray',
     };
   
-    const itemStyle = {
-      backgroundColor: 'darkgray',
-      height:'20px',
-    };
-  
     /*const textStyle = {
       fontSize: 'clamp(14px, 5vw, 24px)',
       padding: '2px',
@@ -147,25 +145,147 @@ export function TowerScreen({ socket }: ScreenProps) {
             </div>
           </>
         ))}
+      </div>
+    );
+  }
+
+  export function PerformanceScreen({ socket }: ScreenProps) {
+    const itemStyle = {
+      backgroundColor: 'darkgray',
+      height:'100px',
+      display: 'flex', 
+      alignItems: 'center',
+      fontSize: '50px',
+    };
+    const iconstyle={
+      ...itemStyle,
+      justifyContent: 'center',
+      fontSize: '50px',
+      lineHeight: '1',
+    };
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto auto 3fr',
+          gap: '8px',
+          alignItems: 'center', // general vertical centering
+        }}
+      >
+        {/* CPU Usage */}
         <div style={itemStyle}>
           CPU Usage
         </div>
-        <div style={itemStyle}>
-          <HorizontalGauge min={0} max={100} signal={"CPU Usage"} socket={socket} zones={[{ from: 0, to: 100, color: 'green' },]}tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90,]}/>
+        <div
+          style={iconstyle}
+        >
+          🖥️
         </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={0}
+            max={100}
+            signal={"CPU Usage"}
+            socket={socket}
+            zones={[{ from: 0, to: 100, color: 'green' }]}
+            tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90]}
+          />
+        </div>
+
+        {/* Memory Usage */}
         <div style={itemStyle}>
           Memory Usage
         </div>
-        <div style={itemStyle}>
-          <HorizontalGauge min={0} max={100} signal={"CPU Memory Usage"} socket={socket} zones={[{ from: 0, to: 100, color: 'green' },]}tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90,]}/>
+        <div
+          style={iconstyle}
+        >
+          💾
         </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={0}
+            max={100}
+            signal={"CPU Memory Usage"}
+            socket={socket}
+            zones={[{ from: 0, to: 100, color: 'green' }]}
+            tickMarks={[10, 20, 30, 40, 50, 60, 70, 80, 90]}
+          />
+        </div>
+
+        {/* CPU Temp */}
         <div style={itemStyle}>
           CPU Temp
         </div>
-        <div style={itemStyle}>
-          <HorizontalGauge min={30} max={90} signal={"CPU Temp"} socket={socket} zones={[{ from: 0, to: 70, color: 'green' }, { from: 70, to: 80, color: 'yellow' },{ from: 80, to: 90, color: 'red' },]} tickMarks={[40, 50, 60, 70, 80,]}/>
+        <div
+          style={iconstyle}
+        >
+          🌡️
         </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={30}
+            max={90}
+            signal={"CPU Temp"}
+            socket={socket}
+            zones={[
+              { from: 0, to: 70, color: 'green' },
+              { from: 70, to: 80, color: 'yellow' },
+              { from: 80, to: 90, color: 'red' },
+            ]}
+            tickMarks={[40, 50, 60, 70, 80]}
+          />
+        </div>
+
+        {/* Left Mic Db */}
+        <div style={itemStyle}>
+          Left Mic Db
+        </div>
+        <div
+          style={iconstyle}
+        >
+          🌡️
+        </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={0}
+            max={120}
+            signal={"FFT Computer Left Channel Loudness"}
+            socket={socket}
+            zones={[
+              { from: 0, to: 70, color: 'green' },
+              { from: 70, to: 90, color: 'yellow' },
+              { from: 90, to: 120, color: 'red' },
+            ]}
+            tickMarks={[40, 50, 60, 70, 80]}
+          />
+        </div>
+        
+        {/* Right Mic Db */}
+        <div style={itemStyle}>
+          Right Mic Db
+        </div>
+        <div
+          style={iconstyle}
+        >
+          🌡️
+        </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={0}
+            max={120}
+            signal={"FFT Computer Right Channel Loudness"}
+            socket={socket}
+            zones={[
+              { from: 0, to: 70, color: 'green' },
+              { from: 70, to: 90, color: 'yellow' },
+              { from: 90, to: 120, color: 'red' },
+            ]}
+            tickMarks={[40, 50, 60, 70, 80]}
+          />
+        </div>
+
       </div>
+
     );
   }
 
@@ -174,7 +294,7 @@ export function TowerScreen({ socket }: ScreenProps) {
       <div style={{ display: 'flex', width: '100%', height: '100%' }}>
         <div style={{ width: '50%', height: '100%' }}>
           <LiveBarChart
-            signal="FFT Bands Left Channel"
+            signal="FFT Computer Left Channel"
             yLabelPosition="left"
             barColor="rgba(54, 162, 235, 0.6)"
             xLabelMinRotation={90}
@@ -185,7 +305,7 @@ export function TowerScreen({ socket }: ScreenProps) {
         </div>
         <div style={{ width: '50%', height: '100%' }}>
           <LiveBarChart
-            signal="FFT Bands Right Channel"
+            signal="FFT Computer Right Channel"
             yLabelPosition="right"
             barColor="rgba(255, 99, 132, 0.6)"
             xLabelMinRotation={90}
@@ -202,8 +322,8 @@ export function TowerScreen({ socket }: ScreenProps) {
     return (
       <div style={{ width: '100%', height: '100%' }}>
         <MirroredVerticalBarChart
-          leftSignal="FFT Bands Left Channel"
-          rightSignal="FFT Bands Right Channel"
+          leftSignal="FFT Computer Left Channel"
+          rightSignal="FFT Computer Right Channel"
           socket={socket}
         />
       </div>
@@ -229,7 +349,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Bands Left Channel"
+              signal="FFT Computer Left Channel"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -241,7 +361,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
           </div>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Bands Right Channel"
+              signal="FFT Computer Right Channel"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -262,7 +382,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Bands Left Channel"
+              signal="FFT Computer Left Channel"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -276,7 +396,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
           </div>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Bands Right Channel"
+              signal="FFT Computer Right Channel"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -425,7 +545,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
         <div style={chartRowStyle}>
           <div style={{ width: '50%', height: '100%' }}>
             <LiveBarChart
-              signal="FFT Bands Left Channel"
+              signal="FFT Computer Left Channel"
               yLabelPosition="left"
               barColor="rgba(54, 162, 235, 0.6)"
               xLabelMinRotation={90}
@@ -436,7 +556,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
           </div>
           <div style={{ width: '50%', height: '100%' }}>
             <LiveBarChart
-              signal="FFT Bands Right Channel"
+              signal="FFT Computer Right Channel"
               yLabelPosition="right"
               barColor="rgba(255, 99, 132, 0.6)"
               xLabelMinRotation={90}
@@ -625,7 +745,7 @@ export function SettingFrequencyRenderingScreen({ socket }: ScreenProps) {
       <div style={{ flex: 5, display: 'flex', flexDirection: 'row', width: '100%', marginBottom: 20, gap: 12, minHeight: 100, minWidth: 500, }}>
         <div style={{ flex: 1, marginBottom: 20, minHeight: 100, minWidth: 125, }}>
           <LiveBarChart
-            signal="FFT Bands Left Channel"
+            signal="FFT Computer Left Channel"
             yLabelPosition="left"
             barColor="rgba(54, 162, 235, 0.6)"
             xLabelMinRotation={90}
@@ -636,7 +756,7 @@ export function SettingFrequencyRenderingScreen({ socket }: ScreenProps) {
         </div>
         <div style={{ flex: 1, marginBottom: 20, minHeight: 100, minWidth: 125, }}>
           <LiveBarChart
-            signal="FFT Bands Right Channel"
+            signal="FFT Computer Right Channel"
             yLabelPosition="right"
             barColor="rgba(54, 162, 235, 0.6)"
             xLabelMinRotation={90}

@@ -17,12 +17,13 @@ import {
   LineChartOutlined,
   PlayCircleOutlined,
   ArrowLeftOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
 
 interface MenuItem {
   key: string;
   targetScreen?: ScreenType;
-  targetMenu?: 'main' | 'settings' | 'animations' | 'heatmap';
+  targetMenu?: 'main' | 'performance' | 'settings' | 'animations' | 'heatmap';
   label: string;
   icon: React.ReactNode;
 }
@@ -32,8 +33,16 @@ const MENU_STRUCTURE = {
     label: 'Navigation',
     items: [
       { key: 'home', targetScreen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'performance', targetMenu: 'performance', label: 'Performance', icon: <DashboardOutlined style={{ fontSize: '50px' }} /> },
       { key: 'settings', targetMenu: 'settings', label: 'Settings', icon: <SettingOutlined style={{ fontSize: '50px' }} /> },
       { key: 'animations', targetMenu: 'animations', label: 'Animations', icon: <PlayCircleOutlined style={{ fontSize: '50px' }} /> },
+    ],
+  },
+  performance: {
+    label: 'Performance',
+    items: [
+      { key: 'cpu performance', targetScreen: SCREENS.PERFORMANCE_SCREEN, label: 'CPU Performance', icon: <DashboardOutlined style={{ fontSize: '50px' }} /> },
+      { key: 'back', targetMenu: 'main', label: 'Back', icon: <ArrowLeftOutlined style={{ fontSize: '50px' }} /> },
     ],
   },
   settings: {

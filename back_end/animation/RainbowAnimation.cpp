@@ -2,15 +2,15 @@
 
 RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 100)
-    , leftBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Bin Data")))
-    , rightBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Bin Data")))
+    , leftBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Computer Left Bin Data")))
+    , rightBinDataSignal_(std::dynamic_pointer_cast<Signal<BinData>>(SignalManager::getInstance().getSharedSignalByName("FFT Computer Right Bin Data")))
     , colorMappingTypeSignal_(std::dynamic_pointer_cast<Signal<std::string>>(SignalManager::getInstance().getSharedSignalByName("Color Mapping Type")))
     , logger_(initializeLogger("Rainbow Animation Logger", spdlog::level::info))
 {   
     auto leftBinDataSignal = leftBinDataSignal_.lock();
     if (leftBinDataSignal)
     {
-        logger_->info("FFT Bands Left Bin Data signal initialized successfully.");
+        logger_->info("FFT Computer Left Bin Data signal initialized successfully.");
         leftBinDataSignal->registerSignalValueCallback([this](const BinData& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
             this->logger_->debug("Left Bin Data Signal Callback.");
@@ -26,7 +26,7 @@ RainbowAnimation::RainbowAnimation(PixelGridSignal& grid)
     auto rightBinDataSignal = rightBinDataSignal_.lock();
     if (rightBinDataSignal)
     {
-        logger_->info("FFT Bands Right Bin Data signal initialized successfully.");
+        logger_->info("FFT Computer Right Bin Data signal initialized successfully.");
         rightBinDataSignal->registerSignalValueCallback([this](const BinData& value, void* arg) {
             std::lock_guard<std::mutex> lock(this->mutex_);
             this->logger_->debug("Right Bin Data Signal Callback.");

@@ -33,7 +33,7 @@ int main()
     auto webSocketServer = std::make_shared<WebSocketServer>(8080);
     SignalFactory::CreateSignals(webSocketServer);
     auto mic = std::make_shared<I2SMicrophone>("snd_rpi_googlevoicehat_soundcar", "Microphone", 48000, 1024, SND_PCM_FORMAT_S24_LE, SND_PCM_ACCESS_RW_INTERLEAVED, true, 200000, webSocketServer);
-    auto fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Bands", 8192, 48000, (1 << 23) - 1, webSocketServer);
+    auto fftComputer = std::make_shared<FFTComputer>("FFT Computer", "Microphone", "FFT Computer", 8192, 48000, (1 << 23) - 1, webSocketServer);
     auto deploymentManger = std::make_shared<DeploymentManager>();
     auto systemStatusMonitor = std::make_shared<SystemStatusMonitor>(webSocketServer);
     

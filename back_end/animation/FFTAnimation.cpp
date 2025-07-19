@@ -3,8 +3,8 @@
 FFTAnimation::FFTAnimation(PixelGridSignal& grid)
     : PixelGridAnimation(grid, 30)
 {
-    auto leftBase = SignalManager::getInstance().getSharedSignalByName("FFT Bands Left Channel");
-    auto rightBase = SignalManager::getInstance().getSharedSignalByName("FFT Bands Right Channel");
+    auto leftBase = SignalManager::getInstance().getSharedSignalByName("FFT Computer Left Channel");
+    auto rightBase = SignalManager::getInstance().getSharedSignalByName("FFT Computer Right Channel");
 
     fftLeft_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(leftBase);
     fftRight_ = std::dynamic_pointer_cast<Signal<std::vector<float>>>(rightBase);
