@@ -5,3 +5,23 @@ sl-drawer::part(body) {
 sl-button {
   margin: 1rem;
 }
+
+/* Selected menu item */
+.ant-menu-item-selected {
+  background-color: #1890ff !important;
+  color: white !important;
+}
+
+/* Hovered menu item */
+.ant-menu-item:hover,
+.ant-menu-submenu-title:hover {
+  background-color: #75bcff !important;
+  color: white !important;
+}
+
+/* Active (clicked) menu item - during mouse down */
+.ant-menu-item-active,
+.ant-menu-item:active {
+  background-color: #75bcff !important;
+  color: white !important;
+}

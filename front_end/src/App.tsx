@@ -30,7 +30,7 @@ interface MenuItem {
 
 const MENU_STRUCTURE = {
   main: {
-    label: 'Navigation',
+    label: 'Menu',
     items: [
       { key: 'home', targetScreen: SCREENS.HOME, label: 'Home', icon: <HomeOutlined style={{ fontSize: '50px' }} /> },
       { key: 'performance', targetMenu: 'performance', label: 'Performance', icon: <DashboardOutlined style={{ fontSize: '50px' }} /> },

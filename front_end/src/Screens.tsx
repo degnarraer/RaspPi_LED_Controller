@@ -151,16 +151,25 @@ export function TowerScreen({ socket }: ScreenProps) {
 
   export function PerformanceScreen({ socket }: ScreenProps) {
     const itemStyle = {
-      backgroundColor: 'darkgray',
+      backgroundColor: 'transparent',
+      justifyContent: 'flex-end',
+      textAlign: 'right'as const,
       height:'50px',
       display: 'flex', 
       alignItems: 'center',
-      fontSize: '30px',
+      fontSize: '20px',
+      textShadow: `
+          -1px -1px 0 #000,
+            1px -1px 0 #000,
+          -1px  1px 0 #000,
+            1px  1px 0 #000
+      `,
     };
     const iconstyle={
       ...itemStyle,
       justifyContent: 'center',
       lineHeight: '1',
+      fontSize: '40px',
     };
     return (
       <div
@@ -224,17 +233,17 @@ export function TowerScreen({ socket }: ScreenProps) {
         </div>
         <div style={itemStyle}>
           <HorizontalGauge
-            min={30}
-            max={90}
+            min={0}
+            max={100}
             signal={"CPU Temp"}
             socket={socket}
             zones={[
               { from: 0, to: 70, color: 'green' },
               { from: 70, to: 80, color: 'yellow' },
-              { from: 80, to: 90, color: 'red' },
+              { from: 80, to: 100, color: 'red' },
             ]}
-            tickMarks={[0, 20, 40, 50, 60, 70, 80, 90]}
-            tickMarkLabels={['0 °C', '20 °C', '40 °C', '50  °C', '60 °C', '70 °C', '80 °C']}
+            tickMarks={[0, 20, 40, 60, 80, 100]}
+            tickMarkLabels={['0 °C', '20 °C', '40 °C', '60 °C', '80 °C', '100 °C']}
           />
         </div>
 
@@ -245,7 +254,7 @@ export function TowerScreen({ socket }: ScreenProps) {
         <div
           style={iconstyle}
         >
-          🌡️
+          🎤
         </div>
         <div style={itemStyle}>
           <HorizontalGauge
@@ -270,7 +279,7 @@ export function TowerScreen({ socket }: ScreenProps) {
         <div
           style={iconstyle}
         >
-          🌡️
+          🎤
         </div>
         <div style={itemStyle}>
           <HorizontalGauge
