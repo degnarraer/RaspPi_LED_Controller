@@ -98,15 +98,16 @@ class FFTComputer
         std::shared_ptr<Signal<BinData>> leftBinDataSignal_ = signalManager_.createSignal<BinData>(output_signal_name_ + " Left Bin Data", webSocketServer_, get_bin_data_encoder());
         std::shared_ptr<Signal<BinData>> rightBinDataSignal_ = signalManager_.createSignal<BinData>(output_signal_name_ + " Right Bin Data", webSocketServer_, get_bin_data_encoder());
 
+        static constexpr float micOffsetDb = 120.0f;
         std::shared_ptr<Signal<float>> minDbSignal_;
-        float minDbValue_ = 0.0f;
+        float minDbValue_ = 30.0f; // Whisper
         std::shared_ptr<Signal<float>> maxDbSignal_;
-        float maxDbValue_ = 40.0f;
+        float maxDbValue_ = 90.0f; // City Traffic
 
         float minRenderFrequency_ = 0.0f;
         std::weak_ptr<Signal<float>> minRenderFrequencySignal_;
 
-        float maxRenderFrequency_ = 24000.0f;
+        float maxRenderFrequency_ = sampleRate_ / 2.0f;
         std::weak_ptr<Signal<float>> maxRenderFrequencySignal_;
 
         static std::vector<std::string> GetIsoBandLabels();
@@ -116,7 +117,8 @@ class FFTComputer
         void processFFT(const DataPacket& dataPacket);
         void logSAEBands(std::vector<float>& saeBands) const;
         float normalizeDb(float amplitude);
-        void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands, BinData& binData);
+        void computeFFTBinData(const std::vector<float>& magnitudes, BinData& binData);
+        void computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands);
 
         static constexpr std::array<float, 32> ISO_32_BAND_CENTERS =
         {

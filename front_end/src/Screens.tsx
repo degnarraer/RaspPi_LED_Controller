@@ -260,7 +260,7 @@ export function TowerScreen({ socket }: ScreenProps) {
           <HorizontalGauge
             min={0}
             max={120}
-            signal={"FFT Computer Left Channel Loudness"}
+            signal={"FFT Computer Left Channel Power SPL"}
             socket={socket}
             zones={[
               { from: 0, to: 70, color: 'green' },
@@ -269,6 +269,29 @@ export function TowerScreen({ socket }: ScreenProps) {
             ]}
             tickMarks={[0, 20, 40, 60, 80, 100, 120]}
             tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
+          />
+        </div>
+
+        {/* Left Mic % */}
+        <div style={itemStyle}>
+          Left Mic %
+        </div>
+        <div
+          style={iconstyle}
+        >
+          🎤
+        </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={0}
+            max={1}
+            signal={"FFT Computer Right Channel Power Normalized"}
+            socket={socket}
+            zones={[
+              { from: 0.0, to: 1.0, color: 'green' },
+            ]}
+            tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
+            tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
           />
         </div>
         
@@ -285,7 +308,7 @@ export function TowerScreen({ socket }: ScreenProps) {
           <HorizontalGauge
             min={0}
             max={120}
-            signal={"FFT Computer Right Channel Loudness"}
+            signal={"FFT Computer Left Channel Power SPL"}
             socket={socket}
             zones={[
               { from: 0, to: 70, color: 'green' },
@@ -296,7 +319,29 @@ export function TowerScreen({ socket }: ScreenProps) {
             tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
           />
         </div>
-
+        
+        {/* Right Mic % */}
+        <div style={itemStyle}>
+          Right Mic %
+        </div>
+        <div
+          style={iconstyle}
+        >
+          🎤
+        </div>
+        <div style={itemStyle}>
+          <HorizontalGauge
+            min={0}
+            max={1}
+            signal={"FFT Computer Left Channel Power Normalized"}
+            socket={socket}
+            zones={[
+              { from: 0.0, to: 1.0, color: 'green' },
+            ]}
+            tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
+            tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
+          />
+        </div>
       </div>
 
     );
@@ -586,8 +631,8 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
           <Incrementer
             signal="Min db"
             socket={socket}
-            min={-80}
-            max={30}
+            min={0}
+            max={50}
             step={1}
             units="dB"
             holdEnabled={true}
@@ -601,8 +646,8 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
           <Incrementer
             signal="Max db"
             socket={socket}
-            min={0}
-            max={140}
+            min={60}
+            max={120}
             step={1}
             units="dB"
             holdEnabled={true}

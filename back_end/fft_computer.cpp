@@ -33,7 +33,7 @@ FFTComputer::FFTComputer( const std::string name
     }
     fftOutput_.resize(fft_size_);        
     registerCallbacks();
-    fftThread_ = std::thread(&FFTComputer::processQueue, this);
+    fftThread_ = std::thread([this]() { this->processQueue(); });
 
     minDbSignal_ = std::dynamic_pointer_cast<Signal<float>>(SignalManager::getInstance().getSharedSignalByName("Min db"));
     if (minDbSignal_)
@@ -96,7 +96,7 @@ FFTComputer::FFTComputer( const std::string name
     else
     {
         logger_->warn("Maximum Render Frequency Signal not found, using default value: 24000.0f");
-        maxRenderFrequency_ = 24000.0f; // Default initialization
+        maxRenderFrequency_ = sampleRate_ / 2.0f; // Default initialization
     }
 
 }
@@ -129,7 +129,8 @@ std::string FFTComputer::channelTypeToString(ChannelType channel)
         case ChannelType::Right:
             return "Right";
         default:
-            return "Unknown";  // In case a new value is added or if an invalid value is passed
+            return "Unknown";
+            
     }
 }
 
@@ -216,68 +217,122 @@ void FFTComputer::processQueue()
 
 void FFTComputer::processFFT(const DataPacket& dataPacket)
 {
-    float loudnessDb = 0.0f;
-    std::vector<kiss_fft_cpx> inputData(fft_size_);
-    std::vector<float> inputDataNormalized(fft_size_, 0.0f);
-    int count = std::min(fft_size_, dataPacket.data.size());
-    for (size_t i = 0; i < count; ++i)
+    const auto& data = dataPacket.data;
+    const auto channel = dataPacket.channel;
+
+    if (!fft_)
     {
-        inputData[i].r = static_cast<float>(dataPacket.data[i]);
-        inputData[i].i = 0;
-        inputDataNormalized[i] = inputData[i].r / maxValue_;
-        loudnessDb += inputDataNormalized[i] * inputDataNormalized[i];
+        logger_->error("FFT not initialized");
+        return;
     }
 
-    if (count > 0)
+    // --- Calculate total power BEFORE FFT ---
+
+    float sumSquares = 0.0f;
+    size_t n = data.size();
+
+    for (size_t i = 0; i < n; ++i)
     {
-        loudnessDb /= count; // mean square
-        loudnessDb = std::sqrt(loudnessDb); // RMS
-        loudnessDb = 20.0f * std::log10(loudnessDb + 1e-6f); // dBFS, +epsilon to avoid log(0)
-        
-        // Convert to approximate dB SPL using INMP441 sensitivity
-        loudnessDb += 120.0f;
+        float sample = static_cast<float>(data[i]) / static_cast<float>(maxValue_);
+        sumSquares += sample * sample;
+    }
+
+    float rms = (n > 0) ? std::sqrt(sumSquares / n) : 0.0f;
+    float safeRms = std::max(rms, 1e-12f);
+
+    float totalPowerDb = 20.0f * std::log10(safeRms) + micOffsetDb;
+    totalPowerDb = std::max(totalPowerDb, minDbValue_);
+
+    float denom = maxDbValue_ - minDbValue_;
+    if (denom <= 0.0f) denom = 1.0f; // avoid div by zero
+
+    float totalNormalizedPower = (totalPowerDb - minDbValue_) / denom;
+    totalNormalizedPower = std::clamp(totalNormalizedPower, 0.0f, 1.0f);
+
+    // --- Prepare input for kiss_fft ---
+
+    std::vector<kiss_fft_cpx> fftInput(fft_size_);
+    for (size_t i = 0; i < fft_size_ && i < data.size(); ++i)
+    {
+        fftInput[i].r = static_cast<float>(data[i]) / static_cast<float>(maxValue_);
+        fftInput[i].i = 0.0f;
+    }
+
+    // Zero pad
+    for (size_t i = data.size(); i < fft_size_; ++i)
+    {
+        fftInput[i].r = 0.0f;
+        fftInput[i].i = 0.0f;
+    }
+
+    // Perform FFT
+    kiss_fft(fft_, fftInput.data(), fftOutput_.data());
+
+    // Calculate magnitudes
+    std::vector<float> magnitudes(fft_size_ / 2);
+    for (size_t i = 0; i < fft_size_ / 2; ++i)
+    {
+        float real = fftOutput_[i].r / fft_size_;
+        float imag = fftOutput_[i].i / fft_size_;
+        magnitudes[i] = sqrtf(real * real + imag * imag) * sqrt2;
+    }
+
+    // Compute SAE bands (raw RMS amplitudes)
+    std::vector<float> saeBands(32);
+    BinData binData;
+    computeSAEBands(magnitudes, saeBands);
+    computeFFTBinData(magnitudes, binData);
+
+    // Convert to SPL dB and normalized bands
+    std::vector<float> splBands(32);
+    std::vector<float> normalizedBands(32);
+
+    for (size_t i = 0; i < saeBands.size(); ++i)
+    {
+        float amplitude = saeBands[i];
+
+        // Defensive safe amplitude
+        float safeAmplitude = std::max(amplitude, 1e-12f);
+
+        // Convert to dB SPL
+        float db = 20.0f * log10f(safeAmplitude) + micOffsetDb;
+
+        // Defensive normalization denominator
+        float denom = maxDbValue_ - minDbValue_;
+        if (denom <= 0.0f) denom = 1.0f; // avoid div by zero
+
+        // Normalize
+        float normalized = (db - minDbValue_) / denom;
+        float clampedNormalized = std::clamp(normalized, 0.0f, 1.0f);
+
+        splBands[i] = db;
+        normalizedBands[i] = clampedNormalized;
+
+        logger_->trace("FFT band {}: amplitude={}, db={}, normalized={}, clamped normalized={}", i, amplitude, db, normalized, clampedNormalized);
+    }
+
+    std::string totalPowerStr = std::to_string(totalPowerDb);
+    std::string totalNormalizedPowerStr = std::to_string(totalNormalizedPower);
+
+    logger_->trace("FFT Computer {}: Channel {}: Total Power SPL: {}, Total Normalized Power: {}", name_, channelTypeToString(channel), totalPowerStr, totalNormalizedPowerStr);
+
+    // Publish signals
+    if (channel == ChannelType::Left)
+    {
+        leftChannelFFTOutputSPLSignal_->setValue(splBands);
+        leftChannelFFTOutputNormalizedSignal_->setValue(normalizedBands);
+        leftChannelPowerSPLSignal_->setValue(totalPowerStr);
+        leftChannelPowerNormalizedSignal_->setValue(totalNormalizedPowerStr);
     }
     else
     {
-        loudnessDb = -120.0f; // or appropriate silence floor
+        rightChannelFFTOutputSPLSignal_->setValue(splBands);
+        rightChannelFFTOutputNormalizedSignal_->setValue(normalizedBands);
+        rightChannelPowerSPLSignal_->setValue(totalPowerStr);
+        rightChannelPowerNormalizedSignal_->setValue(totalNormalizedPowerStr);
     }
 
-    kiss_fft(fft_, inputData.data(), fftOutput_.data());
-
-    std::vector<float> magnitudes(fft_size_, 0.0f);
-    std::vector<float> saeBands(32, 0.0f);
-    const float max_int32 = std::numeric_limits<int32_t>::max();
-    for (size_t i = 0; i < fft_size_; ++i)
-    {
-        magnitudes[i] = sqrt(fftOutput_[i].r * fftOutput_[i].r + fftOutput_[i].i * fftOutput_[i].i);
-        magnitudes[i] /= maxValue_;
-    }
-    BinData binData;
-    computeSAEBands(magnitudes, saeBands, binData);
     logSAEBands(saeBands);
-
-    if (fftCallback_)
-    {
-        fftCallback_(saeBands, dataPacket.channel);
-    }
-    switch(dataPacket.channel)
-    {
-        case ChannelType::Left:
-            logger_->debug("Device {}: Set Left Output Signal Value:", name_);
-            leftChannelFFTOutputSPLSignal_->setValue(saeBands);
-            leftBinDataSignal_->setValue(binData);
-            leftChannelPowerSPLSignal_->setValue(std::to_string(loudnessDb));
-        break;
-        case ChannelType::Right:
-            logger_->debug("Device {}: Set Right Output Signal Value:", name_);
-            rightChannelFFTOutputSPLSignal_->setValue(saeBands);
-            rightBinDataSignal_->setValue(binData);
-            rightChannelPowerSPLSignal_->setValue(std::to_string(loudnessDb));
-        break;
-        default:
-            logger_->error("Device {}: Unsupported channel type:", name_);
-        break;
-    }
 }
 
 void FFTComputer::logSAEBands(std::vector<float>& saeBands) const
@@ -298,42 +353,51 @@ float FFTComputer::normalizeDb(float amplitude)
     return std::clamp(normalized, 0.0f, 1.0f);
 }
 
-void FFTComputer::computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands, BinData& binData)
+void FFTComputer::computeFFTBinData(const std::vector<float>& magnitudes, BinData& binData)
 {
     float freqResolution = static_cast<float>(sampleRate_) / fft_size_;
 
     // Convert min/max frequency to bin range
     size_t minAllowedBin = static_cast<size_t>(std::floor(minRenderFrequency_ / freqResolution));
     size_t maxAllowedBin = static_cast<size_t>(std::ceil(maxRenderFrequency_ / freqResolution));
+    logger_->trace("FFT Computer {}: minRenderFrequency_={} Hz, maxRenderFrequency_={} Hz, freqResolution={} Hz/bin, minAllowedBin={}, maxAllowedBin={}", name_, minRenderFrequency_, maxRenderFrequency_, freqResolution, minAllowedBin, maxAllowedBin);
+    // Clamp to valid FFT bin indices
     minAllowedBin = std::min(minAllowedBin, fft_size_ - 1);
     maxAllowedBin = std::min(maxAllowedBin, fft_size_ - 1);
 
-    // Initialize binData
-    binData.normalizedMinValue = std::numeric_limits<float>::max();
-    binData.normalizedMaxValue = std::numeric_limits<float>::lowest();
-    binData.minBin = minAllowedBin;
-    binData.maxBin = maxAllowedBin;
+    // Initialize search
+    float minValue = std::numeric_limits<float>::max();
+    float maxValue = std::numeric_limits<float>::lowest();
+    uint16_t minBinIndex = static_cast<uint16_t>(minAllowedBin);
+    uint16_t maxBinIndex = static_cast<uint16_t>(minAllowedBin);
 
-    // Find min/max amplitude within allowed bin range
     for (size_t i = minAllowedBin; i <= maxAllowedBin; ++i)
     {
-        if (magnitudes[i] < binData.normalizedMinValue)
+        if (magnitudes[i] < minValue)
         {
-            binData.normalizedMinValue = magnitudes[i];
-            binData.minBin = static_cast<uint16_t>(i);
+            minValue = magnitudes[i];
+            minBinIndex = static_cast<uint16_t>(i);
         }
-        if (magnitudes[i] > binData.normalizedMaxValue)
+        if (magnitudes[i] > maxValue)
         {
-            binData.normalizedMaxValue = magnitudes[i];
-            binData.maxBin = static_cast<uint16_t>(i);
+            maxValue = magnitudes[i];
+            maxBinIndex = static_cast<uint16_t>(i);
         }
     }
 
-    // Normalize to 0–1.0
-    binData.normalizedMinValue = normalizeDb(binData.normalizedMinValue);
-    binData.normalizedMaxValue = normalizeDb(binData.normalizedMaxValue);
+    // Populate binData
+    binData.minBin = minBinIndex;
+    binData.maxBin = maxBinIndex;
+    binData.totalBins = static_cast<uint16_t>(maxAllowedBin - minAllowedBin + 1);
+    binData.normalizedMinValue = minValue;
+    binData.normalizedMaxValue = maxValue;
+}
 
-    // Compute all 32 SAE bands
+void FFTComputer::computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands)
+{
+    float freqResolution = static_cast<float>(sampleRate_) / fft_size_;
+
+    saeBands.resize(32);
     for (size_t i = 0; i < ISO_32_BAND_CENTERS.size(); ++i)
     {
         float lowerFreq, upperFreq;
@@ -359,34 +423,29 @@ void FFTComputer::computeSAEBands(const std::vector<float>& magnitudes, std::vec
         size_t binStart = static_cast<size_t>(std::floor(lowerFreq / freqResolution));
         size_t binEnd = static_cast<size_t>(std::ceil(upperFreq / freqResolution));
 
-        binStart = std::min(binStart, fft_size_ - 1);
-        binEnd = std::min(binEnd, fft_size_ - 1);
+        // CLAMP TO magnitudes size (fft_size_/2)
+        binStart = std::min(binStart, (fft_size_/2) - 1);
+        binEnd = std::min(binEnd, (fft_size_/2) - 1);
 
         saeBands[i] = 0.0f;
         size_t count = 0;
 
         for (size_t j = binStart; j <= binEnd; ++j)
         {
-            saeBands[i] += magnitudes[j] * magnitudes[j]; // power
+            saeBands[i] += magnitudes[j] * magnitudes[j];
             ++count;
         }
 
         if (count > 0)
         {
-            // RMS
             saeBands[i] = std::sqrt(saeBands[i] / static_cast<float>(count));
-            saeBands[i] = normalizeDb(saeBands[i]);
         }
         else
         {
             saeBands[i] = 0.0f;
         }
     }
-
-    // totalBins now reflects only the bins within the min/max render frequency
-    binData.totalBins = static_cast<uint16_t>(maxAllowedBin - minAllowedBin + 1);
 }
-
 
 double FFTComputer::getFFTFrequency(int binIndex)
 {
