@@ -653,46 +653,6 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
             />
           </div>
         </div>
-
-        <div style={column4gridStyle}>
-          {/* Left Mic */}
-          <div style={itemStyle}>
-            Left Mic
-          </div>
-          <div
-            style={iconstyle}
-          >
-            🎤
-          </div>
-          <div style={itemStyle}>
-            <HorizontalGauge
-              min={0}
-              max={120}
-              signal={"FFT Computer Left Channel Power SPL"}
-              socket={socket}
-              zones={[
-                { from: 0, to: 70, color: 'green' },
-                { from: 70, to: 90, color: 'yellow' },
-                { from: 90, to: 120, color: 'red' },
-              ]}
-              tickMarks={[0, 20, 40, 60, 80, 100, 120]}
-              tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
-            />
-          </div>
-          <div style={itemStyle}>
-            <HorizontalGauge
-              min={0}
-              max={1}
-              signal={"FFT Computer Right Channel Power Normalized"}
-              socket={socket}
-              zones={[
-                { from: 0.0, to: 1.0, color: 'green' },
-              ]}
-              tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
-              tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
-            />
-          </div>
-        </div>
         <div style={column4gridStyle}>
           {/* Right Mic */}
           <div style={itemStyle}>

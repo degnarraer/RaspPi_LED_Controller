@@ -210,12 +210,12 @@ void FFTComputer::processQueue()
         {
             std::vector<int32_t> fftData(buffer->begin(), buffer->begin() + requiredSamples);
             buffer->erase(buffer->begin(), buffer->begin() + nonOverlappingSamples);
-            processFFT({ std::move(fftData), dataPacket.channel });
+            processSoundDate({ std::move(fftData), dataPacket.channel });
         }
     }
 }
 
-void FFTComputer::processFFT(const DataPacket& dataPacket)
+void FFTComputer::processSoundDate(const DataPacket& dataPacket)
 {
     const auto& data = dataPacket.data;
     const auto channel = dataPacket.channel;
@@ -239,18 +239,10 @@ void FFTComputer::processFFT(const DataPacket& dataPacket)
 
     float rms = (n > 0) ? std::sqrt(sumSquares / n) : 0.0f;
     float safeRms = std::max(rms, 1e-12f);
-
     float totalPowerDb = 20.0f * std::log10(safeRms) + micOffsetDb;
-    totalPowerDb = std::max(totalPowerDb, minDbValue_);
-
-    float denom = maxDbValue_ - minDbValue_;
-    if (denom <= 0.0f) denom = 1.0f; // avoid div by zero
-
-    float totalNormalizedPower = (totalPowerDb - minDbValue_) / denom;
-    totalNormalizedPower = std::clamp(totalNormalizedPower, 0.0f, 1.0f);
+    float totalNormalizedPower = normalizeDb(totalPowerDb);
 
     // --- Prepare input for kiss_fft ---
-
     std::vector<kiss_fft_cpx> fftInput(fft_size_);
     for (size_t i = 0; i < fft_size_ && i < data.size(); ++i)
     {
@@ -296,19 +288,12 @@ void FFTComputer::processFFT(const DataPacket& dataPacket)
 
         // Convert to dB SPL
         float db = 20.0f * log10f(safeAmplitude) + micOffsetDb;
-
-        // Defensive normalization denominator
-        float denom = maxDbValue_ - minDbValue_;
-        if (denom <= 0.0f) denom = 1.0f; // avoid div by zero
-
-        // Normalize
-        float normalized = (db - minDbValue_) / denom;
-        float clampedNormalized = std::clamp(normalized, 0.0f, 1.0f);
+        float normalized = normalizeDb(db);
 
         splBands[i] = db;
-        normalizedBands[i] = clampedNormalized;
+        normalizedBands[i] = normalized;
 
-        logger_->trace("FFT band {}: amplitude={}, db={}, normalized={}, clamped normalized={}", i, amplitude, db, normalized, clampedNormalized);
+        logger_->trace("FFT band {}: amplitude={}, db={}, normalized={}", i, amplitude, db, normalized);
     }
 
     std::string totalPowerStr = std::to_string(totalPowerDb);
@@ -323,6 +308,7 @@ void FFTComputer::processFFT(const DataPacket& dataPacket)
         leftChannelFFTOutputNormalizedSignal_->setValue(normalizedBands);
         leftChannelPowerSPLSignal_->setValue(totalPowerStr);
         leftChannelPowerNormalizedSignal_->setValue(totalNormalizedPowerStr);
+        leftBinDataSignal_->setValue(binData);
     }
     else
     {
@@ -330,6 +316,7 @@ void FFTComputer::processFFT(const DataPacket& dataPacket)
         rightChannelFFTOutputNormalizedSignal_->setValue(normalizedBands);
         rightChannelPowerSPLSignal_->setValue(totalPowerStr);
         rightChannelPowerNormalizedSignal_->setValue(totalNormalizedPowerStr);
+        rightBinDataSignal_->setValue(binData);
     }
 
     logSAEBands(saeBands);
@@ -346,10 +333,11 @@ void FFTComputer::logSAEBands(std::vector<float>& saeBands) const
     logger_->trace("SAE Band Values: {}", result);
 }
 
-float FFTComputer::normalizeDb(float amplitude)
+float FFTComputer::normalizeDb(float db)
 {
-    float db = 20.0f * std::log10(amplitude + 1e-6f);
-    float normalized = (db - minDbValue_) / (maxDbValue_ - minDbValue_);
+    float denom = maxDbValue_ - minDbValue_;
+    if (denom <= 0.0f) denom = 1.0f; // Defensive
+    float normalized = (db - minDbValue_) / denom;
     return std::clamp(normalized, 0.0f, 1.0f);
 }
 
@@ -361,6 +349,7 @@ void FFTComputer::computeFFTBinData(const std::vector<float>& magnitudes, BinDat
     size_t minAllowedBin = static_cast<size_t>(std::floor(minRenderFrequency_ / freqResolution));
     size_t maxAllowedBin = static_cast<size_t>(std::ceil(maxRenderFrequency_ / freqResolution));
     logger_->trace("FFT Computer {}: minRenderFrequency_={} Hz, maxRenderFrequency_={} Hz, freqResolution={} Hz/bin, minAllowedBin={}, maxAllowedBin={}", name_, minRenderFrequency_, maxRenderFrequency_, freqResolution, minAllowedBin, maxAllowedBin);
+    
     // Clamp to valid FFT bin indices
     minAllowedBin = std::min(minAllowedBin, fft_size_ - 1);
     maxAllowedBin = std::min(maxAllowedBin, fft_size_ - 1);
@@ -389,8 +378,14 @@ void FFTComputer::computeFFTBinData(const std::vector<float>& magnitudes, BinDat
     binData.minBin = minBinIndex;
     binData.maxBin = maxBinIndex;
     binData.totalBins = static_cast<uint16_t>(maxAllowedBin - minAllowedBin + 1);
-    binData.normalizedMinValue = minValue;
-    binData.normalizedMaxValue = maxValue;
+
+    float safeAmplitude = std::max(minValue, 1e-12f);
+    float db = 20.0f * std::log10(safeAmplitude) + micOffsetDb;
+    binData.normalizedMinValue = normalizeDb(db);
+
+    safeAmplitude = std::max(maxValue, 1e-12f);
+    db = 20.0f * std::log10(safeAmplitude) + micOffsetDb;
+    binData.normalizedMaxValue = normalizeDb(db);
 }
 
 void FFTComputer::computeSAEBands(const std::vector<float>& magnitudes, std::vector<float>& saeBands)

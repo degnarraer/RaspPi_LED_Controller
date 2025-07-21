@@ -114,7 +114,7 @@ class FFTComputer
         void registerCallbacks();
         void unregisterCallbacks();
         void processQueue();
-        void processFFT(const DataPacket& dataPacket);
+        void processSoundDate(const DataPacket& dataPacket);
         void logSAEBands(std::vector<float>& saeBands) const;
         float normalizeDb(float amplitude);
         void computeFFTBinData(const std::vector<float>& magnitudes, BinData& binData);
