@@ -352,7 +352,7 @@ export function TowerScreen({ socket }: ScreenProps) {
       <div style={{ display: 'flex', width: '100%', height: '100%' }}>
         <div style={{ width: '50%', height: '100%' }}>
           <LiveBarChart
-            signal="FFT Computer Left Channel"
+            signal="FFT Computer Left Channel FFT Normalized"
             yLabelPosition="left"
             barColor="rgba(54, 162, 235, 0.6)"
             xLabelMinRotation={90}
@@ -363,7 +363,7 @@ export function TowerScreen({ socket }: ScreenProps) {
         </div>
         <div style={{ width: '50%', height: '100%' }}>
           <LiveBarChart
-            signal="FFT Computer Right Channel"
+            signal="FFT Computer Right Channel FFT Normalized"
             yLabelPosition="right"
             barColor="rgba(255, 99, 132, 0.6)"
             xLabelMinRotation={90}
@@ -380,8 +380,8 @@ export function TowerScreen({ socket }: ScreenProps) {
     return (
       <div style={{ width: '100%', height: '100%' }}>
         <MirroredVerticalBarChart
-          leftSignal="FFT Computer Left Channel"
-          rightSignal="FFT Computer Right Channel"
+          leftSignal="FFT Computer Left Channel FFT Normalized"
+          rightSignal="FFT Computer Right Channel FFT Normalized"
           socket={socket}
         />
       </div>
@@ -407,7 +407,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Computer Left Channel"
+              signal="FFT Computer Left Channel FFT Normalized"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -419,7 +419,7 @@ export function ScrollingHeatMapRainbowScreen({ socket }: ScreenProps) {
           </div>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Computer Right Channel"
+              signal="FFT Computer Right Channel FFT Normalized"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -440,7 +440,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Computer Left Channel"
+              signal="FFT Computer Left Channel FFT Normalized"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -454,7 +454,7 @@ export function ScrollingHeatMapScreen({ socket }: ScreenProps) {
           </div>
           <div style={{ width: '50%', height: '100%' }}>
             <ScrollingHeatmap
-              signal="FFT Computer Right Channel"
+              signal="FFT Computer Right Channel FFT Normalized"
               dataWidth={32}
               dataHeight={1000}
               min={0}
@@ -577,7 +577,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 10,
-    height: '40vh',
+    height: '20vh',
     width: '100%',
   };
 
@@ -596,6 +596,35 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
     marginTop: 20,
   };
 
+  const column4gridStyle: React.CSSProperties = { 
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 4fr 4fr',
+      gridTemplateRows: 'auto auto auto auto',
+      gap: '10px',
+  };
+
+  const itemStyle = {
+      backgroundColor: 'transparent',
+      justifyContent: 'flex-end',
+      textAlign: 'right'as const,
+      height:'50px',
+      display: 'flex', 
+      alignItems: 'center',
+      fontSize: '20px',
+      textShadow: `
+          -1px -1px 0 #000,
+            1px -1px 0 #000,
+          -1px  1px 0 #000,
+            1px  1px 0 #000
+      `,
+    };
+    const iconstyle={
+      ...itemStyle,
+      justifyContent: 'center',
+      lineHeight: '1',
+      fontSize: '40px',
+    };
+
   return (
     <div style={containerStyle}>
       <div style={sectionStyle}>
@@ -603,7 +632,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
         <div style={chartRowStyle}>
           <div style={{ width: '50%', height: '100%' }}>
             <LiveBarChart
-              signal="FFT Computer Left Channel"
+              signal="FFT Computer Left Channel FFT Normalized"
               yLabelPosition="left"
               barColor="rgba(54, 162, 235, 0.6)"
               xLabelMinRotation={90}
@@ -614,13 +643,92 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
           </div>
           <div style={{ width: '50%', height: '100%' }}>
             <LiveBarChart
-              signal="FFT Computer Right Channel"
+              signal="FFT Computer Right Channel FFT Normalized"
               yLabelPosition="right"
               barColor="rgba(255, 99, 132, 0.6)"
               xLabelMinRotation={90}
               xLabelMaxRotation={90}
               flipX={false}
               socket={socket}
+            />
+          </div>
+        </div>
+
+        <div style={column4gridStyle}>
+          {/* Left Mic */}
+          <div style={itemStyle}>
+            Left Mic
+          </div>
+          <div
+            style={iconstyle}
+          >
+            🎤
+          </div>
+          <div style={itemStyle}>
+            <HorizontalGauge
+              min={0}
+              max={120}
+              signal={"FFT Computer Left Channel Power SPL"}
+              socket={socket}
+              zones={[
+                { from: 0, to: 70, color: 'green' },
+                { from: 70, to: 90, color: 'yellow' },
+                { from: 90, to: 120, color: 'red' },
+              ]}
+              tickMarks={[0, 20, 40, 60, 80, 100, 120]}
+              tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
+            />
+          </div>
+          <div style={itemStyle}>
+            <HorizontalGauge
+              min={0}
+              max={1}
+              signal={"FFT Computer Right Channel Power Normalized"}
+              socket={socket}
+              zones={[
+                { from: 0.0, to: 1.0, color: 'green' },
+              ]}
+              tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
+              tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
+            />
+          </div>
+        </div>
+        <div style={column4gridStyle}>
+          {/* Right Mic */}
+          <div style={itemStyle}>
+            Right Mic
+          </div>
+          <div
+            style={iconstyle}
+          >
+            🎤
+          </div>
+          <div style={itemStyle}>
+            <HorizontalGauge
+              min={0}
+              max={120}
+              signal={"FFT Computer Left Channel Power SPL"}
+              socket={socket}
+              zones={[
+                { from: 0, to: 70, color: 'green' },
+                { from: 70, to: 90, color: 'yellow' },
+                { from: 90, to: 120, color: 'red' },
+              ]}
+              tickMarks={[0, 20, 40, 60, 80, 100, 120]}
+              tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
+            />
+          </div>
+          <div style={itemStyle}>
+            <HorizontalGauge
+              min={0}
+              max={1}
+              signal={"FFT Computer Left Channel Power Normalized"}
+              socket={socket}
+              zones={[
+                { from: 0.0, to: 1.0, color: 'green' },
+              ]}
+              tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
+              tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
             />
           </div>
         </div>
@@ -803,7 +911,7 @@ export function SettingFrequencyRenderingScreen({ socket }: ScreenProps) {
       <div style={{ flex: 5, display: 'flex', flexDirection: 'row', width: '100%', marginBottom: 20, gap: 12, minHeight: 100, minWidth: 500, }}>
         <div style={{ flex: 1, marginBottom: 20, minHeight: 100, minWidth: 125, }}>
           <LiveBarChart
-            signal="FFT Computer Left Channel"
+            signal="FFT Computer Left Channel FFT Normalized"
             yLabelPosition="left"
             barColor="rgba(54, 162, 235, 0.6)"
             xLabelMinRotation={90}
@@ -814,7 +922,7 @@ export function SettingFrequencyRenderingScreen({ socket }: ScreenProps) {
         </div>
         <div style={{ flex: 1, marginBottom: 20, minHeight: 100, minWidth: 125, }}>
           <LiveBarChart
-            signal="FFT Computer Right Channel"
+            signal="FFT Computer Right Channel FFT Normalized"
             yLabelPosition="right"
             barColor="rgba(54, 162, 235, 0.6)"
             xLabelMinRotation={90}
