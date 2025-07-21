@@ -572,6 +572,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
     whiteSpace: 'nowrap',
   };
 
+  /*
   const chartRowStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'row',
@@ -580,7 +581,7 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
     height: '20vh',
     width: '100%',
   };
-
+*/
   const cellStyle: React.CSSProperties = {
     border: '1px solid #444',
     padding: '8px 12px',
@@ -596,10 +597,10 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
     marginTop: 20,
   };
 
-  const column4gridStyle: React.CSSProperties = { 
+  const column2gridStyle: React.CSSProperties = { 
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr 4fr 4fr',
-      gridTemplateRows: 'auto auto auto auto',
+      gridTemplateColumns: '1fr 1fr',
+      gridTemplateRows: 'auto auto',
       gap: '10px',
   };
 
@@ -628,71 +629,120 @@ export function SettingBrightnessScreen({ socket }: ScreenProps) {
   return (
     <div style={containerStyle}>
       <div style={sectionStyle}>
-        {/* FFT Graphs */}
-        <div style={chartRowStyle}>
-          <div style={{ width: '50%', height: '100%' }}>
-            <LiveBarChart
-              signal="FFT Computer Left Channel FFT Normalized"
-              yLabelPosition="left"
-              barColor="rgba(54, 162, 235, 0.6)"
-              xLabelMinRotation={90}
-              xLabelMaxRotation={90}
-              flipX={true}
-              socket={socket}
-            />
+        <div style={column2gridStyle}>
+          <div>
+            <div style={column2gridStyle}>
+              {/* Left Mic */}
+              <div style={itemStyle}>
+                Left Mic
+              </div>
+              <div
+                style={iconstyle}
+              >
+                🎤
+              </div>
+            </div>
+            <div>
+              {/* Left FFT Graph */}
+              <LiveBarChart
+                signal="FFT Computer Left Channel FFT Normalized"
+                yLabelPosition="left"
+                barColor="rgba(54, 162, 235, 0.6)"
+                xLabelMinRotation={90}
+                xLabelMaxRotation={90}
+                flipX={true}
+                socket={socket}
+              />
+            </div>
+            <div style={column2gridStyle}>
+              <div style={itemStyle}>
+                <HorizontalGauge
+                  min={0}
+                  max={120}
+                  signal={"FFT Computer Left Channel Power SPL"}
+                  socket={socket}
+                  zones={[
+                    { from: 0, to: 70, color: 'green' },
+                    { from: 70, to: 90, color: 'yellow' },
+                    { from: 90, to: 120, color: 'red' },
+                  ]}
+                  tickMarks={[0, 20, 40, 60, 80, 100, 120]}
+                  tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
+                />
+              </div>
+              <div style={itemStyle}>
+                <HorizontalGauge
+                  min={0}
+                  max={1}
+                  signal={"FFT Computer Left Channel Power Normalized"}
+                  socket={socket}
+                  zones={[
+                    { from: 0.0, to: 1.0, color: 'green' },
+                  ]}
+                  tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
+                  tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
+                />
+              </div>
+            </div>
           </div>
-          <div style={{ width: '50%', height: '100%' }}>
-            <LiveBarChart
-              signal="FFT Computer Right Channel FFT Normalized"
-              yLabelPosition="right"
-              barColor="rgba(255, 99, 132, 0.6)"
-              xLabelMinRotation={90}
-              xLabelMaxRotation={90}
-              flipX={false}
-              socket={socket}
-            />
+          <div>
+            <div style={column2gridStyle}>
+              {/* Right Mic */}
+              <div style={itemStyle}>
+                Right Mic
+              </div>
+              <div
+                style={iconstyle}
+              >
+                🎤
+              </div>
+            </div>
+            
+            <div>
+              {/* Right FFT Graph */}
+              <LiveBarChart
+                signal="FFT Computer Right Channel FFT Normalized"
+                yLabelPosition="right"
+                barColor="rgba(255, 99, 132, 0.6)"
+                xLabelMinRotation={90}
+                xLabelMaxRotation={90}
+                flipX={false}
+                socket={socket}
+              />
+            </div>
+            <div style={column2gridStyle}>
+              <div style={itemStyle}>
+                <HorizontalGauge
+                  min={0}
+                  max={120}
+                  signal={"FFT Computer Right Channel Power SPL"}
+                  socket={socket}
+                  zones={[
+                    { from: 0, to: 70, color: 'green' },
+                    { from: 70, to: 90, color: 'yellow' },
+                    { from: 90, to: 120, color: 'red' },
+                  ]}
+                  tickMarks={[0, 20, 40, 60, 80, 100, 120]}
+                  tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
+                />
+              </div>
+              <div style={itemStyle}>
+                <HorizontalGauge
+                  min={0}
+                  max={1}
+                  signal={"FFT Computer Right Channel Power Normalized"}
+                  socket={socket}
+                  zones={[
+                    { from: 0.0, to: 1.0, color: 'green' },
+                  ]}
+                  tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
+                  tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
+                />
+              </div>
+            </div>
           </div>
         </div>
-        <div style={column4gridStyle}>
-          {/* Right Mic */}
-          <div style={itemStyle}>
-            Right Mic
-          </div>
-          <div
-            style={iconstyle}
-          >
-            🎤
-          </div>
-          <div style={itemStyle}>
-            <HorizontalGauge
-              min={0}
-              max={120}
-              signal={"FFT Computer Left Channel Power SPL"}
-              socket={socket}
-              zones={[
-                { from: 0, to: 70, color: 'green' },
-                { from: 70, to: 90, color: 'yellow' },
-                { from: 90, to: 120, color: 'red' },
-              ]}
-              tickMarks={[0, 20, 40, 60, 80, 100, 120]}
-              tickMarkLabels={['0 Db','20 Db', '40 Db', '60 Db', '80 Db', '100 Db', '120 Db']}
-            />
-          </div>
-          <div style={itemStyle}>
-            <HorizontalGauge
-              min={0}
-              max={1}
-              signal={"FFT Computer Left Channel Power Normalized"}
-              socket={socket}
-              zones={[
-                { from: 0.0, to: 1.0, color: 'green' },
-              ]}
-              tickMarks={[0.0, 0.20, 0.40, 0.60, 0.80, 1.0]}
-              tickMarkLabels={['0 %','20 %', '40 %', '60 %', '80 %', '100 %']}
-            />
-          </div>
-        </div>
-
+    
         {/* Min dB */}
         <div style={rowStyle}>
           <div style={labelStyle}>Minimum dB Threshold</div>
